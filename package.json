@@ -1,0 +1,26 @@
+{
+  "name": "english-phone-tutor",
+  "version": "1.0.0",
+  "description": "Claude와 영어로 통화하며 배우는 전화영어 학습 앱",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pooky825-design/AI_Test.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pooky825-design/AI_Test/issues"
+  },
+  "homepage": "https://github.com/pooky825-design/AI_Test#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0"
+  },
+  "type": "module"
+}

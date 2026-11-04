@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>전화영어 with Claude</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 통화 시작 화면 -->
+  <section id="setup" class="screen">
+    <div class="card">
+      <div class="avatar big">E</div>
+      <h1>전화영어 with Claude</h1>
+      <p class="muted">튜터 Emma와 영어로 통화하며 연습해요.</p>
+
+      <label>레벨
+        <select id="level">
+          <option value="beginner">초급 (Beginner)</option>
+          <option value="intermediate" selected>중급 (Intermediate)</option>
+          <option value="advanced">고급 (Advanced)</option>
+        </select>
+      </label>
+
+      <label>대화 주제
+        <select id="topicPreset">
+          <option value="">자유 대화 (오늘 하루)</option>
+          <option value="ordering food at a restaurant">식당에서 주문하기</option>
+          <option value="a job interview">영어 면접</option>
+          <option value="travel and airport situations">여행 · 공항</option>
+          <option value="hobbies and weekend plans">취미 · 주말 계획</option>
+          <option value="small talk with a coworker">직장 동료와 스몰토크</option>
+          <option value="custom">직접 입력...</option>
+        </select>
+      </label>
+      <input id="topicCustom" class="hidden" placeholder="예: talking about K-pop" />
+
+      <label class="row"><input type="checkbox" id="autoListen" checked /> Emma 말이 끝나면 자동으로 듣기 시작</label>
+      <label>말하기 속도
+        <input type="range" id="rate" min="0.6" max="1.2" step="0.1" value="0.9" />
+      </label>
+
+      <button id="callBtn" class="call">📞 통화 시작</button>
+      <p id="setupError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- 통화 화면 -->
+  <section id="call" class="screen hidden">
+    <header class="callbar">
+      <div class="avatar">E</div>
+      <div>
+        <div class="name">Emma</div>
+        <div id="status" class="muted">연결 중...</div>
+      </div>
+      <div id="timer" class="timer">00:00</div>
+    </header>
+
+    <div id="transcript" class="transcript"></div>
+
+    <div id="suggestBox" class="suggest">
+      <div class="suggest-title">💡 이렇게 말해보세요 <span class="muted">(문장을 누르면 발음 듣기)</span></div>
+      <div id="suggestions"></div>
+    </div>
+
+    <div id="interim" class="interim"></div>
+
+    <footer class="controls">
+      <form id="textForm" class="textform">
+        <input id="textInput" placeholder="직접 입력해도 돼요 (영어/한국어)" autocomplete="off" />
+        <button type="submit">전송</button>
+      </form>
+      <div class="buttons">
+        <button id="repeatBtn" title="다시 듣기">🔁</button>
+        <button id="micBtn" class="mic" title="말하기">🎤</button>
+        <button id="hangupBtn" class="hangup" title="통화 종료">📵</button>
+      </div>
+    </footer>
+  </section>
+
+  <!-- 통화 요약 -->
+  <section id="summary" class="screen hidden">
+    <div class="card wide">
+      <h2>통화 요약</h2>
+      <p id="summaryStats" class="muted"></p>
+      <h3>✏️ 교정 받은 문장</h3>
+      <ul id="summaryCorrections"></ul>
+      <h3>⭐ 오늘의 표현</h3>
+      <ul id="summaryExpressions"></ul>
+      <button id="againBtn" class="call">다시 통화하기</button>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
