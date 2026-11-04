@@ -48,7 +48,7 @@ body {
 .card > p.muted { text-align: center; margin: 0; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
 label.row { flex-direction: row; align-items: center; font-weight: 400; }
-select, input[type=text], input:not([type]) {
+select, input[type=text], input[type=password], input:not([type]) {
   padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); font-size: 1rem;
 }

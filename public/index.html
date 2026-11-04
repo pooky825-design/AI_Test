@@ -35,6 +35,12 @@
       </label>
       <input id="topicCustom" class="hidden" placeholder="예: talking about K-pop" />
 
+      <!-- 안드로이드 앱에서만 보입니다 -->
+      <label id="apiKeyBox" class="hidden">Anthropic API 키
+        <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
+        <span class="muted">키는 이 기기에만 저장됩니다. console.anthropic.com 에서 발급받으세요.</span>
+      </label>
+
       <label class="row"><input type="checkbox" id="autoListen" checked /> Emma 말이 끝나면 자동으로 듣기 시작</label>
       <label>말하기 속도
         <input type="range" id="rate" min="0.6" max="1.2" step="0.1" value="0.9" />

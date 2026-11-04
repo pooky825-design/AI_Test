@@ -26,13 +26,36 @@ npm start
 - 음성 인식은 **Chrome**(PC/안드로이드)과 **Safari**(iOS)에서 잘 동작합니다. 지원하지 않는 브라우저에서는 텍스트 입력으로 대화할 수 있습니다.
 - 휴대폰에서 쓰려면 마이크 권한 때문에 **HTTPS**가 필요합니다 (localhost는 예외). 배포하거나 `ngrok http 3000` 같은 터널을 사용하세요.
 
+## 안드로이드 앱 (APK)
+
+서버 없이 휴대폰에서 바로 동작하는 안드로이드 앱으로도 빌드할 수 있습니다.
+
+- 앱 첫 화면에서 **Anthropic API 키**를 입력하면 기기에 저장되고, 앱이 Claude API를 직접 호출합니다.
+- 음성 인식/음성 출력은 안드로이드 기기의 기능(Google 음성 인식, TTS)을 사용합니다.
+- Android 6.0 이상에서 설치할 수 있습니다. 설치 시 "출처를 알 수 없는 앱" 설치를 허용해야 합니다.
+
+### 빌드 방법 (Ubuntu/Debian)
+
+```bash
+sudo apt-get install android-sdk-platform-23 aapt apksigner zipalign dalvik-exchange openjdk-17-jdk
+npm install
+./android/build.sh        # 결과물: dist/english-phone-tutor.apk
+```
+
+Gradle/Android Studio 없이 빌드합니다. 처음 빌드할 때 `~/.android/english-phone-tutor.keystore` 서명 키가 만들어집니다. 같은 키로 서명해야 기존 앱 위에 업데이트 설치가 되므로 이 파일을 보관하세요.
+
+> ⚠️ API 키가 앱(기기)에 저장되므로 **본인 전용**으로 쓰세요. 여러 사람에게 배포하려면 웹 서버 방식(`server.js`)을 쓰고 키는 서버에만 두는 것이 안전합니다.
+
 ## 구조
 
 | 파일 | 역할 |
 |---|---|
-| `server.js` | Express 서버. 대화 기록을 세션별로 보관하고 Claude API를 호출 |
+| `src/tutor.js` | Claude 호출 핵심 로직 (프롬프트, 응답 JSON 형식, 오류 메시지). 서버와 앱이 함께 사용 |
+| `server.js` | Express 서버. 대화 기록을 세션별로 보관하고 `src/tutor.js`로 Claude 호출 |
+| `mobile/entry.js` | 안드로이드 앱용: 서버 대신 앱 안에서 Claude를 직접 호출 |
+| `android/` | 안드로이드 앱 (`MainActivity.java`: WebView + 음성 인식/TTS 브리지), 빌드 스크립트 |
 | `public/index.html` | 시작 화면 / 통화 화면 / 요약 화면 |
-| `public/app.js` | 음성 인식(Web Speech API), 음성 출력(speechSynthesis), 화면 렌더링 |
+| `public/app.js` | 음성 인식/출력(브라우저: Web Speech API, 앱: AndroidBridge), 화면 렌더링 |
 | `public/style.css` | 스타일 (다크 모드 지원) |
 
 Claude는 매 턴마다 아래 형식의 JSON(structured outputs)으로 응답합니다.
@@ -51,7 +74,7 @@ Claude는 매 턴마다 아래 형식의 JSON(structured outputs)으로 응답�
 
 `.env`에서 바꿀 수 있습니다.
 
-- `CLAUDE_MODEL` (기본값 `claude-opus-5-5`): 비용을 줄이려면 `claude-sonnet-5-5`나 `claude-haiku-5-5`를 사용할 수 있습니다. Haiku는 서버 측 fallback을 지원하지 않으므로 그때는 `server.js`에서 `betas`/`fallbacks` 두 줄을 지우세요.
+- `CLAUDE_MODEL` (기본값 `claude-opus-5-5`): 비용을 줄이려면 `claude-sonnet-5-5`나 `claude-haiku-5-5`를 사용할 수 있습니다. Haiku는 서버 측 fallback을 지원하지 않으므로 그때는 `src/tutor.js`에서 `betas`/`fallbacks` 두 줄을 지우세요.
 - `PORT` (기본값 3000)
 
 응답 속도를 위해 `effort: "low"`를 사용하며, Claude가 안전 정책으로 요청을 거절하면 서버 측에서 다른 모델로 자동 재시도하도록(`fallbacks: "default"`) 설정되어 있습니다.

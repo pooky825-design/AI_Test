@@ -14,6 +14,17 @@ const state = {
   timerId: null,
 };
 
+// ---------- 실행 환경 ----------
+// 안드로이드 앱(WebView)에서는 window.AndroidBridge 로 기기의 음성 인식/음성 출력을,
+// window.LocalTutor 로 앱 안에서 직접 Claude를 호출합니다.
+// 웹 브라우저에서는 Web Speech API와 서버(/api/*)를 사용합니다.
+const Native = window.AndroidBridge || null;
+const backend = window.LocalTutor || {
+  startSession: (opts) => api("/api/session", opts),
+  chat: (sessionId, text) => api("/api/chat", { sessionId, text }),
+  endSession: (id) => fetch(`/api/session/${id}`, { method: "DELETE" }),
+};
+
 // ---------- 음성 출력 (TTS) ----------
 let englishVoice = null;
 function pickVoice() {
@@ -24,73 +35,121 @@ function pickVoice() {
     voices.find((v) => /^en/i.test(v.lang)) ||
     null;
 }
-if ("speechSynthesis" in window) {
+if (!Native && "speechSynthesis" in window) {
   pickVoice();
   speechSynthesis.onvoiceschanged = pickVoice;
 }
 
+const ttsCallbacks = {};
+let ttsSeq = 0;
+window.__nativeTtsDone = (id) => {
+  const cb = ttsCallbacks[id];
+  delete ttsCallbacks[id];
+  if (cb) cb();
+};
+
+function stopSpeaking() {
+  if (Native) {
+    // 중간에 끊은 발화는 "말하기 끝" 콜백(자동 듣기 등)을 실행하지 않습니다.
+    for (const id in ttsCallbacks) delete ttsCallbacks[id];
+    $("call").classList.remove("speaking");
+    Native.stopSpeaking();
+  }
+  else if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
 function speak(text, { onEnd } = {}) {
-  if (!("speechSynthesis" in window)) return onEnd && onEnd();
-  speechSynthesis.cancel();
+  const done = () => {
+    $("call").classList.remove("speaking");
+    if (state.sessionId) setStatus("통화 중");
+    onEnd && onEnd();
+  };
+  stopSpeaking();
+  if (!Native && !("speechSynthesis" in window)) return onEnd && onEnd();
+  $("call").classList.add("speaking");
+  setStatus("Emma가 말하는 중...");
+  const rate = parseFloat($("rate").value) || 0.9;
+  if (Native) {
+    const id = "u" + ++ttsSeq;
+    ttsCallbacks[id] = done;
+    Native.speak(text, rate, id);
+    return;
+  }
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "en-US";
   if (englishVoice) u.voice = englishVoice;
-  u.rate = parseFloat($("rate").value) || 0.9;
-  $("call").classList.add("speaking");
-  setStatus("Emma가 말하는 중...");
-  u.onend = u.onerror = () => {
-    $("call").classList.remove("speaking");
-    setStatus("통화 중");
-    onEnd && onEnd();
-  };
+  u.rate = rate;
+  u.onend = u.onerror = done;
   speechSynthesis.speak(u);
 }
 
 // ---------- 음성 인식 (STT) ----------
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-if (SR) {
-  recognition = new SR();
-  recognition.lang = "en-US";
-  recognition.interimResults = true;
-  recognition.continuous = false;
-
-  let finalText = "";
-  recognition.onstart = () => {
+let finalText = "";
+const rec = {
+  start() {
     finalText = "";
     state.listening = true;
     $("micBtn").classList.add("listening");
     setStatus("듣는 중... 영어로 말해보세요");
-  };
-  recognition.onresult = (e) => {
-    let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) finalText += t;
-      else interim += t;
-    }
-    $("interim").textContent = (finalText + " " + interim).trim();
-  };
-  recognition.onerror = (e) => {
-    if (e.error === "not-allowed") alert("마이크 권한을 허용해 주세요.");
-  };
-  recognition.onend = () => {
+  },
+  interim(text) {
+    $("interim").textContent = (finalText + " " + text).trim();
+  },
+  final(text) {
+    finalText = (finalText + " " + text).trim();
+    $("interim").textContent = finalText;
+  },
+  error(code) {
+    if (code === "not-allowed") alert("마이크 권한을 허용해 주세요.");
+    else if (code === "unavailable") alert("이 기기에서 음성 인식을 사용할 수 없어요. Google 앱을 설치하거나 업데이트해 주세요. 텍스트 입력은 사용할 수 있어요.");
+  },
+  end() {
+    if (!state.listening) return;
     state.listening = false;
     $("micBtn").classList.remove("listening");
     $("interim").textContent = "";
     if (state.sessionId) setStatus("통화 중");
     const text = finalText.trim();
+    finalText = "";
     if (text) sendMessage(text);
-  };
+  },
+};
+
+let recognizer = null; // { start(), stop() }
+if (Native) {
+  // AndroidBridge가 window.__nativeSpeech(type, text) 로 결과를 알려줍니다.
+  window.__nativeSpeech = (type, text) => rec[type] && rec[type](text || "");
+  recognizer = { start: () => Native.startListening(), stop: () => Native.stopListening() };
+} else {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const r = new SR();
+    r.lang = "en-US";
+    r.interimResults = true;
+    r.continuous = false;
+    r.onstart = () => rec.start();
+    r.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) rec.final(t);
+        else interim += t;
+      }
+      rec.interim(interim);
+    };
+    r.onerror = (e) => rec.error(e.error);
+    r.onend = () => rec.end();
+    recognizer = { start: () => r.start(), stop: () => r.stop() };
+  }
 }
 
 function startListening() {
-  if (!recognition || state.busy || state.listening || !state.sessionId) return;
-  speechSynthesis.cancel();
-  try { recognition.start(); } catch { /* 이미 시작됨 */ }
+  if (!recognizer || state.busy || state.listening || !state.sessionId) return;
+  stopSpeaking();
+  try { recognizer.start(); } catch { /* 이미 시작됨 */ }
 }
 function stopListening() {
-  if (recognition && state.listening) recognition.stop();
+  if (recognizer && state.listening) recognizer.stop();
 }
 
 // ---------- 화면 렌더링 ----------
@@ -209,12 +268,12 @@ async function sendMessage(text) {
   if (state.busy || !state.sessionId) return;
   state.busy = true;
   stopListening();
-  speechSynthesis.cancel();
+  stopSpeaking();
   const myMsg = addMyMessage(text);
   showTyping();
   setStatus("Emma가 생각 중...");
   try {
-    const data = await api("/api/chat", { sessionId: state.sessionId, text });
+    const data = await backend.chat(state.sessionId, text);
     hideTyping();
     state.turns++;
     addCorrection(myMsg, text, data.correction);
@@ -236,14 +295,15 @@ async function startCall() {
   const topic = preset === "custom" ? $("topicCustom").value.trim() : preset;
   try {
     // iOS/Safari는 사용자 동작 안에서 음성 출력을 한 번 해줘야 이후 자동 재생이 됩니다.
-    if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
-    const data = await api("/api/session", { level: $("level").value, topic });
+    if (!Native && "speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    if (window.LocalTutor) window.LocalTutor.setApiKey($("apiKey").value);
+    const data = await backend.startSession({ level: $("level").value, topic });
     state.sessionId = data.sessionId;
     Object.assign(state, { turns: 0, corrections: [], expressions: [] });
     $("transcript").innerHTML = "";
     $("setup").classList.add("hidden");
     $("call").classList.remove("hidden");
-    if (!recognition) {
+    if (!recognizer) {
       $("micBtn").disabled = true;
       $("micBtn").title = "이 브라우저는 음성 인식을 지원하지 않아요 (Chrome 권장)";
       setStatus("음성 인식 미지원 브라우저 - 텍스트로 입력해 주세요");
@@ -260,8 +320,8 @@ async function startCall() {
 
 function hangUp() {
   stopListening();
-  speechSynthesis.cancel();
-  if (state.sessionId) fetch(`/api/session/${state.sessionId}`, { method: "DELETE" });
+  stopSpeaking();
+  if (state.sessionId) backend.endSession(state.sessionId);
   state.sessionId = null;
   clearInterval(state.timerId);
   $("call").classList.add("hidden");
@@ -302,6 +362,11 @@ function startTimer() {
 // ---------- 이벤트 ----------
 $("topicPreset").onchange = (e) => $("topicCustom").classList.toggle("hidden", e.target.value !== "custom");
 $("callBtn").onclick = startCall;
+if (window.LocalTutor) {
+  // 앱에서는 Claude API 키를 이 기기에 저장해 두고 사용합니다.
+  $("apiKeyBox").classList.remove("hidden");
+  $("apiKey").value = window.LocalTutor.getApiKey();
+}
 $("hangupBtn").onclick = hangUp;
 $("againBtn").onclick = () => { $("summary").classList.add("hidden"); $("setup").classList.remove("hidden"); };
 $("micBtn").onclick = () => (state.listening ? stopListening() : startListening());
