@@ -8,6 +8,7 @@ const state = {
   listening: false,
   lastReply: "",
   turns: 0,
+  costUsd: 0,
   corrections: [],
   expressions: [],
   startedAt: 0,
@@ -20,6 +21,7 @@ const state = {
 // 웹 브라우저에서는 Web Speech API와 서버(/api/*)를 사용합니다.
 const Native = window.AndroidBridge || null;
 const backend = window.LocalTutor || {
+  getModels: () => fetch("/api/models").then((r) => r.json()),
   startSession: (opts) => api("/api/session", opts),
   chat: (sessionId, text) => api("/api/chat", { sessionId, text }),
   endSession: (id) => fetch(`/api/session/${id}`, { method: "DELETE" }),
@@ -274,6 +276,7 @@ async function sendMessage(text) {
   setStatus("Emma가 생각 중...");
   try {
     const data = await backend.chat(state.sessionId, text);
+    state.costUsd += data.cost_usd || 0;
     hideTyping();
     state.turns++;
     addCorrection(myMsg, text, data.correction);
@@ -297,9 +300,9 @@ async function startCall() {
     // iOS/Safari는 사용자 동작 안에서 음성 출력을 한 번 해줘야 이후 자동 재생이 됩니다.
     if (!Native && "speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
     if (window.LocalTutor) window.LocalTutor.setApiKey($("apiKey").value);
-    const data = await backend.startSession({ level: $("level").value, topic });
+    const data = await backend.startSession({ level: $("level").value, topic, model: $("model").value });
     state.sessionId = data.sessionId;
-    Object.assign(state, { turns: 0, corrections: [], expressions: [] });
+    Object.assign(state, { turns: 0, costUsd: data.cost_usd || 0, corrections: [], expressions: [] });
     $("transcript").innerHTML = "";
     $("setup").classList.add("hidden");
     $("call").classList.remove("hidden");
@@ -332,6 +335,11 @@ function showSummary() {
   const secs = Math.floor((Date.now() - state.startedAt) / 1000);
   $("summaryStats").textContent =
     `통화 시간 ${fmt(secs)} · 내가 말한 문장 ${state.turns}개 · 교정 ${state.corrections.length}개`;
+  // 1달러 = 약 1,400원으로 계산한 대략적인 금액입니다.
+  const won = state.costUsd * 1400;
+  const wonText = won < 1 ? "1원 미만" : `${Math.round(won).toLocaleString("ko-KR")}원`;
+  const usd = state.costUsd.toFixed(state.costUsd < 0.01 ? 4 : 3);
+  $("summaryCost").textContent = `이번 통화 예상 비용: 약 ${wonText} ($${usd})`;
   const cl = $("summaryCorrections");
   cl.innerHTML = "";
   if (!state.corrections.length) cl.append(el("li", "muted", "교정 받은 문장이 없어요. 훌륭해요!"));
@@ -362,6 +370,38 @@ function startTimer() {
 // ---------- 이벤트 ----------
 $("topicPreset").onchange = (e) => $("topicCustom").classList.toggle("hidden", e.target.value !== "custom");
 $("callBtn").onclick = startCall;
+
+// 모델 선택: 고른 모델은 이 기기에 기억해 둡니다.
+const MODEL_STORAGE = "tutor_model";
+let modelInfo = {};
+function showModelCost() {
+  const m = modelInfo[$("model").value];
+  $("modelCost").textContent = m ? `예상 비용: ${m.cost} · ` : "";
+}
+async function loadModels() {
+  const sel = $("model");
+  try {
+    const info = window.LocalTutor ? window.LocalTutor.models : await backend.getModels();
+    let saved = "";
+    try { saved = localStorage.getItem(MODEL_STORAGE) || ""; } catch { /* 저장소 사용 불가 */ }
+    sel.innerHTML = "";
+    for (const [id, m] of Object.entries(info.models)) {
+      const opt = el("option", null, m.label);
+      opt.value = id;
+      sel.append(opt);
+    }
+    sel.value = info.models[saved] ? saved : info.default;
+    modelInfo = info.models;
+    showModelCost();
+  } catch {
+    $("modelBox").classList.add("hidden"); // 모델 목록을 못 받으면 서버 기본 모델 사용
+  }
+}
+$("model").onchange = (e) => {
+  showModelCost();
+  try { localStorage.setItem(MODEL_STORAGE, e.target.value); } catch { /* 저장소 사용 불가 */ }
+};
+loadModels();
 if (window.LocalTutor) {
   // 앱에서는 Claude API 키를 이 기기에 저장해 두고 사용합니다.
   $("apiKeyBox").classList.remove("hidden");

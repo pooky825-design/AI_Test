@@ -3,7 +3,43 @@
 // (3) 사용자 문장 교정 (4) 다음에 말해볼 추천 영어 표현을 JSON으로 받아옵니다.
 import Anthropic from "@anthropic-ai/sdk";
 
+// 선택할 수 있는 모델. cost는 10분(약 20턴) 통화 기준, 프롬프트 캐싱을 켠 대략적인 추정치입니다.
+// fallbacks: 안전 분류기가 거절했을 때 서버 측에서 다른 모델로 자동 재시도하는지 여부
+//            (Claude Haiku 5.5는 서버 측 fallback이 없어서 보내지 않습니다).
+// price: 100만 토큰당 달러 (입력, 출력, 캐시 쓰기(5분), 캐시 읽기)
+export const MODELS = {
+  "claude-opus-5-5": {
+    label: "Opus 5.5 · 꼼꼼한 교정", cost: "10분 약 350원", fallbacks: true,
+    price: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
+  },
+  "claude-sonnet-5-5": {
+    label: "Sonnet 5.5 · 균형", cost: "10분 약 150원", fallbacks: true,
+    price: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  },
+  "claude-haiku-5-5": {
+    label: "Haiku 5.5 · 가장 저렴", cost: "10분 약 10~20원", fallbacks: false,
+    price: { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
+  },
+};
+
+// 응답의 토큰 사용량으로 이번 턴의 비용(달러)을 추정합니다.
+// fallback으로 다른 모델이 답한 경우에도 요청한 모델 가격으로 계산하므로 대략치입니다.
+export function estimateCostUsd(model, usage) {
+  const p = (MODELS[model] || MODELS[DEFAULT_MODEL]).price;
+  if (!usage) return 0;
+  return (
+    ((usage.input_tokens || 0) * p.input +
+      (usage.output_tokens || 0) * p.output +
+      (usage.cache_creation_input_tokens || 0) * p.cacheWrite +
+      (usage.cache_read_input_tokens || 0) * p.cacheRead) /
+    1e6
+  );
+}
 export const DEFAULT_MODEL = "claude-opus-5-5";
+
+export function resolveModel(model) {
+  return Object.hasOwn(MODELS, model) ? model : DEFAULT_MODEL;
+}
 
 const LEVELS = {
   beginner: "a beginner (CEFR A1-A2). Use short, simple sentences and very common words.",
@@ -70,22 +106,34 @@ export const RESPONSE_SCHEMA = {
   },
 };
 
-export function newSession(level, topic) {
-  return { level, topic: String(topic || "").slice(0, 200), messages: [], createdAt: Date.now() };
+export function newSession(level, topic, model) {
+  return {
+    level,
+    topic: String(topic || "").slice(0, 200),
+    model: resolveModel(model),
+    messages: [],
+    createdAt: Date.now(),
+  };
 }
 
 // 세션의 대화 기록(session.messages)은 Claude의 응답 content를 그대로 이어붙여
 // append-only로 유지합니다.
-export async function askClaude(client, model, session, userText) {
+export async function askClaude(client, session, userText) {
   session.messages.push({ role: "user", content: userText });
 
   let response;
   try {
+    const fallback = MODELS[session.model].fallbacks
+      ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }
+      : {};
     response = await client.beta.messages.create({
-      model,
+      model: session.model,
       max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default", // 안전 분류기가 거절하면 서버 측에서 다른 모델로 자동 재시도
+      ...fallback,
+      // 프롬프트 캐싱: 시스템 프롬프트와 지금까지의 대화를 캐시해서, 다음 턴에는
+      // 새로 추가된 부분만 정가로 계산됩니다. 대화 기록을 고치지 않고 이어붙이기만
+      // 하므로 매 턴 캐시가 그대로 재사용됩니다.
+      cache_control: { type: "ephemeral" },
       output_config: {
         effort: "low", // 전화 대화는 빠른 응답이 중요하므로 low
         format: { type: "json_schema", schema: RESPONSE_SCHEMA },
@@ -113,7 +161,7 @@ export async function askClaude(client, model, session, userText) {
     .filter((b) => b.type === "text")
     .map((b) => b.text)
     .join("");
-  return JSON.parse(text);
+  return { ...JSON.parse(text), cost_usd: estimateCostUsd(session.model, response.usage) };
 }
 
 // 오류를 사용자에게 보여줄 한국어 메시지와 HTTP 상태 코드로 바꿉니다.

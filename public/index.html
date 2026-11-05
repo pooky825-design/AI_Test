@@ -22,6 +22,11 @@
         </select>
       </label>
 
+      <label id="modelBox">AI 모델
+        <select id="model"></select>
+        <span class="muted"><span id="modelCost"></span>평소엔 저렴한 모델로 연습하고, 꼼꼼한 교정이 필요할 때 Opus를 써보세요.</span>
+      </label>
+
       <label>대화 주제
         <select id="topicPreset">
           <option value="">자유 대화 (오늘 하루)</option>
@@ -89,6 +94,7 @@
     <div class="card wide">
       <h2>통화 요약</h2>
       <p id="summaryStats" class="muted"></p>
+      <p id="summaryCost" class="cost"></p>
       <h3>✏️ 교정 받은 문장</h3>
       <ul id="summaryCorrections"></ul>
       <h3>⭐ 오늘의 표현</h3>
