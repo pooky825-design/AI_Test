@@ -319,7 +319,7 @@ router.delete('/trades/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group'];
+const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged'];
 
 router.get('/settings', (req, res) => {
   const out = {};
@@ -346,7 +346,7 @@ router.put('/settings/:key', (req, res) => {
 // 자산 현황 (3.4) / 연도별 조회 (3.5)
 // ---------------------------------------------------------------------------
 router.get('/assets', async (req, res) => {
-  res.json(await portfolio.getAssets(req.user.id, req.query.year, req.query.group));
+  res.json(await portfolio.getAssets(req.user.id, req.query.year, req.query.group, req.query.merged === '1'));
 });
 
 function yearRange(q) {
@@ -449,7 +449,7 @@ function sendXlsx(res, buf, name) {
 }
 
 router.get('/export/assets.xlsx', async (req, res) => {
-  const data = await portfolio.getAssets(req.user.id, req.query.year, req.query.group);
+  const data = await portfolio.getAssets(req.user.id, req.query.year, req.query.group, req.query.merged === '1');
   sendXlsx(res, await excel.assetsWorkbook(data), data.ongoing ? `자산현황_${today()}.xlsx` : `자산현황_${data.year}년말.xlsx`);
 });
 

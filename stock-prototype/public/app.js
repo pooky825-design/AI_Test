@@ -261,7 +261,9 @@
     const year = Math.min(Number(query.year) || Number(settings.get('assets.year')) || THIS_YEAR, THIS_YEAR);
     const ongoing = year >= THIS_YEAR;
     const groupParam = query.group !== undefined ? query.group : (settings.get('assets.group') || '');
-    const groupQs = groupParam ? `&group=${encodeURIComponent(groupParam)}` : '';
+    // 통합: ‘전체’에서 그룹 구분 없이 종목별로 수량 합산 (마지막 선택 기억)
+    const merged = !groupParam && (query.merged !== undefined ? query.merged === '1' : !!settings.get('assets.merged'));
+    const groupQs = (groupParam ? `&group=${encodeURIComponent(groupParam)}` : '') + (merged ? '&merged=1' : '');
     const main = shell('#/assets', `
       <div class="page-head">
         <div><h1>자산 현황 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
@@ -271,7 +273,7 @@
           <button data-export="/export/assets.xlsx?year=${year}${groupQs}">엑셀 내보내기</button>
         </div>
       </div>
-      <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>`);
+      <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><div class="field-row" style="gap:14px;align-items:center"><label class="merge-toggle" data-merge-wrap hidden><input type="checkbox" data-merge ${merged ? 'checked' : ''} /> 통합 <span class="muted small">(그룹 구분 없이 종목별 합산)</span></label><a href="#/holdings" class="small">그룹 관리 →</a></div></div></div>`);
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('assets.year', Number(e.target.value));
       go(`#/assets?year=${e.target.value}${groupQs}`);
@@ -294,7 +296,14 @@
       settings.set('assets.group', b.dataset.g);
       go(`#/assets?year=${year}&group=${b.dataset.g}`);
     }));
-    const showGroup = !d.groupId && d.groups.length > 1;
+    // ‘전체’일 때만 통합 체크박스 표시
+    const mergeWrap = main.querySelector('[data-merge-wrap]');
+    mergeWrap.hidden = !!d.groupId;
+    mergeWrap.querySelector('[data-merge]').addEventListener('change', (e) => {
+      settings.set('assets.merged', e.target.checked);
+      go(`#/assets?year=${year}&group=&merged=${e.target.checked ? 1 : 0}`);
+    });
+    const showGroup = !d.groupId && !d.merged && d.groups.length > 1;
     const ok = d.rows.filter((r) => !r.error);
     const html = [];
     if (!d.ongoing) {
@@ -334,7 +343,8 @@
           </table></div>
         </div>` : ''}
         <div class="card">
-          <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
+          <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
+          ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table>
             <thead><tr>
               <th>종목</th><th>구분</th><th class="num">보유 수량</th><th class="num">평균 매입단가</th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
@@ -345,7 +355,7 @@
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
                 <td>${badge(r.instrument.type)}</td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.avgPrice, c)}</td>

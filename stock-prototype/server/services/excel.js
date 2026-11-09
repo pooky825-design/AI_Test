@@ -34,7 +34,7 @@ async function assetsWorkbook(data) {
   const ws = wb.addWorksheet('자산 현황');
   ws.addRow([data.ongoing ? `자산 현황 (${data.year}년, 현재가 기준)` : `자산 현황 (${data.year}년 말 기준)`]).font = { bold: true, size: 14 };
   info(ws, [
-    ['그룹', data.groupId ? (data.groups.find((g) => g.id === data.groupId) || {}).name : '전체'],
+    ['그룹', data.groupId ? (data.groups.find((g) => g.id === data.groupId) || {}).name : data.merged ? '전체 (통합: 그룹 구분 없이 종목별 합산)' : '전체'],
     ['기준 연도', data.ongoing ? `${data.year}년 (진행 중, 현재가·현재 환율)` : `${data.year}년 말 (연말 종가·연말 환율, ${data.year}년 말 보유 수량)`],
     ['내보낸 일시', fmtTime(data.basis.generatedAt)],
     ['시세 기준 시각', `${fmtTime(data.basis.priceTimeOldest)} ~ ${fmtTime(data.basis.priceTimeLatest)}`],

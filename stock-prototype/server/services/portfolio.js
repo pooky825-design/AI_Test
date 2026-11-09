@@ -33,7 +33,8 @@ function splitNotice(p) {
 // 지난 연도: 원화 평가금액 = 연말 수정 종가 × 그 해 말 보유 수량 × 연말 환율
 // 수익률 = (가격 − 평균 매입단가) ÷ 평균 매입단가
 // ---------------------------------------------------------------------------
-async function getAssets(userId, year, groupId) {
+// merged: 전체 선택 시 그룹 구분 없이 종목별로 합산 (수량·매입금액 합계, 평균 매입단가 = 합계 매입금액 ÷ 합계 수량)
+async function getAssets(userId, year, groupId, merged) {
   const ty = thisYear();
   const y = Number(year) || ty;
   const ongoing = y >= ty;
@@ -42,8 +43,23 @@ async function getAssets(userId, year, groupId) {
   const gid = groups.some((g) => g.id === Number(groupId)) ? Number(groupId) : null; // 없거나 잘못되면 전체
   const groupName = new Map(groups.map((g) => [g.id, g.name]));
   const order = new Map(groups.map((g, i) => [g.id, i]));
-  const list = positions.positionsAt(userId, y, { groupId: gid })
+  const isMerged = !!merged && !gid;
+  const perGroup = positions.positionsAt(userId, y, { groupId: gid })
     .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+  let list = perGroup;
+  if (isMerged) {
+    const byCode = new Map();
+    for (const p of perGroup) {
+      const m = byCode.get(p.code) || { code: p.code, groupId: null, quantity: 0, cost: 0, tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [] };
+      m.quantity += p.quantity;
+      m.cost += p.cost;
+      m.tradesInYear += p.tradesInYear;
+      if (p.lastTradeAt > m.lastTradeAt) m.lastTradeAt = p.lastTradeAt;
+      m.mergedGroups.push(groupName.get(p.groupId) || '-');
+      byCode.set(p.code, m);
+    }
+    list = [...byCode.values()].map((m) => ({ ...m, avgPrice: m.cost / m.quantity }));
+  }
 
   let fx = null;
   let fxError = null;
@@ -64,7 +80,8 @@ async function getAssets(userId, year, groupId) {
 
   const rows = await mapLimit(list, 5, async (h) => {
     const base = {
-      code: h.code, groupId: h.groupId, groupName: groupName.get(h.groupId) || '-', quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
+      code: h.code, groupId: h.groupId, groupName: isMerged ? '통합' : groupName.get(h.groupId) || '-',
+      mergedGroups: h.mergedGroups || null, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
     };
     try {
       let price;
@@ -128,6 +145,7 @@ async function getAssets(userId, year, groupId) {
     ongoing,
     groups,
     groupId: gid,
+    merged: isMerged,
     groupTotals,
     yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
