@@ -2,6 +2,7 @@
 // 금액은 내부적으로 반올림하지 않고 계산하며, 화면 표시 단계에서만 반올림한다(4.3).
 const db = require('../db');
 const market = require('./market');
+const positions = require('./positions');
 
 async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
@@ -16,64 +17,90 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-function holdingsOf(userId) {
-  return db.all('SELECT * FROM holdings WHERE user_id = ? ORDER BY created_at, id', [userId]);
-}
+const thisYear = () => new Date().getFullYear();
 
-// 보유 종목 등록·수정 이후 발생한 액면분할·병합 (FR-DATA-03: 수량 수정 안내)
-function splitNotice(h) {
-  // 보유 항목을 마지막으로 등록·수정한 날 이후에 효력이 생긴 분할·병합만 안내
+// 마지막 매수·매도 기록 이후 발생한 액면분할·병합 (FR-DATA-03: 수량 수정 안내)
+function splitNotice(p) {
   const s = db.get('SELECT split_date, ratio FROM splits WHERE code = ? AND split_date > ? ORDER BY split_date DESC LIMIT 1', [
-    h.code, h.updated_at.slice(0, 10),
+    p.code, String(p.lastTradeAt || '').slice(0, 10),
   ]);
   return s ? { date: s.split_date, ratio: s.ratio } : null;
 }
 
 // ---------------------------------------------------------------------------
-// 자산 현황 (2.3)
-// 원화 평가금액 = 현재가 × 보유 수량 × 현재 환율 (국내 종목은 환율 1)
-// 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가
+// 자산 현황 (2.3) — 선택 연도 말 보유 수량 기준 (v0.5)
+// 올해: 원화 평가금액 = 현재가 × 보유 수량 × 현재 환율 (국내 종목은 환율 1)
+// 지난 연도: 원화 평가금액 = 연말 수정 종가 × 그 해 말 보유 수량 × 연말 환율
+// 수익률 = (가격 − 평균 매입단가) ÷ 평균 매입단가
 // ---------------------------------------------------------------------------
-async function getAssets(userId) {
-  const holdings = holdingsOf(userId);
+async function getAssets(userId, year) {
+  const ty = thisYear();
+  const y = Number(year) || ty;
+  const ongoing = y >= ty;
+  const yearEnd = `${y}-12-31`;
+  const list = positions.positionsAt(userId, y);
+
   let fx = null;
   let fxError = null;
-  try {
-    fx = await market.getCurrentFx();
-  } catch (e) {
-    fxError = e.message;
+  if (ongoing) {
+    try {
+      fx = await market.getCurrentFx();
+    } catch (e) {
+      fxError = e.message;
+    }
+  } else {
+    try {
+      await market.getCurrentFx(); // 환율 이력 적재 보장
+    } catch (_) { /* 저장된 이력으로 계산 */ }
+    const r = market.fxOn(yearEnd);
+    fx = r ? { rate: r.rate, time: `${r.date}T00:00:00Z`, source: '연말 환율', stale: false } : null;
+    if (!r) fxError = `${y}년 말 환율 데이터가 없습니다.`;
   }
 
-  const rows = await mapLimit(holdings, 5, async (h) => {
+  const rows = await mapLimit(list, 5, async (h) => {
+    const base = { code: h.code, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear };
     try {
-      const q = await market.getQuote(h.code);
-      const usd = q.instrument.currency === 'USD';
+      let price;
+      let priceTime;
+      let inst;
+      let extra = {};
+      if (ongoing) {
+        const q = await market.getQuote(h.code);
+        inst = q.instrument;
+        price = q.price;
+        priceTime = q.priceTime;
+        extra = { change: q.change, changePct: q.changePct, stale: q.stale, staleReason: q.staleReason };
+      } else {
+        inst = market.publicInstrument(await market.ensureInstrument(h.code));
+        const c = market.yearEndClose(h.code, y);
+        if (!c) {
+          const before = inst.listedDate && inst.listedDate > yearEnd;
+          return { ...base, instrument: inst, error: before ? `${y}년 말에는 상장 전입니다.` : `${y}년 종가 데이터가 없습니다.` };
+        }
+        price = c.close;
+        priceTime = `${c.date}T15:30:00+09:00`;
+      }
+      const usd = inst.currency === 'USD';
       const rate = usd ? (fx ? fx.rate : null) : 1;
-      const value = q.price * h.quantity; // 거래 통화 기준
-      const cost = h.avg_price * h.quantity;
+      const value = price * h.quantity; // 거래 통화 기준
+      const cost = h.avgPrice * h.quantity;
       return {
-        id: h.id,
-        code: h.code,
-        instrument: q.instrument,
-        quantity: h.quantity,
-        avgPrice: h.avg_price,
-        price: q.price,
-        change: q.change,
-        changePct: q.changePct,
-        priceTime: q.priceTime,
-        stale: q.stale,
-        staleReason: q.staleReason,
+        ...base,
+        ...extra,
+        instrument: inst,
+        price,
+        priceTime,
         value,
         cost,
         fxRate: rate,
         valueKrw: rate == null ? null : value * rate,
         costKrw: rate == null ? null : cost * rate,
         pnlKrw: rate == null ? null : (value - cost) * rate,
-        returnPct: (q.price - h.avg_price) / h.avg_price,
-        splitNotice: splitNotice(h),
+        returnPct: (price - h.avgPrice) / h.avgPrice,
+        splitNotice: ongoing ? splitNotice(h) : null,
       };
     } catch (e) {
-      return { id: h.id, code: h.code, quantity: h.quantity, avgPrice: h.avg_price, error: e.message };
+      return { ...base, error: e.message };
     }
   });
 
@@ -81,7 +108,11 @@ async function getAssets(userId) {
   const totalValue = ok.reduce((s, r) => s + r.valueKrw, 0);
   const totalCost = ok.reduce((s, r) => s + r.costKrw, 0);
   const priceTimes = ok.map((r) => r.priceTime).sort();
+  const range = positions.tradeYearRange(userId);
   return {
+    year: y,
+    ongoing,
+    yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
     total: {
       valueKrw: totalValue,
@@ -131,11 +162,13 @@ function dividendsByYear(userId, fromYear, toYear) {
 
 // ---------------------------------------------------------------------------
 // 연도별 자산 (2.4)
-// 연도별 자산금액 = Σ (연말 수정 종가 × 현재 보유 수량 × 해당 연도 말 환율)
+// 연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율)
+// 그 해 말 보유 수량은 연도별 매수·매도 기록을 누적해 계산 (v0.5)
 // ---------------------------------------------------------------------------
 async function getYearly(userId, fromYear, toYear) {
   const thisYear = new Date().getFullYear();
-  const holdings = holdingsOf(userId);
+  const allTrades = positions.tradesOf(userId);
+  const holdings = positions.codesUpTo(userId, toYear).map((code) => ({ code }));
 
   let fx = null;
   try {
@@ -159,8 +192,13 @@ async function getYearly(userId, fromYear, toYear) {
     const ongoing = y === thisYear;
     const yearEnd = `${y}-12-31`;
     const fxEnd = ongoing ? (fx ? { rate: fx.rate, date: fx.time } : null) : market.fxOn(yearEnd);
-    const items = prepared.map(({ h, inst, quote, error }) => {
-      const base = { code: h.code, name: inst ? inst.name : h.code, type: inst ? inst.type : null, currency: inst ? inst.currency : null, quantity: h.quantity };
+    const held = positions.accumulate(allTrades, y);
+    const items = prepared.filter(({ h }) => held.has(h.code) && held.get(h.code).quantity > 1e-9).map(({ h, inst, quote, error }) => {
+      const pos = held.get(h.code);
+      const base = {
+        code: h.code, name: inst ? inst.name : h.code, type: inst ? inst.type : null, currency: inst ? inst.currency : null,
+        quantity: pos.quantity, tradedThisYear: pos.tradesInYear > 0,
+      };
       if (error) return { ...base, excluded: true, reason: '시세 조회 실패' };
       let close = null;
       let closeDate = null;
@@ -182,7 +220,7 @@ async function getYearly(userId, fromYear, toYear) {
       }
       const rate = inst.currency === 'USD' ? (fxEnd ? fxEnd.rate : null) : 1;
       if (rate == null) return { ...base, close, closeDate, excluded: true, reason: '환율 데이터 없음' };
-      return { ...base, close, closeDate, fxRate: rate, valueKrw: close * h.quantity * rate, excluded: false };
+      return { ...base, close, closeDate, fxRate: rate, valueKrw: close * pos.quantity * rate, excluded: false };
     });
     const included = items.filter((i) => !i.excluded);
     years.push({
@@ -222,8 +260,8 @@ async function getYearly(userId, fromYear, toYear) {
       generatedAt: new Date().toISOString(),
       fxRate: fx ? fx.rate : null,
       fxTime: fx ? fx.time : null,
-      note: '현재 보유 수량 기준의 가정 금액이며 실제 과거 자산이 아닙니다.',
-      formula: '연도별 자산금액 = Σ (연말 수정 종가 × 현재 보유 수량 × 해당 연도 말 환율). 올해는 최신 시세와 현재 환율로 계산(진행 중).',
+      note: '연도별 매수·매도 기록을 누적한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않습니다.',
+      formula: '연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율). 올해는 최신 시세와 현재 환율로 계산(진행 중).',
     },
   };
 }
@@ -252,8 +290,8 @@ async function getStockDividends(userId, code, opts) {
   if (usd) {
     try { await market.getCurrentFx(); } catch (_) { /* 환율 없으면 원화 추정액 '-' */ }
   }
-  const h = db.get('SELECT quantity FROM holdings WHERE user_id = ? AND code = ?', [userId, d.instrument.code]);
-  const qty = h ? h.quantity : null;
+  const held = positions.positionsAt(userId, new Date().getFullYear()).find((p) => p.code === d.instrument.code);
+  const qty = held ? held.quantity : null;
   const thisYear = new Date().getFullYear();
 
   // 주당과세표준액

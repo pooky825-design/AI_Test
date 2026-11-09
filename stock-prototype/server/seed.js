@@ -8,16 +8,23 @@ async function seedDemo() {
   const { lastId: uid } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [
     'demo@example.com', hash, now,
   ]);
-  // 2.3 예시와 비슷한 구성의 데모 보유 종목 (수량·매입단가는 가상의 값)
-  const holdings = [
-    ['005930', 100, 60000],
-    ['069500', 50, 35000],
-    ['0080G0', 200, 5000],
-    ['AAPL', 10, 150],
-    ['SPY', 5, 450],
+  // 데모 매수·매도 기록 (연도별 관리 예시, 수량·단가는 가상의 값)
+  const ty = new Date().getFullYear();
+  const trades = [
+    ['005930', ty - 4, 'BUY', 50, 60000, '첫 매수'],
+    ['005930', ty - 2, 'BUY', 50, 55000, '추가 매수'],
+    ['069500', ty - 3, 'BUY', 50, 35000, null],
+    ['0080G0', ty - 1, 'BUY', 200, 5000, null],
+    ['AAPL', ty - 5, 'BUY', 10, 150, null],
+    ['AAPL', ty - 2, 'SELL', 3, null, '일부 매도'],
+    ['AAPL', ty - 1, 'BUY', 3, 220, '다시 매수'],
+    ['SPY', ty - 3, 'BUY', 5, 450, null],
   ];
-  for (const [code, q, p] of holdings) {
-    db.run('INSERT INTO holdings (user_id, code, quantity, avg_price, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', [uid, code, q, p, now, now]);
+  for (const [code, year, side, q, p, memo] of trades) {
+    db.run(
+      'INSERT INTO holding_trades (user_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [uid, code, year, side, q, p, memo, now, now]
+    );
   }
   const y = new Date().getFullYear();
   const dividends = [

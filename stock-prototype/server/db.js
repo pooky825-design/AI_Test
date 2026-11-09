@@ -46,6 +46,30 @@ CREATE TABLE IF NOT EXISTS holdings (
   UNIQUE (user_id, code)
 );
 
+-- 연도별 매수·매도 기록 (v0.5): 연도 말 보유 수량 = 그 해까지의 기록 누적
+CREATE TABLE IF NOT EXISTS holding_trades (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+  quantity REAL NOT NULL,           -- 항상 양수
+  price REAL,                       -- 매수 단가 (거래 통화). 매도는 선택
+  memo TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trades_user ON holding_trades (user_id, year, code);
+
+-- 회원별 화면 설정 (마지막 조회 기간·선택 연도)
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, key)
+);
+
 -- 보유 종목을 삭제해도 배당 내역은 유지(FR-DIV-05) → holdings FK 없음
 CREATE TABLE IF NOT EXISTS dividends (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,6 +240,20 @@ function migrate() {
   if (!dcols.includes('tax_base')) db.run('ALTER TABLE dividend_events ADD COLUMN tax_base REAL');
   if (!dcols.includes('tax_source')) db.run('ALTER TABLE dividend_events ADD COLUMN tax_source TEXT');
   if (!dcols.includes('pay_date')) db.run('ALTER TABLE dividend_events ADD COLUMN pay_date TEXT');
+
+  // v0.5: 기존 보유 종목(holdings)을 등록 연도의 매수 기록으로 한 번만 옮긴다
+  const migrated = all("SELECT value FROM app_meta WHERE key = 'holdings_to_trades'")[0];
+  if (!migrated) {
+    const now = new Date().toISOString();
+    for (const h of all('SELECT * FROM holdings')) {
+      db.run(
+        `INSERT INTO holding_trades (user_id, code, year, side, quantity, price, memo, created_at, updated_at)
+         VALUES (?, ?, ?, 'BUY', ?, ?, ?, ?, ?)`,
+        [h.user_id, h.code, Number(String(h.created_at).slice(0, 4)), h.quantity, h.avg_price, '이전 보유 종목에서 옮김', h.created_at, now]
+      );
+    }
+    db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
+  }
 }
 
 module.exports = { init, all, get, run, runMany, tx, saveNow };

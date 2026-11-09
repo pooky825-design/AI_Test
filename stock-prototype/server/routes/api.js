@@ -130,6 +130,8 @@ router.delete('/auth/account', async (req, res) => {
   }
   db.tx(() => {
     db.run('DELETE FROM holdings WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM holding_trades WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM user_settings WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
@@ -159,66 +161,120 @@ router.get('/stocks/:code/dividends', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 보유 종목 (3.3) — 모든 쿼리에 user_id 조건 (FR-AUTH-05)
+// 보유 종목 (3.3) — 연도별 매수·매도 기록 (v0.5). 모든 쿼리에 user_id 조건 (FR-AUTH-05)
 // ---------------------------------------------------------------------------
-router.get('/holdings', async (req, res) => {
-  const list = db.all(
-    `SELECT h.*, i.name, i.market, i.type, i.currency FROM holdings h LEFT JOIN instruments i ON i.code = h.code
-     WHERE h.user_id = ? ORDER BY h.created_at, h.id`,
-    [req.user.id]
-  );
-  res.json({ holdings: list });
-});
+const positions = require('../services/positions');
+const thisYear = () => new Date().getFullYear();
+const MIN_YEAR = 1990;
 
-function validateHoldingBody(body) {
-  const q = positiveNumber(body.quantity, { maxDecimals: 6 });
-  const p = positiveNumber(body.avgPrice);
-  fieldErrors({ quantity: q.error, avgPrice: p.error });
-  return { quantity: q.value, avgPrice: p.value };
+function instInfo(code) {
+  return db.get('SELECT name, market, type, currency FROM instruments WHERE code = ?', [code]) || {};
 }
 
-router.post('/holdings', async (req, res) => {
-  let codeErr = null;
+// 선택 연도 말 보유 현황 + 그 해의 매수·매도 기록
+router.get('/holdings', (req, res) => {
+  const ty = thisYear();
+  const year = Math.min(Number(req.query.year) || ty, ty);
+  const list = positions.positionsAt(req.user.id, year).map((p) => ({
+    code: p.code, quantity: p.quantity, avg_price: p.avgPrice, firstYear: p.firstYear, tradesInYear: p.tradesInYear, ...instInfo(p.code),
+  }));
+  const trades = db.all('SELECT * FROM holding_trades WHERE user_id = ? AND year = ? ORDER BY id', [req.user.id, year])
+    .map((t) => ({ ...t, ...instInfo(t.code) }));
+  const range = positions.tradeYearRange(req.user.id);
+  res.json({ year, yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty }, holdings: list, trades });
+});
+
+async function validateTrade(body, userId, excludeId) {
   let code = null;
+  let codeErr = null;
   try {
-    code = market.validateCode(req.body.code).code;
+    code = market.validateCode(body.code).code;
   } catch (e) {
     codeErr = e.fields.code;
   }
-  const q = positiveNumber(req.body.quantity, { maxDecimals: 6 });
-  const p = positiveNumber(req.body.avgPrice);
-  fieldErrors({ code: codeErr, quantity: q.error, avgPrice: p.error });
-
-  const dup = db.get('SELECT id FROM holdings WHERE user_id = ? AND code = ?', [req.user.id, code]);
-  if (dup) {
-    return res.status(409).json({
-      error: '이미 등록한 종목입니다. 기존 항목의 수량과 매입단가를 수정해 주세요.',
-      code: 'DUPLICATE',
-      holdingId: dup.id,
-      fields: { code: '이미 등록한 종목입니다.' },
-    });
-  }
+  const year = Number(body.year);
+  const yearErr = Number.isInteger(year) && year >= MIN_YEAR && year <= thisYear() ? null : `연도는 ${MIN_YEAR}년부터 올해까지 선택할 수 있습니다.`;
+  const side = body.side === 'SELL' ? 'SELL' : body.side === 'BUY' ? 'BUY' : null;
+  const q = positiveNumber(body.quantity, { maxDecimals: 6 });
+  const p = side === 'BUY' || String(body.price ?? '').trim() ? positiveNumber(body.price) : { value: null };
+  const memo = String(body.memo || '');
+  fieldErrors({
+    code: codeErr,
+    year: yearErr,
+    side: side ? null : '매수 또는 매도를 선택해 주세요.',
+    quantity: q.error,
+    price: p.error,
+    memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
+  });
   const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
+  // 매도 수량이 그 시점 보유 수량을 넘지 않는지 (모든 연도 말 기준)
+  const others = db.all('SELECT * FROM holding_trades WHERE user_id = ? AND code = ?', [userId, inst.code]).filter((t) => t.id !== excludeId);
+  const short = positions.findShortfall([...others, { id: Number.MAX_SAFE_INTEGER, code: inst.code, year, side, quantity: q.value, price: p.value }], inst.code);
+  if (short) {
+    const msg = `${short.year}년 말 보유 수량(${+short.held.toFixed(6)})보다 많이 매도할 수 없습니다.`;
+    throw new ValidationError(msg, { quantity: msg });
+  }
+  return { code: inst.code, year, side, quantity: q.value, price: p.value, memo: memo || null };
+}
+
+router.post('/trades', async (req, res) => {
+  const v = await validateTrade(req.body, req.user.id);
   const { lastId } = db.run(
-    'INSERT INTO holdings (user_id, code, quantity, avg_price, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.user.id, inst.code, q.value, p.value, now(), now()]
+    'INSERT INTO holding_trades (user_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [req.user.id, v.code, v.year, v.side, v.quantity, v.price, v.memo, now(), now()]
   );
   res.json({ id: lastId });
 });
 
-router.put('/holdings/:id', (req, res) => {
-  const h = db.get('SELECT * FROM holdings WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
-  if (!h) return res.status(404).json({ error: '보유 종목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
-  const v = validateHoldingBody(req.body);
-  db.run('UPDATE holdings SET quantity = ?, avg_price = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
-    v.quantity, v.avgPrice, now(), h.id, req.user.id,
+router.put('/trades/:id', async (req, res) => {
+  const t = db.get('SELECT * FROM holding_trades WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!t) return res.status(404).json({ error: '매수·매도 기록을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  const v = await validateTrade({ ...req.body, code: t.code }, req.user.id, t.id);
+  db.run('UPDATE holding_trades SET year = ?, side = ?, quantity = ?, price = ?, memo = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
+    v.year, v.side, v.quantity, v.price, v.memo, now(), t.id, req.user.id,
   ]);
   res.json({ ok: true });
 });
 
-router.delete('/holdings/:id', (req, res) => {
-  const r = db.run('DELETE FROM holdings WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
-  if (!r.changes) return res.status(404).json({ error: '보유 종목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+router.delete('/trades/:id', (req, res) => {
+  const t = db.get('SELECT * FROM holding_trades WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!t) return res.status(404).json({ error: '매수·매도 기록을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  // 매수 기록을 지우면 이후 매도가 보유 수량을 넘을 수 있음 → 확인
+  const rest = db.all('SELECT * FROM holding_trades WHERE user_id = ? AND code = ? AND id <> ?', [req.user.id, t.code, t.id]);
+  const short = positions.findShortfall(rest, t.code);
+  if (short) {
+    return res.status(400).json({
+      error: `이 기록을 지우면 ${short.year}년 매도 수량이 보유 수량보다 많아집니다. 매도 기록을 먼저 고쳐 주세요.`,
+      code: 'VALIDATION',
+    });
+  }
+  db.run('DELETE FROM holding_trades WHERE id = ? AND user_id = ?', [t.id, req.user.id]);
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
+// ---------------------------------------------------------------------------
+const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year'];
+
+router.get('/settings', (req, res) => {
+  const out = {};
+  for (const r of db.all('SELECT key, value FROM user_settings WHERE user_id = ?', [req.user.id])) {
+    try { out[r.key] = JSON.parse(r.value); } catch (_) { /* 무시 */ }
+  }
+  res.json({ settings: out });
+});
+
+router.put('/settings/:key', (req, res) => {
+  const key = req.params.key;
+  if (!SETTING_KEYS.includes(key)) return res.status(400).json({ error: '저장할 수 없는 설정입니다.', code: 'VALIDATION' });
+  const value = JSON.stringify(req.body.value ?? null);
+  if (value.length > 1000) return res.status(400).json({ error: '설정 값이 너무 큽니다.', code: 'VALIDATION' });
+  db.run(
+    `INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [req.user.id, key, value, now()]
+  );
   res.json({ ok: true });
 });
 
@@ -226,7 +282,7 @@ router.delete('/holdings/:id', (req, res) => {
 // 자산 현황 (3.4) / 연도별 조회 (3.5)
 // ---------------------------------------------------------------------------
 router.get('/assets', async (req, res) => {
-  res.json(await portfolio.getAssets(req.user.id));
+  res.json(await portfolio.getAssets(req.user.id, req.query.year));
 });
 
 function yearRange(q) {
@@ -329,8 +385,8 @@ function sendXlsx(res, buf, name) {
 }
 
 router.get('/export/assets.xlsx', async (req, res) => {
-  const data = await portfolio.getAssets(req.user.id);
-  sendXlsx(res, await excel.assetsWorkbook(data), `자산현황_${today()}.xlsx`);
+  const data = await portfolio.getAssets(req.user.id, req.query.year);
+  sendXlsx(res, await excel.assetsWorkbook(data), data.ongoing ? `자산현황_${today()}.xlsx` : `자산현황_${data.year}년말.xlsx`);
 });
 
 router.get('/export/yearly.xlsx', async (req, res) => {

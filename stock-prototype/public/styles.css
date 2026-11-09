@@ -108,6 +108,8 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .badge.t-ETF { background: #e7f5ff; color: #0b6bcb; border-color: #b8dcfb; }
 .badge.t-ETN { background: #f3ecff; color: #6b3fc6; border-color: #d9c8fb; }
 .badge.ongoing { background: #fff1d6; color: #8a5300; border-color: #f3d39a; }
+.badge.side-buy { background: #fdecec; color: var(--up); border-color: #f6c6c6; }
+.badge.side-sell { background: #e8f0fc; color: var(--down); border-color: #bcd2f3; }
 .badge.mk { background: var(--surface-2); color: var(--muted); border-color: var(--border); }
 
 /* ---------- forms ---------- */

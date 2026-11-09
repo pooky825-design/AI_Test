@@ -32,16 +32,17 @@ function info(ws, pairs) {
 async function assetsWorkbook(data) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('자산 현황');
-  ws.addRow(['자산 현황']).font = { bold: true, size: 14 };
+  ws.addRow([data.ongoing ? `자산 현황 (${data.year}년, 현재가 기준)` : `자산 현황 (${data.year}년 말 기준)`]).font = { bold: true, size: 14 };
   info(ws, [
+    ['기준 연도', data.ongoing ? `${data.year}년 (진행 중, 현재가·현재 환율)` : `${data.year}년 말 (연말 종가·연말 환율, ${data.year}년 말 보유 수량)`],
     ['내보낸 일시', fmtTime(data.basis.generatedAt)],
     ['시세 기준 시각', `${fmtTime(data.basis.priceTimeOldest)} ~ ${fmtTime(data.basis.priceTimeLatest)}`],
     ['적용 환율 (USD/KRW)', data.basis.fxRate],
     ['환율 기준 시각', fmtTime(data.basis.fxTime)],
-    ['계산 기준', '원화 평가금액 = 현재가 × 보유 수량 × 현재 환율(국내 1). 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가. 미국 종목 손익은 매입·평가 모두 현재 환율 적용(환차손익 미반영).'],
+    ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가. 미국 종목 손익은 매입·평가 모두 현재 환율 적용(환차손익 미반영).'],
     ['안내', '시세는 지연되거나 부정확할 수 있으며, 투자 권유가 아닌 참고용입니다.'],
   ]);
-  header(ws, ['종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가', '현재가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각']);
+  header(ws, ['종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각']);
   for (const r of data.rows) {
     if (r.error) {
       ws.addRow([r.code, `조회 실패: ${r.error}`, '', '', '', r.quantity, r.avgPrice]);
