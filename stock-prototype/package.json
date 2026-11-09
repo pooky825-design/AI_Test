@@ -1,0 +1,20 @@
+{
+  "name": "stock-manager-prototype",
+  "version": "0.2.0",
+  "private": true,
+  "description": "주식 관리시스템 요구사항 정의서 v0.2 기반 프로토타입",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.6.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.3.0",
+    "sql.js": "^1.15.2"
+  }
+}

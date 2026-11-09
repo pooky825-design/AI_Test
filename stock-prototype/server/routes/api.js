@@ -1,0 +1,336 @@
+const express = require('express');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const db = require('../db');
+const auth = require('../auth');
+const market = require('../services/market');
+const portfolio = require('../services/portfolio');
+const excel = require('../services/excel');
+const { ValidationError } = market;
+
+const router = express.Router();
+const now = () => new Date().toISOString();
+const today = () => market.dateInTz(new Date(), 'Asia/Seoul');
+
+// ---------------------------------------------------------------------------
+// 입력 검증 (4.2)
+// ---------------------------------------------------------------------------
+function positiveNumber(v, { maxDecimals } = {}) {
+  const s = String(v ?? '').trim().replace(/,/g, '');
+  if (!s) return { error: '필수 입력 항목입니다.' };
+  if (/^-\d+(\.\d+)?$/.test(s)) return { error: '0보다 큰 숫자를 입력해 주세요.' };
+  if (!/^\d+(\.\d+)?$/.test(s)) return { error: '숫자만 입력할 수 있습니다.' };
+  const n = Number(s);
+  if (!(n > 0)) return { error: '0보다 큰 숫자를 입력해 주세요.' };
+  if (maxDecimals != null && (s.split('.')[1] || '').length > maxDecimals) {
+    return { error: `소수점 ${maxDecimals}자리까지 입력할 수 있습니다.` };
+  }
+  return { value: n };
+}
+
+function validatePassword(pw) {
+  if (!pw || String(pw).length < 8) return '비밀번호는 8자 이상이어야 합니다.';
+  if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return '비밀번호는 영문과 숫자를 모두 포함해야 합니다.';
+  return null;
+}
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '')) ? null : '올바른 이메일 형식이 아닙니다.';
+}
+
+function fieldErrors(fields) {
+  const f = Object.fromEntries(Object.entries(fields).filter(([, v]) => v));
+  if (Object.keys(f).length) throw new ValidationError('입력값을 확인해 주세요.', f);
+}
+
+// ---------------------------------------------------------------------------
+// 회원·인증 (3.1)
+// ---------------------------------------------------------------------------
+router.post('/auth/signup', async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  fieldErrors({ email: validateEmail(email), password: validatePassword(password) });
+  if (db.get('SELECT 1 FROM users WHERE email = ?', [email])) {
+    throw new ValidationError('이미 가입된 이메일입니다.', { email: '이미 가입된 이메일입니다.' });
+  }
+  const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
+  // 프로토타입: 이메일 인증 절차 생략 → 가입 즉시 활성화
+  const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [email, hash, now()]);
+  auth.createSession(res, lastId);
+  res.json({ user: { id: lastId, email } });
+});
+
+router.post('/auth/login', async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const user = db.get('SELECT * FROM users WHERE email = ?', [email]);
+  const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
+  if (!ok) return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'LOGIN_FAILED' });
+  auth.createSession(res, user.id);
+  res.json({ user: { id: user.id, email: user.email } });
+});
+
+router.post('/auth/logout', (req, res) => {
+  auth.destroySession(req, res);
+  res.json({ ok: true });
+});
+
+router.get('/auth/me', (req, res) => {
+  res.json({ user: req.user || null });
+});
+
+// 비밀번호 재설정: 실제 서비스에서는 메일로 링크를 보내지만, 프로토타입은 화면에 링크를 보여준다.
+router.post('/auth/reset-request', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  fieldErrors({ email: validateEmail(email) });
+  const user = db.get('SELECT id FROM users WHERE email = ?', [email]);
+  let demoLink = null;
+  if (user) {
+    const token = crypto.randomBytes(24).toString('hex');
+    db.run('INSERT INTO reset_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)', [
+      auth.sha256(token), user.id, new Date(Date.now() + 30 * 60000).toISOString(),
+    ]);
+    demoLink = `#/reset?token=${token}`;
+  }
+  res.json({ message: '가입된 이메일이면 재설정 링크를 보냈습니다.', demoLink });
+});
+
+router.post('/auth/reset', async (req, res) => {
+  const t = db.get('SELECT * FROM reset_tokens WHERE token_hash = ? AND used = 0 AND expires_at > ?', [
+    auth.sha256(String(req.body.token || '')), now(),
+  ]);
+  if (!t) return res.status(400).json({ error: '재설정 링크가 만료되었거나 올바르지 않습니다.', code: 'BAD_TOKEN' });
+  fieldErrors({ password: validatePassword(req.body.password) });
+  const hash = await bcrypt.hash(String(req.body.password), 10);
+  db.tx(() => {
+    db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, t.user_id]);
+    db.run('UPDATE reset_tokens SET used = 1 WHERE token_hash = ?', [t.token_hash]);
+    db.run('DELETE FROM sessions WHERE user_id = ?', [t.user_id]);
+  });
+  res.json({ ok: true });
+});
+
+// 이하 로그인 필요 ------------------------------------------------------------
+router.use(auth.requireAuth);
+
+router.post('/auth/change-password', async (req, res) => {
+  const user = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+  if (!(await bcrypt.compare(String(req.body.current || ''), user.password_hash))) {
+    throw new ValidationError('현재 비밀번호가 올바르지 않습니다.', { current: '현재 비밀번호가 올바르지 않습니다.' });
+  }
+  fieldErrors({ next: validatePassword(req.body.next) });
+  db.run('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(req.body.next), 10), user.id]);
+  res.json({ ok: true });
+});
+
+// 회원 탈퇴: 계정·보유 종목·배당 내역 삭제 (FR-AUTH-04, NFR-PRI-01)
+router.delete('/auth/account', async (req, res) => {
+  const user = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+  if (!(await bcrypt.compare(String(req.body.password || ''), user.password_hash))) {
+    throw new ValidationError('비밀번호가 올바르지 않습니다.', { password: '비밀번호가 올바르지 않습니다.' });
+  }
+  db.tx(() => {
+    db.run('DELETE FROM holdings WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM users WHERE id = ?', [user.id]);
+  });
+  auth.destroySession(req, res);
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// 종목 조회 (3.2)
+// ---------------------------------------------------------------------------
+router.get('/stocks/:code', async (req, res) => {
+  res.json(await market.getQuote(req.params.code, { force: req.query.refresh === '1' }));
+});
+
+router.get('/stocks/:code/prices', async (req, res) => {
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : today();
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : to;
+  if (from > to) throw new ValidationError('시작일이 종료일보다 늦습니다.', { from: '시작일이 종료일보다 늦습니다.' });
+  res.json({ from, to, prices: await market.getPrices(req.params.code, from, to) });
+});
+
+// ---------------------------------------------------------------------------
+// 보유 종목 (3.3) — 모든 쿼리에 user_id 조건 (FR-AUTH-05)
+// ---------------------------------------------------------------------------
+router.get('/holdings', async (req, res) => {
+  const list = db.all(
+    `SELECT h.*, i.name, i.market, i.type, i.currency FROM holdings h LEFT JOIN instruments i ON i.code = h.code
+     WHERE h.user_id = ? ORDER BY h.created_at, h.id`,
+    [req.user.id]
+  );
+  res.json({ holdings: list });
+});
+
+function validateHoldingBody(body) {
+  const q = positiveNumber(body.quantity, { maxDecimals: 6 });
+  const p = positiveNumber(body.avgPrice);
+  fieldErrors({ quantity: q.error, avgPrice: p.error });
+  return { quantity: q.value, avgPrice: p.value };
+}
+
+router.post('/holdings', async (req, res) => {
+  let codeErr = null;
+  let code = null;
+  try {
+    code = market.validateCode(req.body.code).code;
+  } catch (e) {
+    codeErr = e.fields.code;
+  }
+  const q = positiveNumber(req.body.quantity, { maxDecimals: 6 });
+  const p = positiveNumber(req.body.avgPrice);
+  fieldErrors({ code: codeErr, quantity: q.error, avgPrice: p.error });
+
+  const dup = db.get('SELECT id FROM holdings WHERE user_id = ? AND code = ?', [req.user.id, code]);
+  if (dup) {
+    return res.status(409).json({
+      error: '이미 등록한 종목입니다. 기존 항목의 수량과 매입단가를 수정해 주세요.',
+      code: 'DUPLICATE',
+      holdingId: dup.id,
+      fields: { code: '이미 등록한 종목입니다.' },
+    });
+  }
+  const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
+  const { lastId } = db.run(
+    'INSERT INTO holdings (user_id, code, quantity, avg_price, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [req.user.id, inst.code, q.value, p.value, now(), now()]
+  );
+  res.json({ id: lastId });
+});
+
+router.put('/holdings/:id', (req, res) => {
+  const h = db.get('SELECT * FROM holdings WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!h) return res.status(404).json({ error: '보유 종목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  const v = validateHoldingBody(req.body);
+  db.run('UPDATE holdings SET quantity = ?, avg_price = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
+    v.quantity, v.avgPrice, now(), h.id, req.user.id,
+  ]);
+  res.json({ ok: true });
+});
+
+router.delete('/holdings/:id', (req, res) => {
+  const r = db.run('DELETE FROM holdings WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!r.changes) return res.status(404).json({ error: '보유 종목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// 자산 현황 (3.4) / 연도별 조회 (3.5)
+// ---------------------------------------------------------------------------
+router.get('/assets', async (req, res) => {
+  res.json(await portfolio.getAssets(req.user.id));
+});
+
+function yearRange(q) {
+  const thisYear = new Date().getFullYear();
+  const to = Number(q.to) || thisYear;
+  const from = Number(q.from) || to - 4; // 기본 최근 5년
+  if (to > thisYear) throw new ValidationError('종료 연도는 올해 이후일 수 없습니다.', { to: '종료 연도는 올해 이후일 수 없습니다.' });
+  if (from > to) throw new ValidationError('시작 연도가 종료 연도보다 늦습니다.', { from: '시작 연도가 종료 연도보다 늦습니다.' });
+  if (to - from + 1 > 10) throw new ValidationError('조회 기간은 최대 10년입니다.', { from: '조회 기간은 최대 10년입니다.' });
+  return { from, to };
+}
+
+router.get('/yearly', async (req, res) => {
+  const { from, to } = yearRange(req.query);
+  res.json(await portfolio.getYearly(req.user.id, from, to));
+});
+
+// ---------------------------------------------------------------------------
+// 배당금 (3.6)
+// ---------------------------------------------------------------------------
+async function validateDividend(body) {
+  let code = null;
+  let codeErr = null;
+  try {
+    code = market.validateCode(body.code).code;
+  } catch (e) {
+    codeErr = e.fields.code;
+  }
+  const payDate = String(body.payDate || '');
+  let dateErr = null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(payDate)) dateErr = '지급일을 입력해 주세요.';
+  else if (payDate > today()) dateErr = '지급일은 오늘 또는 과거 날짜여야 합니다.';
+  const a = positiveNumber(body.amount);
+  const currency = ['KRW', 'USD'].includes(body.currency) ? body.currency : null;
+  const memo = String(body.memo || '');
+  fieldErrors({
+    code: codeErr,
+    payDate: dateErr,
+    amount: a.error,
+    currency: currency ? null : '통화를 선택해 주세요.',
+    memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
+  });
+  // 보유 종목에서 삭제된 종목도 기록할 수 있어야 하므로, 코드 존재 확인은 저장된 종목 또는 출처 조회로
+  await market.ensureInstrument(code);
+  return { code, payDate, amount: a.value, currency, memo: memo || null };
+}
+
+router.get('/dividends', (req, res) => {
+  const where = ['d.user_id = ?'];
+  const params = [req.user.id];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '')) { where.push('d.pay_date >= ?'); params.push(req.query.from); }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '')) { where.push('d.pay_date <= ?'); params.push(req.query.to); }
+  if (req.query.code) { where.push('d.code = ?'); params.push(market.normalizeCode(req.query.code)); }
+  const list = db.all(
+    `SELECT d.*, i.name, i.type FROM dividends d LEFT JOIN instruments i ON i.code = d.code
+     WHERE ${where.join(' AND ')} ORDER BY d.pay_date DESC, d.id DESC`,
+    params
+  ).map((d) => ({ ...d, ...portfolio.dividendKrw(d) }));
+  res.json({ dividends: list });
+});
+
+router.get('/dividends/yearly', (req, res) => {
+  const { from, to } = yearRange({ from: req.query.from || new Date().getFullYear() - 9, to: req.query.to });
+  res.json({ years: portfolio.dividendsByYear(req.user.id, from, to) });
+});
+
+router.post('/dividends', async (req, res) => {
+  const v = await validateDividend(req.body);
+  const { lastId } = db.run(
+    'INSERT INTO dividends (user_id, code, pay_date, amount, currency, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [req.user.id, v.code, v.payDate, v.amount, v.currency, v.memo, now()]
+  );
+  res.json({ id: lastId });
+});
+
+router.put('/dividends/:id', async (req, res) => {
+  const d = db.get('SELECT id FROM dividends WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!d) return res.status(404).json({ error: '배당 내역을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  const v = await validateDividend(req.body);
+  db.run('UPDATE dividends SET code = ?, pay_date = ?, amount = ?, currency = ?, memo = ? WHERE id = ? AND user_id = ?', [
+    v.code, v.payDate, v.amount, v.currency, v.memo, d.id, req.user.id,
+  ]);
+  res.json({ ok: true });
+});
+
+router.delete('/dividends/:id', (req, res) => {
+  const r = db.run('DELETE FROM dividends WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  if (!r.changes) return res.status(404).json({ error: '배당 내역을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// 엑셀 내보내기 (3.8)
+// ---------------------------------------------------------------------------
+function sendXlsx(res, buf, name) {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.send(Buffer.from(buf));
+}
+
+router.get('/export/assets.xlsx', async (req, res) => {
+  const data = await portfolio.getAssets(req.user.id);
+  sendXlsx(res, await excel.assetsWorkbook(data), `자산현황_${today()}.xlsx`);
+});
+
+router.get('/export/yearly.xlsx', async (req, res) => {
+  const { from, to } = yearRange(req.query);
+  const data = await portfolio.getYearly(req.user.id, from, to);
+  sendXlsx(res, await excel.yearlyWorkbook(data), `연도별조회_${from}-${to}.xlsx`);
+});
+
+module.exports = router;
