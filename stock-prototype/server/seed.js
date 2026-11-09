@@ -24,12 +24,18 @@ async function seedDemo() {
     ['ISA', '0080G0', ty - 1, 'BUY', 200, 5000, null],
     ['연금', 'SPY', ty - 3, 'BUY', 5, 450, null],
     ['연금', '069500', ty - 2, 'BUY', 20, 33000, '연금 계좌에서도 보유'],
+    ['연금', '360750', ty - 1, 'BUY', 30, 18000, '해외추종 예시'],
   ];
   for (const [g, code, year, side, q, p, memo] of trades) {
     db.run(
       'INSERT INTO holding_trades (user_id, group_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [uid, gid[g], code, year, side, q, p, memo, now, now]
     );
+  }
+  // 종목 분류 (국내·해외·해외추종)
+  const cats = { '005930': 'DOMESTIC', '069500': 'DOMESTIC', '0080G0': 'DOMESTIC', AAPL: 'OVERSEAS', SPY: 'OVERSEAS', '360750': 'OVERSEAS_TRACK' };
+  for (const [code, c] of Object.entries(cats)) {
+    db.run('INSERT INTO stock_categories (user_id, code, category, updated_at) VALUES (?, ?, ?, ?)', [uid, code, c, now]);
   }
   const y = new Date().getFullYear();
   const dividends = [

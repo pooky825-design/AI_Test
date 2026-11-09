@@ -43,7 +43,7 @@ async function assetsWorkbook(data) {
     ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가. 미국 종목 손익은 매입·평가 모두 현재 환율 적용(환차손익 미반영).'],
     ['안내', '시세는 지연되거나 부정확할 수 있으며, 투자 권유가 아닌 참고용입니다.'],
   ]);
-  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각']);
+  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각', '분류']);
   for (const r of data.rows) {
     if (r.error) {
       ws.addRow([r.groupName, r.code, `조회 실패: ${r.error}`, '', '', '', r.quantity, r.avgPrice]);
@@ -52,7 +52,7 @@ async function assetsWorkbook(data) {
     const cur = r.instrument.currency === 'USD' ? USD : KRW;
     const row = ws.addRow([
       r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, r.quantity, r.avgPrice, r.price,
-      r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime),
+      r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime), r.categoryLabel,
     ]);
     row.getCell(7).numFmt = QTY;
     [8, 9, 10].forEach((i) => (row.getCell(i).numFmt = cur));
@@ -70,6 +70,16 @@ async function assetsWorkbook(data) {
     header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률']);
     for (const g of data.groupTotals) {
       const r = ws.addRow([g.name, g.count, g.valueKrw, g.costKrw, g.pnlKrw, g.returnPct]);
+      [3, 4, 5].forEach((i) => (r.getCell(i).numFmt = KRW));
+      r.getCell(6).numFmt = PCT;
+    }
+  }
+  // 분류별 합계
+  if ((data.categoryTotals || []).length) {
+    ws.addRow([]);
+    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률']);
+    for (const c of data.categoryTotals) {
+      const r = ws.addRow([c.label, c.count, c.valueKrw, c.costKrw, c.pnlKrw, c.returnPct]);
       [3, 4, 5].forEach((i) => (r.getCell(i).numFmt = KRW));
       r.getCell(6).numFmt = PCT;
     }

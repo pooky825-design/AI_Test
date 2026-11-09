@@ -13,6 +13,14 @@ function guessType(name) {
   return '주식';
 }
 
+// XML 속성값의 문자 참조 복원 (예: TIGER 미국S&amp;P500 → TIGER 미국S&P500)
+function decodeXml(v) {
+  return String(v || '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 function ymd(s) {
   return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 }
@@ -30,7 +38,7 @@ async function fetchChartData(code, count) {
     if (close && close !== 'null') rows.push({ date: ymd(d), close: Number(close) });
   }
   if (!rows.length) throw new NotFoundError();
-  return { name: head[2], listedDate: head[3] ? ymd(head[3]) : null, rows };
+  return { name: decodeXml(head[2]), listedDate: head[3] ? ymd(head[3]) : null, rows };
 }
 
 async function load(code, kind, range) {

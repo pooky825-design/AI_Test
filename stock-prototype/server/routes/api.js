@@ -7,6 +7,7 @@ const market = require('../services/market');
 const portfolio = require('../services/portfolio');
 const excel = require('../services/excel');
 const { ValidationError } = market;
+const categories = require('../services/categories');
 
 const router = express.Router();
 const now = () => new Date().toISOString();
@@ -133,6 +134,7 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM holding_trades WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM user_settings WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_groups WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM stock_categories WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
@@ -146,7 +148,9 @@ router.delete('/auth/account', async (req, res) => {
 // 종목 조회 (3.2)
 // ---------------------------------------------------------------------------
 router.get('/stocks/:code', async (req, res) => {
-  res.json(await market.getQuote(req.params.code, { force: req.query.refresh === '1' }));
+  const q = await market.getQuote(req.params.code, { force: req.query.refresh === '1' });
+  // 회원의 종목 분류 (등록 화면 기본값). 저장값이 없으면 추천값
+  res.json({ ...q, category: categories.categoryOf(req.user.id, q.instrument.code, q.instrument) });
 });
 
 router.get('/stocks/:code/prices', async (req, res) => {
@@ -186,6 +190,8 @@ router.get('/holdings', (req, res) => {
     `SELECT * FROM holding_trades WHERE user_id = ? AND year = ? ${gid ? 'AND group_id = ?' : ''} ORDER BY id`,
     gid ? [req.user.id, year, gid] : [req.user.id, year]
   ).map((t) => ({ ...t, group_name: gname.get(t.group_id) || '-', ...instInfo(t.code) }));
+  const saved = categories.savedMap(req.user.id);
+  trades.forEach((t) => { const c = categories.categoryOf(req.user.id, t.code, t, saved); t.category = c.id; t.category_label = c.label; });
   const range = positions.tradeYearRange(req.user.id);
   res.json({ year, groupId: gid, groups, yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty }, holdings: list, trades });
 });
@@ -253,10 +259,12 @@ async function validateTrade(body, userId, excludeId) {
   const q = positiveNumber(body.quantity, { maxDecimals: 6 });
   const p = side === 'BUY' || String(body.price ?? '').trim() ? positiveNumber(body.price) : { value: null };
   const memo = String(body.memo || '');
+  const category = categories.IDS.includes(body.category) ? body.category : null;
   const groupId = Number(body.groupId);
   const group = db.get('SELECT id, name FROM holding_groups WHERE id = ? AND user_id = ?', [groupId, userId]);
   fieldErrors({
     groupId: group ? null : '그룹을 선택해 주세요.',
+    category: category ? null : '국내·해외·해외추종 중 하나를 선택해 주세요.',
     code: codeErr,
     year: yearErr,
     side: side ? null : '매수 또는 매도를 선택해 주세요.',
@@ -278,7 +286,7 @@ async function validateTrade(body, userId, excludeId) {
       throw new ValidationError(msg, { quantity: msg });
     }
   }
-  return { code: inst.code, groupId, year, side, quantity: q.value, price: p.value, memo: memo || null };
+  return { code: inst.code, groupId, category, year, side, quantity: q.value, price: p.value, memo: memo || null };
 }
 
 router.post('/trades', async (req, res) => {
@@ -287,6 +295,7 @@ router.post('/trades', async (req, res) => {
     'INSERT INTO holding_trades (user_id, group_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [req.user.id, v.groupId, v.code, v.year, v.side, v.quantity, v.price, v.memo, now(), now()]
   );
+  categories.setCategory(req.user.id, v.code, v.category); // 종목 분류는 회원·종목별로 하나
   res.json({ id: lastId });
 });
 
@@ -297,6 +306,7 @@ router.put('/trades/:id', async (req, res) => {
   db.run('UPDATE holding_trades SET group_id = ?, year = ?, side = ?, quantity = ?, price = ?, memo = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
     v.groupId, v.year, v.side, v.quantity, v.price, v.memo, now(), t.id, req.user.id,
   ]);
+  categories.setCategory(req.user.id, v.code, v.category);
   res.json({ ok: true });
 });
 

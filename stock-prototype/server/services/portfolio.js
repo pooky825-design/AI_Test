@@ -3,6 +3,7 @@
 const db = require('../db');
 const market = require('./market');
 const positions = require('./positions');
+const categories = require('./categories');
 
 async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
@@ -128,6 +129,13 @@ async function getAssets(userId, year, groupId, merged) {
     }
   });
 
+  // 종목 분류 (국내·해외·해외추종)
+  const savedCats = categories.savedMap(userId);
+  rows.forEach((r) => {
+    const c = categories.categoryOf(userId, r.code, r.instrument, savedCats);
+    r.category = c.id;
+    r.categoryLabel = c.label;
+  });
   const ok = rows.filter((r) => r.valueKrw != null);
   const totalValue = ok.reduce((s, r) => s + r.valueKrw, 0);
   const totalCost = ok.reduce((s, r) => s + r.costKrw, 0);
@@ -147,6 +155,13 @@ async function getAssets(userId, year, groupId, merged) {
     groupId: gid,
     merged: isMerged,
     groupTotals,
+    // 분류별 합계 (선택한 그룹 범위 안에서)
+    categoryTotals: categories.CATEGORIES.map((c) => {
+      const rs = ok.filter((r) => r.category === c.id);
+      const v = rs.reduce((a, r) => a + r.valueKrw, 0);
+      const cst = rs.reduce((a, r) => a + r.costKrw, 0);
+      return { id: c.id, label: c.label, count: new Set(rs.map((r) => r.code)).size, valueKrw: v, costKrw: cst, pnlKrw: v - cst, returnPct: cst ? (v - cst) / cst : null };
+    }),
     yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
     total: {

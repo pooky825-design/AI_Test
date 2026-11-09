@@ -342,6 +342,18 @@
             </tr>`).join('')}</tbody>
           </table></div>
         </div>` : ''}
+        ${(d.categoryTotals || []).some((c) => c.count) ? `<div class="card">
+          <h2>분류별 합계${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
+            <tbody>${d.categoryTotals.map((c) => `<tr>
+              <td><span class="cat cat-${c.id}">${esc(c.label)}</span></td><td class="num">${c.count}</td>
+              <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
+              <td class="num ${cls(c.pnlKrw)}">${c.count ? sKrw(c.pnlKrw) : '-'}</td><td class="num ${cls(c.returnPct)}">${c.count ? pct(c.returnPct) : '-'}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+          <p class="small muted" style="margin:8px 0 0">분류는 보유 종목 관리에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
+        </div>` : ''}
         <div class="card">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
@@ -355,7 +367,7 @@
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span>${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
                 <td>${badge(r.instrument.type)}</td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.avgPrice, c)}</td>
@@ -601,6 +613,7 @@
           <input type="hidden" name="id" />
           <div class="field" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
           <div class="field" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
+          <div class="field" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" style="width:90px"><label>구분</label><select name="side"><option value="BUY">매수</option><option value="SELL">매도</option></select><span class="err" data-err="side"></span></div>
           <div class="field" style="width:120px"><label>수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">소수 6자리까지</span><span class="err" data-err="quantity"></span></div>
           <div class="field" style="width:140px"><label data-price-label>매수 단가 <span data-cur></span></label><input name="price" inputmode="decimal" placeholder="거래 통화 기준" /><span class="hint" data-price-hint>국내 원 · 미국 달러</span><span class="err" data-err="price"></span></div>
@@ -630,8 +643,14 @@
       form.querySelector('[data-price-hint]').textContent = sell ? '평균 매입단가 계산에는 안 씀' : '국내 원 · 미국 달러';
     };
     form.side.addEventListener('change', syncSide);
+    let lookedUp = ''; // 마지막으로 확인한 종목코드
+    const clearCodeError = () => {
+      form.code.classList.remove('invalid');
+      form.querySelector('[data-err="code"]').textContent = '';
+    };
     const lookup = async () => {
       const code = form.code.value.trim();
+      lookedUp = code.toUpperCase();
       hint.textContent = '';
       curLabel.textContent = '';
       if (!code) return;
@@ -640,10 +659,14 @@
         const q = await api('GET', `/stocks/${encodeURIComponent(code)}`);
         hint.innerHTML = `${esc(q.instrument.name)} ${badge(q.instrument.type)}`;
         curLabel.textContent = `(${q.instrument.currency === 'USD' ? '달러' : '원'})`;
-        showFieldErrors(form, {});
+        // 분류: 이 종목에 저장한 분류, 없으면 추천값을 미리 선택 (바꿀 수 있음)
+        if (q.category && (!form.category.value || !form.id.value)) form.category.value = q.category.id;
+        clearCodeError(); // 다른 항목의 오류는 그대로 둔다
       } catch (err) {
         hint.textContent = '';
-        showFieldErrors(form, { code: err.message });
+        clearCodeError();
+        form.code.classList.add('invalid');
+        form.querySelector('[data-err="code"]').textContent = err.message;
       }
     };
     form.code.addEventListener('change', lookup);
@@ -671,6 +694,8 @@
       e.preventDefault();
       const msg = main.querySelector('[data-msg]');
       msg.innerHTML = '';
+      // 종목코드를 입력하고 바로 등록을 누른 경우: 종목 확인(분류 추천값 채우기)을 먼저 끝낸다
+      if (!form.code.disabled && form.code.value.trim() && form.code.value.trim().toUpperCase() !== lookedUp) await lookup();
       const d = { ...formData(form), code: form.code.value, year };
       const btn = form.querySelector('[data-submit]');
       btn.disabled = true;
@@ -783,7 +808,7 @@
           head = `<tr class="group-row"><td colspan="7">${esc(t.group_name)}</td></tr>`;
         }
         return `${head}<tr data-id="${t.id}">
-          <td><div class="name-cell"><span>${esc(t.name || t.code)} ${badge(t.type)}</span><small>${esc(t.code)}</small></div></td>
+          <td><div class="name-cell"><span>${esc(t.name || t.code)} ${badge(t.type)}</span><small>${esc(t.code)} · <span class="cat cat-${esc(t.category)}">${esc(t.category_label)}</span></small></div></td>
           <td>${sideLabel(t.side)}</td>
           <td class="num">${qty(t.quantity)}</td>
           <td class="num">${t.price == null ? '-' : money(t.price, t.currency)}</td>
@@ -815,6 +840,7 @@
           form.code.value = t.code;
           form.code.disabled = true;
           form.side.value = t.side;
+          form.category.value = t.category || '';
           form.quantity.value = t.quantity;
           form.price.value = t.price == null ? '' : t.price;
           form.memo.value = t.memo || '';

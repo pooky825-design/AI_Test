@@ -72,6 +72,15 @@ CREATE TABLE IF NOT EXISTS holding_trades (
 );
 CREATE INDEX IF NOT EXISTS idx_trades_user ON holding_trades (user_id, year, code);
 
+-- 회원별 종목 분류 (v0.7): 국내 / 해외 / 해외추종(해외 자산을 따라가는 국내 상장 ETF 등)
+CREATE TABLE IF NOT EXISTS stock_categories (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('DOMESTIC', 'OVERSEAS', 'OVERSEAS_TRACK')),
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, code)
+);
+
 -- 회원별 화면 설정 (마지막 조회 기간·선택 연도)
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -265,6 +274,9 @@ function migrate() {
     }
     db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
   }
+
+  // v0.7: 네이버에서 받은 종목명에 남아 있던 XML 문자 참조 복원 (예: S&amp;P → S&P)
+  db.run("UPDATE instruments SET name = REPLACE(REPLACE(REPLACE(REPLACE(name, '&lt;', '<'), '&gt;', '>'), '&quot;', '\"'), '&amp;', '&') WHERE name LIKE '%&%;%'");
 
   // v0.6: 그룹 컬럼 추가, 그룹이 없는 기록은 회원별 '일반' 그룹으로
   const tcols = all('PRAGMA table_info(holding_trades)').map((c) => c.name);
