@@ -972,21 +972,23 @@
       parts.push(`
         <h3 style="margin:6px 0 8px">연도별 합계·배당수익률</h3>
         <div class="table-wrap"><table>
-          <thead><tr><th>연도</th><th class="num">횟수</th><th class="num">주당 배당 합계</th><th class="num">기준 종가</th><th class="num">배당수익률</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
+          <thead><tr><th>연도</th><th class="num">횟수</th><th class="num">주당 배당 합계</th><th class="num">주당 과세표준 합계</th><th class="num">기준 종가</th><th class="num">배당수익률</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
           <tbody>${d.years.map((y) => `<tr>
             <td>${y.year} ${y.ongoing ? '<span class="badge ongoing">진행 중</span>' : ''}</td>
             <td class="num">${y.count}</td>
             <td class="num">${money(y.perShare, c)}</td>
+            <td class="num">${y.taxBase == null ? '-' : money(y.taxBase, c)}</td>
             <td class="num">${y.refClose == null ? '-' : money(y.refClose, c)}</td>
             <td class="num">${y.yieldPct == null ? '-' : `${(y.yieldPct * 100).toFixed(1)}%`}</td>
             ${held ? `<td class="num">${money(y.estimate, c)}${c === 'USD' && y.estimateKrw != null ? `<br/><small class="muted">≈ ${krw(y.estimateKrw)}</small>` : ''}</td>` : ''}
           </tr>`).join('')}</tbody>
         </table></div>
         <p class="small muted" style="margin:6px 0 14px">배당수익률 = 연간 주당 배당 합계 ÷ 연말 종가 (올해는 현재가 기준)</p>
+        <div class="notice ${d.taxBaseKnown ? 'info' : 'warn'} small"><div><b>주당과세표준액</b>: ${esc(d.taxBaseNote)}</div></div>
         <h3 style="margin:0 0 8px">배당락일별 주당 배당금</h3>
         <div class="table-wrap scroll-y" style="max-height:260px"><table>
-          <thead><tr><th>배당락일</th><th class="num">주당 배당금</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
-          <tbody>${d.events.map((e) => `<tr><td>${esc(e.exDate)}</td><td class="num">${money(e.amount, c)}</td>${held ? `<td class="num">${money(e.estimate, c)}${c === 'USD' && e.estimateKrw != null ? ` <small class="muted">≈ ${krw(e.estimateKrw)}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
+          <thead><tr><th>배당락일</th><th class="num">주당 배당금</th><th class="num">주당과세표준액</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
+          <tbody>${d.events.map((e) => `<tr><td>${esc(e.exDate)}</td><td class="num">${money(e.amount, c)}</td><td class="num">${e.taxBase == null ? '-' : money(e.taxBase, c)}</td>${held ? `<td class="num">${money(e.estimate, c)}${c === 'USD' && e.estimateKrw != null ? ` <small class="muted">≈ ${krw(e.estimateKrw)}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
         </table></div>`);
     }
     parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 출처가 배당락일만 제공해 실제 지급일은 표시하지 않습니다. 실제 수령액은 배당금 관리 화면에 기록하세요.</p>`);
