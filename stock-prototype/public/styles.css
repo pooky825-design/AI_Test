@@ -286,3 +286,8 @@ body.modal-open { overflow: hidden; }
   .kpi .value { font-size: 17px; }
   form.inline > .field, form.inline > button { flex: 1 1 100%; }
 }
+/* 전년도 일괄이월 팝업 */
+.carry-table tr[data-ci] { cursor: pointer; }
+.carry-table tr[data-ci].muted { cursor: default; opacity: .6; }
+.carry-table input[type=checkbox] { width: 16px; height: 16px; }
+.carry-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }

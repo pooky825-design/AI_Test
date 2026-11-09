@@ -682,7 +682,7 @@
           <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" style="width:140px"><label>평균 매입단가</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
-          <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
+          <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
         <div data-msg></div>
       </div>
@@ -920,6 +920,86 @@
           form.scrollIntoView({ behavior: 'smooth', block: 'center' });
           form.quantity.focus();
         });
+      });
+    }
+
+    // ---- 전년도 일괄 이월: 전년 말 보유 종목을 팝업에 보여 주고, 선택한 종목만 올해 이월 종목으로 등록
+    main.querySelector('[data-carry]').addEventListener('click', openCarryModal);
+    async function openCarryModal() {
+      const scope = groupId ? `‘${esc(groupName())}’ 그룹` : '전체 그룹';
+      const body = openModal(`전년도 일괄이월 · ${year - 1}년 → ${year}년 ${req('FR-HLD-05')}`, { wide: true, loadingText: `${year - 1}년 말 보유 종목을 불러오는 중…` });
+      let d;
+      try {
+        d = await api('GET', `/holdings/carry-candidates?year=${year}${groupId ? `&group=${groupId}` : ''}`);
+      } catch (err) {
+        body.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+        return;
+      }
+      if (!d.items.length) {
+        body.innerHTML = `<div class="empty">${year - 1}년 말 ${scope}에 보유한 종목이 없습니다.</div>`;
+        return;
+      }
+      const STATUS = { REGISTERED: '<span class="muted small">이미 등록됨</span>', AUTO: '<span class="badge carry">자동 이어짐</span>', REMOVED: '<span class="small down">올해 삭제됨</span>' };
+      const showGroup = !groupId;
+      let lastGroup = null;
+      const rows = d.items.map((it, idx) => {
+        let head = '';
+        if (showGroup && it.group_id !== lastGroup) {
+          lastGroup = it.group_id;
+          head = `<tr class="group-row"><td colspan="7">${esc(it.group_name)}</td></tr>`;
+        }
+        const dis = it.status === 'REGISTERED';
+        return `${head}<tr data-ci="${idx}" class="${dis ? 'muted' : ''}">
+          <td><input type="checkbox" data-pick ${dis ? 'disabled' : 'checked'} aria-label="${esc(it.name || it.code)} 선택" /></td>
+          <td class="left"><div class="name-cell"><span>${esc(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
+          <td class="right">${qty(it.quantity)}</td>
+          <td class="right">${money(it.avg_price, it.currency)}</td>
+          <td class="right">${money(it.purchase_amount, it.currency)}</td>
+          <td class="small">${esc(it.memo || '')}</td>
+          <td>${STATUS[it.status] || ''}</td>
+        </tr>`;
+      }).join('');
+      body.innerHTML = `
+        <p class="small muted" style="margin:0 0 10px">${year - 1}년 말 ${scope} 보유 종목입니다. 선택한 종목은 ${year - 1}년 말 수량·평균 매입단가·메모 그대로 <b>${year}년 이월 종목</b>으로 등록됩니다. 이미 ${year}년에 등록한 종목은 선택할 수 없습니다.</p>
+        <div class="table-wrap"><table class="carry-table">
+          <thead><tr><th><input type="checkbox" data-all aria-label="전체 선택" /></th><th class="left">종목</th><th class="right">수량</th><th class="right">평균 매입단가</th><th class="right">매입금액</th><th>메모</th><th>${year}년 상태</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+        <div class="carry-foot"><span class="small" data-count></span><div class="field-row"><button type="button" class="secondary" data-close>취소</button><button type="button" data-go>선택 종목 이월 등록</button></div></div>`;
+      const picks = [...body.querySelectorAll('[data-pick]:not(:disabled)')];
+      const all = body.querySelector('[data-all]');
+      const go = body.querySelector('[data-go]');
+      const sync = () => {
+        const n = picks.filter((c) => c.checked).length;
+        body.querySelector('[data-count]').textContent = `${n}개 선택 / 이월 가능 ${picks.length}개`;
+        all.checked = picks.length > 0 && n === picks.length;
+        all.indeterminate = n > 0 && n < picks.length;
+        all.disabled = !picks.length;
+        go.disabled = n === 0;
+      };
+      picks.forEach((c) => c.addEventListener('change', sync));
+      all.addEventListener('change', () => { picks.forEach((c) => (c.checked = all.checked)); sync(); });
+      body.querySelectorAll('tr[data-ci]').forEach((tr) => tr.addEventListener('click', (e) => {
+        const c = tr.querySelector('[data-pick]');
+        if (e.target === c || c.disabled) return;
+        c.checked = !c.checked; sync();
+      }));
+      body.querySelector('[data-close]').addEventListener('click', closeModal);
+      sync();
+      go.addEventListener('click', async () => {
+        const items = [...body.querySelectorAll('tr[data-ci]')].filter((tr) => { const c = tr.querySelector('[data-pick]'); return !c.disabled && c.checked; })
+          .map((tr) => { const it = d.items[Number(tr.dataset.ci)]; return { groupId: it.group_id, code: it.code }; });
+        go.disabled = true; go.textContent = '등록 중…';
+        try {
+          const r = await api('POST', '/holdings/carry', { year, items });
+          closeModal();
+          toast(`${r.added}개 종목을 ${year}년 이월 종목으로 등록했습니다.${r.skipped.length ? ` (${r.skipped.length}개 건너뜀)` : ''}`);
+          loadTrades();
+          loadGroups();
+        } catch (err) {
+          toast(err.message);
+          go.textContent = '선택 종목 이월 등록';
+          sync();
+        }
       });
     }
 

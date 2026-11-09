@@ -298,6 +298,66 @@ router.delete('/holdings/items', (req, res) => {
   res.json({ ok: true });
 });
 
+// 전년도 일괄 이월 (v0.9): 전년 말 보유 종목 목록과 올해 상태
+//  - status REGISTERED: 올해 항목을 이미 등록함(선택 불가)
+//  - status AUTO: 올해 항목은 없고 전년 보유가 자동으로 이어지는 중
+//  - status REMOVED: 올해 삭제(전량 매도) 처리됨
+router.get('/holdings/carry-candidates', async (req, res) => {
+  const year = Number(req.query.year);
+  if (!Number.isInteger(year) || year <= MIN_YEAR || year > thisYear()) {
+    return res.status(400).json({ error: '연도를 확인해 주세요.', code: 'VALIDATION' });
+  }
+  const groups = positions.groupsOf(req.user.id);
+  const gid = groups.some((g) => g.id === Number(req.query.group)) ? Number(req.query.group) : null;
+  const gname = new Map(groups.map((g) => [g.id, g.name]));
+  const order = new Map(groups.map((g, i) => [g.id, i]));
+  const cur = positions.stateAt(positions.itemsOf(req.user.id), year);
+  const saved = categories.savedMap(req.user.id);
+  const prev = positions.positionsAt(req.user.id, year - 1, { groupId: gid })
+    .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+  const items = await portfolio.mapLimit(prev, 5, async (p) => {
+    let inst = instInfo(p.code);
+    try { inst = market.publicInstrument(await market.ensureInstrument(p.code)); } catch (_) { /* 저장된 정보로 표시 */ }
+    const c = categories.categoryOf(req.user.id, p.code, inst, saved);
+    const now_ = cur.get(`${p.groupId}|${p.code}`);
+    const status = now_ && now_.itemYear === year ? (now_.quantity > 0 ? 'REGISTERED' : 'REMOVED') : 'AUTO';
+    return {
+      group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
+      name: inst.name, type: inst.type, currency: inst.currency, category: c.id, category_label: c.label,
+      quantity: p.quantity, avg_price: p.avgPrice, purchase_amount: p.quantity * p.avgPrice, memo: p.memo, status,
+    };
+  });
+  res.json({ year, fromYear: year - 1, groupId: gid, items });
+});
+
+// 선택한 전년도 종목을 올해 이월 종목으로 일괄 등록: 전년 말 수량·평균 매입단가·메모를 그대로 올해 항목으로 저장
+router.post('/holdings/carry', (req, res) => {
+  const year = Number(req.body.year);
+  const list = Array.isArray(req.body.items) ? req.body.items : [];
+  if (!Number.isInteger(year) || year <= MIN_YEAR || year > thisYear()) {
+    return res.status(400).json({ error: '연도를 확인해 주세요.', code: 'VALIDATION' });
+  }
+  if (!list.length) return res.status(400).json({ error: '이월할 종목을 하나 이상 선택해 주세요.', code: 'VALIDATION' });
+  const all = positions.itemsOf(req.user.id);
+  const prev = positions.stateAt(all, year - 1);
+  const cur = positions.stateAt(all, year);
+  const saved = categories.savedMap(req.user.id);
+  let added = 0;
+  const skipped = [];
+  for (const x of list) {
+    const code = market.normalizeCode(x.code);
+    const k = `${Number(x.groupId)}|${code}`;
+    const p = prev.get(k);
+    if (!p || !(p.quantity > 0)) { skipped.push({ code, reason: '전년 말 보유 종목이 아닙니다.' }); continue; }
+    const c = cur.get(k);
+    if (c && c.itemYear === year && c.quantity > 0) { skipped.push({ code, reason: '이미 등록된 종목입니다.' }); continue; }
+    const category = categories.categoryOf(req.user.id, code, instInfo(code), saved).id;
+    upsertItem(req.user.id, { groupId: p.groupId, code, year, quantity: p.quantity, avgPrice: p.avgPrice, memo: p.memo || null, carryMode: 'CARRIED', category });
+    added++;
+  }
+  res.json({ ok: true, added, skipped });
+});
+
 // ---------------------------------------------------------------------------
 // 보유 종목 그룹 (v0.6): ISA·연금·일반 등 회원이 직접 만드는 그룹
 // ---------------------------------------------------------------------------
