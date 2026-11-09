@@ -132,6 +132,10 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .card[data-ckey="stocks"] tfoot td.down { color: #1a56b0; }
 .today-col { background: #fbfaf3; }
 th.today-col { background: #f3f0de; }
+.card[data-ckey="group"] tfoot td { background: #e3eaf3; color: #0f2a44; font-weight: 800; border-top: 2px solid var(--primary); }
+.card[data-ckey="group"] tfoot td.today-col { background: #ece7cc; }
+.card[data-ckey="group"] tfoot td.up { color: #c0261f; }
+.card[data-ckey="group"] tfoot td.down { color: #1a56b0; }
 .group-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .group-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .group-tabs button { background: #fff; color: var(--text); border: 1px solid #cbd5e1; border-radius: 99px; padding: 6px 14px; font-weight: 500; }

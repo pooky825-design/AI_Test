@@ -351,6 +351,11 @@
               <td class="num"><b>${krw(g.valueKrw)}</b></td><td class="num">${pct(t.valueKrw ? g.valueKrw / t.valueKrw : null).replace('+', '')}</td>
               <td class="num ${cls(g.pnlKrw)}">${sKrw(g.pnlKrw)}</td><td class="num ${cls(g.returnPct)}">${pct(g.returnPct)}</td>${todayCells(g)}
             </tr>`).join('')}</tbody>
+            <tfoot><tr class="sum-row">
+              <td>소계</td><td class="num">${d.groupTotals.reduce((n, g) => n + g.count, 0)}</td>
+              <td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
+              <td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td>${todayCells(t)}
+            </tr></tfoot>
           </table></div>
         </div>` : ''}
         ${(d.categoryTotals || []).some((c) => c.count) ? `<div class="card" data-ckey="category">
