@@ -341,7 +341,7 @@
             <tbody>${ok.map((r) => {
               const c = r.instrument.currency;
               return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}">${esc(r.instrument.name)}</a><small>${showGroup ? `<span class="badge grp">${esc(r.groupName)}</span> ` : ''}${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${showGroup ? `<span class="badge grp">${esc(r.groupName)}</span> ` : ''}${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
                 <td>${badge(r.instrument.type)}</td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.avgPrice, c)}</td>
@@ -406,12 +406,11 @@
       main.querySelector('[data-result]').innerHTML = `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">예시: <a href="#/stock?code=005930">005930</a> · <a href="#/stock?code=0080G0">0080G0</a> · <a href="#/stock?code=530036">530036</a> · <a href="#/stock?code=AAPL">AAPL</a> · <a href="#/stock?code=SPY">SPY</a></span></div>`;
       return;
     }
-    await loadStock(main, query.code, query.refresh === '1');
+    await loadStock(main.querySelector('[data-result]'), query.code, query.refresh === '1', main.querySelector('[data-search]'));
   }
 
-  async function loadStock(main, code, refresh) {
-    const box = main.querySelector('[data-result]');
-    const form = main.querySelector('[data-search]');
+  // 종목 정보·날짜별 종가를 box 안에 그린다. 종목 조회 화면과 자산 현황의 종목 팝업에서 함께 사용
+  async function loadStock(box, code, refresh, form) {
     box.innerHTML = `<div class="card empty">${esc(code)} 조회 중… (처음 조회하는 종목은 최근 10년 종가를 적재합니다 ${req('FR-DATA-02')})</div>`;
     let q;
     try {
@@ -420,9 +419,9 @@
       // FR-STK-05: 없는 코드 / 형식 오류 → 오류 메시지, 시세 수집 실패 → 원인 안내 + 재시도
       if (err.code === 'SOURCE_ERROR' || err.status >= 500) {
         box.innerHTML = `<div class="notice error"><div class="grow"><b>시세를 가져오지 못했습니다.</b><br/>${esc(err.message)}<br/><span class="small">외부 시세 출처의 일시적 장애이거나 인터넷 연결 문제일 수 있습니다. ${req('FR-STK-05')}</span></div><button data-retry>재시도</button></div>`;
-        box.querySelector('[data-retry]').addEventListener('click', () => loadStock(main, code, true));
+        box.querySelector('[data-retry]').addEventListener('click', () => loadStock(box, code, true, form));
       } else {
-        showFieldErrors(form, { code: err.message });
+        if (form) showFieldErrors(form, { code: err.message });
         box.innerHTML = `<div class="notice error"><div><b>${esc(code)}</b>: ${esc(err.message)} ${req('FR-STK-05')}</div></div>`;
       }
       return;
@@ -473,7 +472,7 @@
         <div class="table-wrap scroll-y" style="margin-top:14px" data-table></div>
         <p class="small muted" style="margin:8px 0 0">수정 종가: 액면분할·병합을 반영해 현재 주식 수 기준으로 환산한 과거 종가 (배당 미반영) ${req('FR-DATA-03')}</p>
       </div>`;
-    box.querySelector('[data-refresh]').addEventListener('click', () => loadStock(main, i.code, true));
+    box.querySelector('[data-refresh]').addEventListener('click', () => loadStock(box, i.code, true, form));
     box.querySelector('[data-divs]').addEventListener('click', () => openDividendModal(i.code));
     const fromI = box.querySelector('input[name=from]');
     const toI = box.querySelector('input[name=to]');
@@ -1131,29 +1130,51 @@
   // ---------------------------------------------------------------------------
   // 배당금 지급내역 팝업 (FR-STK-08, FR-DATA-09)
   // ---------------------------------------------------------------------------
+  // 팝업은 겹쳐 열 수 있다 (예: 종목 팝업 위에 배당금 지급내역 팝업). 닫기는 맨 위 팝업부터
   function closeModal() {
-    const m = document.querySelector('.modal-back');
-    if (m) m.remove();
+    const all = document.querySelectorAll('.modal-back');
+    if (all.length) all[all.length - 1].remove();
+    if (all.length <= 1) document.body.classList.remove('modal-open');
+  }
+  function closeAllModals() {
+    document.querySelectorAll('.modal-back').forEach((m) => m.remove());
     document.body.classList.remove('modal-open');
+  }
+  function openModal(titleHtml, { wide = false, loadingText = '불러오는 중…' } = {}) {
+    document.body.classList.add('modal-open');
+    const back = document.createElement('div');
+    back.className = 'modal-back';
+    back.innerHTML = `<div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true">
+        <div class="modal-head"><h2>${titleHtml}</h2><button class="linkish close" aria-label="닫기">✕</button></div>
+        <div class="modal-body"><div class="empty">${esc(loadingText)}</div></div>
+      </div>`;
+    document.body.appendChild(back);
+    back.addEventListener('click', (e) => {
+      if (e.target === back || (e.target.closest('.close') && e.target.closest('.modal-back') === back)) {
+        back.remove();
+        if (!document.querySelector('.modal-back')) document.body.classList.remove('modal-open');
+      }
+    });
+    // 팝업 안의 화면 이동 링크(예: 보유 종목으로 등록)를 누르면 팝업을 모두 닫는다
+    back.addEventListener('click', (e) => { if (e.target.closest('a[href^="#/"]')) closeAllModals(); });
+    return back.querySelector('.modal-body');
+  }
+
+  // 종목 조회 팝업 (자산 현황에서 종목을 누를 때)
+  function openStockModal(code) {
+    const body = openModal(`종목 조회 ${req('SC-03')}`, { wide: true, loadingText: `${code} 조회 중…` });
+    body.classList.add('stock-modal');
+    loadStock(body, code, false, null);
   }
 
   async function openDividendModal(code, refresh) {
-    closeModal();
-    document.body.classList.add('modal-open');
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
-        <div class="modal-head"><h2>배당금 지급내역 ${req('FR-STK-08')}</h2><button class="linkish close" aria-label="닫기">✕</button></div>
-        <div class="modal-body"><div class="empty">최근 10년 배당 내역을 불러오는 중…</div></div>
-      </div></div>`);
-    const back = document.querySelector('.modal-back');
-    back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('.close')) closeModal(); });
-    const body = back.querySelector('.modal-body');
+    const body = openModal(`배당금 지급내역 ${req('FR-STK-08')}`, { loadingText: '최근 10년 배당 내역을 불러오는 중…' });
     let d;
     try {
       d = await api('GET', `/stocks/${encodeURIComponent(code)}/dividends${refresh ? '?refresh=1' : ''}`);
     } catch (err) {
       body.innerHTML = `<div class="notice error"><div class="grow">${esc(err.message)}</div><button class="sm" data-retry>재시도</button></div>`;
-      body.querySelector('[data-retry]').addEventListener('click', () => openDividendModal(code, true));
+      body.querySelector('[data-retry]').addEventListener('click', () => { closeModal(); openDividendModal(code, true); });
       return;
     }
     const i = d.instrument;
@@ -1193,10 +1214,16 @@
     parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 실지급일은 운용사·FunETF가 제공하는 국내 ETF 회차만 표시합니다. 실제 수령액은 배당금 관리 화면에 기록하세요.</p>`);
     body.innerHTML = parts.join('');
     const retry = body.querySelector('[data-retry]');
-    if (retry) retry.addEventListener('click', () => openDividendModal(code, true));
+    if (retry) retry.addEventListener('click', () => { closeModal(); openDividendModal(code, true); });
   }
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-stock-popup]');
+    if (!a) return;
+    e.preventDefault();
+    openStockModal(a.dataset.stockPopup);
+  });
 
   // ---------------------------------------------------------------------------
   // 라우터
@@ -1206,7 +1233,7 @@
 
   async function render() {
     destroyCharts();
-    closeModal();
+    closeAllModals();
     const { path, query } = parseHash();
     if (PUBLIC[path]) {
       if (state.user && path !== '/reset') return go('#/assets');

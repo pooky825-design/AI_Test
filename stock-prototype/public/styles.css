@@ -216,6 +216,9 @@ body.modal-open { overflow: hidden; }
 .modal-body { padding: 14px 18px 18px; overflow-y: auto; min-width: 0; }
 @media (max-width: 520px) { .modal-back { padding: 8px; } .modal-body { padding: 12px; } .modal th, .modal td { padding: 7px 6px; } }
 .modal-title { margin-bottom: 10px; font-size: 15px; }
+.modal.wide { max-width: 980px; }
+.modal-body.stock-modal { background: var(--bg); }
+.modal-body.stock-modal .card:last-child { margin-bottom: 0; }
 
 /* ---------- responsive (NFR-UX-01) ---------- */
 @media (max-width: 1100px) {
