@@ -203,7 +203,8 @@ router.get('/holdings', async (req, res) => {
     const item = {
       group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code, ...info,
       quantity: p.quantity, avg_price: p.avgPrice, memo: p.memo, updated_at: p.lastTradeAt,
-      carried: p.carried, item_year: p.itemYear, category: c.id, category_label: c.label,
+      carried: p.carried, carry_mode: p.carryMode, purchase_amount: p.quantity * p.avgPrice,
+      item_year: p.itemYear, category: c.id, category_label: c.label,
     };
     try {
       let price = null;
@@ -254,7 +255,11 @@ async function validateItem(body, userId) {
   const group = db.get('SELECT id FROM holding_groups WHERE id = ? AND user_id = ?', [groupId, userId]);
   const category = categories.IDS.includes(body.category) ? body.category : null;
   const q = positiveNumber(body.quantity, { maxDecimals: 6 });
-  const p = positiveNumber(body.avgPrice);
+  // 매입금액을 받으면 평균 매입단가 = 매입금액 ÷ 수량 (v0.8.1). 매입금액이 없으면 평균 매입단가를 그대로 받는다
+  const hasAmount = String(body.purchaseAmount ?? '').trim() !== '';
+  const amt = hasAmount ? positiveNumber(body.purchaseAmount) : { value: null };
+  const p = hasAmount ? { value: amt.value && q.value ? amt.value / q.value : null } : positiveNumber(body.avgPrice);
+  const carryMode = body.carryMode === 'CARRIED' || body.carryMode === 'NEW' ? body.carryMode : null;
   const memo = String(body.memo || '');
   fieldErrors({
     groupId: group ? null : '그룹을 선택해 주세요.',
@@ -262,20 +267,22 @@ async function validateItem(body, userId) {
     category: category ? null : '국내·해외·해외추종 중 하나를 선택해 주세요.',
     year: yearErr,
     quantity: q.error,
-    avgPrice: p.error,
+    purchaseAmount: hasAmount ? amt.error : null,
+    avgPrice: hasAmount ? null : p.error,
+    carryMode: carryMode ? null : '이월 또는 신규를 선택해 주세요.',
     memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
   });
   const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
-  return { code: inst.code, groupId, category, year, quantity: q.value, avgPrice: p.value, memo: memo || null };
+  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null };
 }
 
 function upsertItem(userId, v) {
   db.run(
-    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = excluded.quantity, avg_price = excluded.avg_price,
-       memo = excluded.memo, updated_at = excluded.updated_at`,
-    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, now(), now()]
+       memo = excluded.memo, carry_mode = excluded.carry_mode, updated_at = excluded.updated_at`,
+    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, now(), now()]
   );
   categories.setCategory(userId, v.code, v.category); // 종목 분류는 회원·종목별로 하나
 }
@@ -308,7 +315,9 @@ router.delete('/holdings/items', (req, res) => {
   const code = market.normalizeCode(req.query.code);
   const cur = positions.positionsAt(req.user.id, year, { groupId }).find((p) => p.code === code);
   if (!cur) return res.status(404).json({ error: '주식 항목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
-  if (cur.carried) {
+  // 이월 표시와 관계없이, 실제로 전년 말 보유 항목이 있으면 수량 0 항목을 남겨야 그 해부터 보유하지 않게 된다
+  const prevHeld = positions.stateAt(positions.itemsOf(req.user.id), year - 1).get(`${groupId}|${code}`);
+  if (prevHeld && prevHeld.quantity > 0) {
     db.run(
       `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, created_at, updated_at)
        VALUES (?, ?, ?, ?, 0, NULL, '전량 매도', ?, ?)

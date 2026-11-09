@@ -141,6 +141,11 @@ th.today-col { background: #f3f0de; }
 th, td, th.num, td.num, .card[data-ckey] th { text-align: center; }
 .name-cell { align-items: center; }
 tr.group-row td { text-align: left; } /* 그룹 제목 행은 휴대폰에서도 보이도록 왼쪽 정렬 */
+/* 보유 종목 관리 주식 항목 표: 종목 왼쪽, 수량·평균 매입단가·평가금액 오른쪽 */
+[data-trades] th.left, [data-trades] td.left { text-align: left; }
+[data-trades] td.left .name-cell { align-items: flex-start; }
+[data-trades] th.right, [data-trades] td.right { text-align: right; }
+input.auto-calc { background: var(--surface-2); color: var(--text); cursor: default; }
 .group-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .group-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .group-tabs button { background: #fff; color: var(--text); border: 1px solid #cbd5e1; border-radius: 99px; padding: 6px 14px; font-weight: 500; }

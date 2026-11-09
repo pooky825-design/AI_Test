@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS holding_items (
   quantity REAL NOT NULL,
   avg_price REAL,
   memo TEXT,
+  carry_mode TEXT,                  -- 이월 여부 (v0.8.1): CARRIED(이월) / NEW(신규) / NULL(자동: 전년 말 보유 여부)
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (user_id, group_id, code, year)
@@ -290,6 +291,9 @@ function migrate() {
     }
     db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
   }
+
+  const icols = all('PRAGMA table_info(holding_items)').map((c) => c.name);
+  if (!icols.includes('carry_mode')) db.run('ALTER TABLE holding_items ADD COLUMN carry_mode TEXT');
 
   // v0.8: 매수·매도 기록(holding_trades)을 연도별 주식 항목(holding_items)으로 한 번 변환
   if (!all("SELECT value FROM app_meta WHERE key = 'trades_to_items'")[0]) {

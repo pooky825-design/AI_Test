@@ -28,6 +28,7 @@ function stateAt(items, upToYear) {
       itemId: it.id,
       itemYear: it.year,
       memo: it.memo,
+      carryMode: it.year === upToYear ? it.carry_mode || null : null, // 그 해 항목에 지정한 이월 여부
       lastTradeAt: it.updated_at,
       firstYear: prev ? prev.firstYear : it.year,
       tradesInYear: it.year === upToYear ? 1 : 0,
@@ -62,7 +63,9 @@ function positionsAt(userId, upToYear, { groupId } = {}) {
     .filter((p) => p.quantity > EPS && (!groupId || p.groupId === groupId))
     .map((p) => {
       const pv = prev.get(`${p.groupId}|${p.code}`);
-      return { ...p, carried: !!(pv && pv.quantity > EPS) }; // 전년 말에도 보유 → 이월
+      // 이월 여부: 그 해 항목에 지정한 값이 있으면 그 값, 없으면 전년 말에도 보유했는지로 판단
+      const auto = !!(pv && pv.quantity > EPS);
+      return { ...p, carried: p.carryMode ? p.carryMode === 'CARRIED' : auto };
     });
 }
 
@@ -82,8 +85,16 @@ function yearBasis(items, groupId, code, year, startPrice) {
   const k = `${groupId || 0}|${code}`;
   const prev = stateAt(items, year - 1).get(k);
   const cur = stateAt(items, year).get(k);
-  const Q = prev && prev.quantity > EPS ? prev.quantity : 0;
   const N = cur && cur.quantity > EPS ? cur.quantity : 0;
+  // 이월 여부를 직접 지정한 경우 (v0.8.1)
+  //  - 이월: 보유 수량 전부를 1월 1일 평가액(전년 마지막 종가)으로
+  //  - 신규: 그 해 매입금액(수량 × 평균 매입단가) 그대로
+  if (cur && cur.carryMode === 'CARRIED') {
+    const unit = startPrice == null ? cur.avgPrice : startPrice;
+    return { cost: N * unit, quantity: N, startQty: N, fallback: N > EPS && startPrice == null };
+  }
+  if (cur && cur.carryMode === 'NEW') return { cost: cur.cost, quantity: N, startQty: 0, fallback: false };
+  const Q = prev && prev.quantity > EPS ? prev.quantity : 0;
   const startUnit = startPrice == null ? (prev ? prev.avgPrice : 0) : startPrice;
   const carried = Math.min(Q, N);
   let cost = carried * startUnit;

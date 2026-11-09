@@ -677,8 +677,10 @@
           <div class="field" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
           <div class="field" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
-          <div class="field" style="width:120px"><label>보유 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량 · 소수 6자리까지</span><span class="err" data-err="quantity"></span></div>
-          <div class="field" style="width:150px"><label>평균 매입단가 <span data-cur></span></label><input name="avgPrice" inputmode="decimal" placeholder="거래 통화 기준" /><span class="hint">국내 원 · 미국 달러</span><span class="err" data-err="avgPrice"></span></div>
+          <div class="field" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
+          <div class="field" style="width:110px"><label>보유 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
+          <div class="field" style="width:140px"><label>평균 매입단가</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
@@ -726,6 +728,14 @@
       }
     };
     form.code.addEventListener('change', lookup);
+    // 평균 매입단가 자동 계산 = 매입금액 ÷ 보유 수량
+    const calcAvg = () => {
+      const q = Number(String(form.quantity.value).replace(/,/g, ''));
+      const a = Number(String(form.purchaseAmount.value).replace(/,/g, ''));
+      form.avgPrice.value = q > 0 && a > 0 ? String(Number((a / q).toFixed(4))) : '';
+    };
+    form.quantity.addEventListener('input', calcAvg);
+    form.purchaseAmount.addEventListener('input', calcAvg);
 
     const setTitles = () => {
       main.querySelector('[data-list-title]').innerHTML = `${year}년 주식 항목 · ${esc(groupName())} ${req('FR-HLD-02')}`;
@@ -868,20 +878,20 @@
           head = `<tr class="group-row"><td colspan="${cols}">${esc(it.group_name)}</td></tr>`;
         }
         return `${head}<tr data-idx="${idx}">
-          <td><div class="name-cell"><span>${esc(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
+          <td class="left"><div class="name-cell"><span>${esc(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
           <td>${it.carried ? '<span class="badge carry">이월</span>' : '<span class="muted small">신규</span>'}</td>
-          <td class="num">${qty(it.quantity)}</td>
-          <td class="num">${money(it.avg_price, it.currency)}</td>
-          <td class="num">${valueCell(it)}</td>
+          <td class="right">${qty(it.quantity)}</td>
+          <td class="right">${money(it.avg_price, it.currency)}</td>
+          <td class="right">${valueCell(it)}</td>
           <td class="small">${esc(it.memo || '')}</td>
           <td class="small muted">${fmtTime(it.updated_at)}</td>
           <td><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
         </tr>`;
       }).join('');
       tbox.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>종목</th><th>이월</th><th class="num">수량</th><th class="num">단가</th><th class="num">평가금액</th><th>메모</th><th>수정일</th><th></th></tr></thead>
+        <thead><tr><th class="left">종목</th><th>이월</th><th class="right">수량</th><th class="right">평균 매입단가</th><th class="right">평가금액</th><th>메모</th><th>수정일</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">이월 = ${year - 1}년 말에도 보유한 종목 · 단가 = ${year}년 말 평균 매입단가 · 평가금액 = ${year >= THIS_YEAR ? '현재가' : `${year}년 말 종가`} × 수량 (외화 종목은 원화 금액을 누르면 외화 금액 표시) · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">이월 = 전년도부터 보유(자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 평균 매입단가 = ${year}년 말 기준 · 평가금액 = ${year >= THIS_YEAR ? '현재가' : `${year}년 말 종가`} × 수량 (외화 종목은 원화 금액을 누르면 외화 금액 표시) · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', async () => {
@@ -903,8 +913,10 @@
           form.code.value = it.code;
           form.code.disabled = true;
           form.category.value = it.category || '';
+          form.carryMode.value = it.carry_mode || (it.carried ? 'CARRIED' : 'NEW');
           form.quantity.value = it.quantity;
-          form.avgPrice.value = it.avg_price;
+          form.purchaseAmount.value = String(Number(it.purchase_amount.toFixed(it.currency === 'USD' ? 2 : 0)));
+          calcAvg();
           form.memo.value = it.memo || '';
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${esc(it.group_name)} ${req('FR-HLD-02')}`;
