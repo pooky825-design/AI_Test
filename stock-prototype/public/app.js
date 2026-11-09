@@ -266,20 +266,17 @@
       <div class="page-head">
         <div><h1>자산 현황 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
         <div class="field-row">
-          <div class="field"><label>그룹</label><select data-group><option value="">전체</option></select></div>
           <div class="field"><label>기준 연도</label><select data-year>${yearOptions(year)}</select></div>
           <button class="secondary" data-refresh>새로고침</button>
           <button data-export="/export/assets.xlsx?year=${year}${groupQs}">엑셀 내보내기</button>
         </div>
-      </div>`);
+      </div>
+      <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>`);
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('assets.year', Number(e.target.value));
       go(`#/assets?year=${e.target.value}${groupQs}`);
     });
-    main.querySelector('[data-group]').addEventListener('change', (e) => {
-      settings.set('assets.group', e.target.value);
-      go(`#/assets?year=${year}&group=${e.target.value}`);
-    });
+
     loading(main, '시세와 환율을 불러오는 중… (처음 조회하는 종목은 10년치 종가를 적재해 시간이 걸릴 수 있습니다)');
     main.querySelector('[data-refresh]').addEventListener('click', () => render());
     let d;
@@ -289,9 +286,14 @@
       main.querySelector('[data-loading]').outerHTML = `<div class="notice error"><div class="grow">${esc(err.message)}</div><button class="sm" onclick="location.reload()">재시도</button></div>`;
       return;
     }
-    const gsel = main.querySelector('[data-group]');
-    gsel.innerHTML = '<option value="">전체</option>' + d.groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
-    gsel.value = d.groupId ? String(d.groupId) : '';
+    // 그룹 탭 (보유 종목 관리와 같은 방식)
+    const tabs = main.querySelector('[data-tabs]');
+    tabs.innerHTML = [`<button class="${d.groupId ? '' : 'on'}" data-g="">전체</button>`]
+      .concat(d.groups.map((g) => `<button class="${d.groupId === g.id ? 'on' : ''}" data-g="${g.id}">${esc(g.name)}</button>`)).join('');
+    tabs.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => {
+      settings.set('assets.group', b.dataset.g);
+      go(`#/assets?year=${year}&group=${b.dataset.g}`);
+    }));
     const showGroup = !d.groupId && d.groups.length > 1;
     const ok = d.rows.filter((r) => !r.error);
     const html = [];
@@ -338,10 +340,12 @@
               <th>종목</th><th>구분</th><th class="num">보유 수량</th><th class="num">평균 매입단가</th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
               <th class="num">평가금액</th><th class="num">원화 평가금액</th><th class="num">원화 평가손익</th><th class="num">수익률</th>
             </tr></thead>
-            <tbody>${ok.map((r) => {
-              const c = r.instrument.currency;
-              return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${showGroup ? `<span class="badge grp">${esc(r.groupName)}</span> ` : ''}${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
+            <tbody>${(() => {
+              const cols = d.ongoing ? 10 : 9;
+              const rowHtml = (r) => {
+                const c = r.instrument.currency;
+                return `<tr>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
                 <td>${badge(r.instrument.type)}</td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.avgPrice, c)}</td>
@@ -352,7 +356,16 @@
                 <td class="num ${cls(r.pnlKrw)}">${sKrw(r.pnlKrw)}</td>
                 <td class="num ${cls(r.returnPct)}">${pct(r.returnPct)}</td>
               </tr>`;
-            }).join('')}</tbody>
+              };
+              if (!showGroup) return ok.map(rowHtml).join('');
+              // 전체: 그룹별 구역(그룹 제목 행 + 종목 + 그룹 소계 행)
+              return d.groups.filter((g) => ok.some((r) => r.groupId === g.id)).map((g) => {
+                const gt = d.groupTotals.find((x) => x.groupId === g.id) || {};
+                return `<tr class="group-row"><td colspan="${cols}"><a href="#/assets?year=${d.year}&group=${g.id}">${esc(g.name)}</a> <span class="muted" style="font-weight:400">${gt.count || 0}종목</span></td></tr>
+                  ${ok.filter((r) => r.groupId === g.id).map(rowHtml).join('')}
+                  <tr class="group-sub"><td colspan="${cols - 3}">${esc(g.name)} 소계</td><td class="num">${krw(gt.valueKrw)}</td><td class="num ${cls(gt.pnlKrw)}">${sKrw(gt.pnlKrw)}</td><td class="num ${cls(gt.returnPct)}">${pct(gt.returnPct)}</td></tr>`;
+              }).join('');
+            })()}</tbody>
             <tfoot><tr><td colspan="${d.ongoing ? 7 : 6}">합계 (원화)</td><td class="num">${krw(t.valueKrw)}</td><td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td></tr></tfoot>
           </table></div>
           <div class="basis">

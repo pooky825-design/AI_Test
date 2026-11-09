@@ -116,6 +116,8 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .group-tabs button { background: #fff; color: var(--text); border: 1px solid #cbd5e1; border-radius: 99px; padding: 6px 14px; font-weight: 500; }
 .group-tabs button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
 .group-panel { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+tr.group-sub td { background: var(--surface-2); font-weight: 600; font-size: 12px; border-bottom: 1.5px solid #cbd5e1; }
+tr.group-row td a { color: var(--primary); }
 tr.group-row td { background: var(--primary-soft); color: var(--primary); font-weight: 700; font-size: 12px; padding: 6px 10px; }
 .badge.grp { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
 .badge.side-buy { background: #fdecec; color: var(--up); border-color: #f6c6c6; }
