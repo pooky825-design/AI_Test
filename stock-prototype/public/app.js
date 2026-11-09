@@ -325,13 +325,14 @@
       const t = d.total;
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
       html.push(`
-        <div class="grid k4" style="margin-bottom:16px">
+        <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
+        <div class="grid k4">
           <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.costKrw)}</div></div>
           <div class="kpi"><div class="label">평가손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">평균 매입단가 기준</div></div>
           <div class="kpi"><div class="label">수익률</div><div class="value ${cls(t.returnPct)}">${pct(t.returnPct)}</div><div class="sub">전체 손익 ÷ 전체 매입금액</div></div>
           <div class="kpi"><div class="label">${d.ongoing ? '적용 환율' : '연말 환율'} (USD/KRW) ${req('FR-AST-04')}</div><div class="value">${rate(d.basis.fxRate)}</div><div class="sub">${d.ongoing ? `${fmtTime(d.basis.fxTime)} 기준` : `${esc(String(d.basis.fxTime || '').slice(0, 10))} 기준`}</div></div>
-        </div>
-        ${showGroup && d.groupTotals.length > 1 ? `<div class="card">
+        </div></div>
+        ${showGroup && d.groupTotals.length > 1 ? `<div class="card" data-ckey="group">
           <h2>그룹별 합계</h2>
           <div class="table-wrap"><table>
             <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
@@ -342,7 +343,7 @@
             </tr>`).join('')}</tbody>
           </table></div>
         </div>` : ''}
-        ${(d.categoryTotals || []).some((c) => c.count) ? `<div class="card">
+        ${(d.categoryTotals || []).some((c) => c.count) ? `<div class="card" data-ckey="category">
           <h2>분류별 합계${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
             <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
@@ -354,7 +355,7 @@
           </table></div>
           <p class="small muted" style="margin:8px 0 0">분류는 보유 종목 관리에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
         </div>` : ''}
-        <div class="card">
+        <div class="card" data-ckey="stocks">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table>
@@ -400,6 +401,34 @@
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
     main.querySelectorAll('[data-refresh2]').forEach((b) => b.addEventListener('click', () => render()));
+    makeFoldable(main, 'assets.collapsed');
+  }
+
+  // 상자(카드) 접기·펴기: 제목 오른쪽 −/+ 버튼. 접은 상자는 settingKey 에 저장해 다음에도 유지
+  function makeFoldable(root, settingKey) {
+    const folded = new Set(settings.get(settingKey) || []);
+    root.querySelectorAll('.card[data-ckey]').forEach((card) => {
+      const h2 = card.querySelector(':scope > h2');
+      if (!h2 || h2.querySelector('.fold-btn')) return;
+      const key = card.dataset.ckey;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fold-btn';
+      const apply = () => {
+        const on = folded.has(key);
+        card.classList.toggle('collapsed', on);
+        btn.textContent = on ? '+' : '−';
+        btn.title = on ? '펴기' : '접기';
+        btn.setAttribute('aria-expanded', String(!on));
+      };
+      btn.addEventListener('click', () => {
+        if (folded.has(key)) folded.delete(key); else folded.add(key);
+        apply();
+        settings.set(settingKey, [...folded]);
+      });
+      h2.appendChild(btn);
+      apply();
+    });
   }
 
   // ---------------------------------------------------------------------------
