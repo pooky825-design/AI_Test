@@ -291,3 +291,6 @@ body.modal-open { overflow: hidden; }
 .carry-table tr[data-ci].muted { cursor: default; opacity: .6; }
 .carry-table input[type=checkbox] { width: 16px; height: 16px; }
 .carry-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+/* 종목 열 왼쪽 정렬 (자산 현황 종목별 평가금액 등) */
+td.left { text-align: left; }
+td.left .name-cell { align-items: flex-start; }
