@@ -62,6 +62,40 @@ function positionsAt(userId, upToYear, { groupId } = {}) {
     .map((p) => ({ ...p, avgPrice: p.cost / p.quantity }));
 }
 
+/**
+ * 연초 기준 매입금액 (v0.7.2): 선택 연도 1월 1일을 기준으로 다시 잡은 매입금액
+ * - 전년 말까지 보유해 이월된 수량은 전년 마지막 거래일 종가(= 1월 1일 평가액)로 평가
+ * - 그 해에 새로 산 수량은 매수 단가 그대로
+ * - 그 해에 판 수량은 이동평균으로 차감
+ * startPrice 가 없으면(종가 데이터 없음) 이월분은 원래 평균 매입단가를 쓰고 fallback 으로 표시
+ */
+function yearBasis(trades, groupId, code, year, startPrice) {
+  const list = sortTrades(trades.filter((t) => t.code === code && (t.group_id || 0) === (groupId || 0) && t.year <= year));
+  let qty = 0;
+  let cost = 0;
+  for (const t of list) {
+    if (t.year >= year) break;
+    if (t.side === 'BUY') { cost += t.quantity * t.price; qty += t.quantity; } else {
+      const avg = qty > EPS ? cost / qty : 0;
+      qty -= t.quantity; cost -= avg * t.quantity;
+      if (qty < EPS) { qty = Math.max(qty, 0); cost = 0; }
+    }
+  }
+  const startQty = qty;
+  const fallback = startQty > EPS && startPrice == null;
+  let bq = startQty;
+  let bc = startQty > EPS ? (startPrice == null ? cost : startQty * startPrice) : 0;
+  for (const t of list) {
+    if (t.year !== year) continue;
+    if (t.side === 'BUY') { bc += t.quantity * t.price; bq += t.quantity; } else {
+      const avg = bq > EPS ? bc / bq : 0;
+      bq -= t.quantity; bc -= avg * t.quantity;
+      if (bq < EPS) { bq = Math.max(bq, 0); bc = 0; }
+    }
+  }
+  return { cost: bc, quantity: bq, startQty, fallback };
+}
+
 /** upToYear 말 종목별 합계 (그룹 합산, 수량 0 초과만) */
 function totalsAt(userId, upToYear) {
   return [...accumulateByCode(tradesOf(userId), upToYear).values()]
@@ -106,4 +140,4 @@ function groupsOf(userId) {
   return list;
 }
 
-module.exports = { tradesOf, positionsAt, totalsAt, accumulate, accumulateByCode, findShortfall, tradeYearRange, codesUpTo, groupsOf };
+module.exports = { yearBasis, tradesOf, positionsAt, totalsAt, accumulate, accumulateByCode, findShortfall, tradeYearRange, codesUpTo, groupsOf };

@@ -327,8 +327,8 @@
       html.push(`
         <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
         <div class="grid k4">
-          <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.costKrw)}</div></div>
-          <div class="kpi"><div class="label">평가손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">평균 매입단가 기준</div></div>
+          <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.costKrw)} (${d.year}.1.1 기준)</div></div>
+          <div class="kpi"><div class="label">평가손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">${d.year}년 1월 1일 평가액·연중 매수가 기준</div></div>
           <div class="kpi"><div class="label">수익률</div><div class="value ${cls(t.returnPct)}">${pct(t.returnPct)}</div><div class="sub">전체 손익 ÷ 전체 매입금액</div></div>
           <div class="kpi"><div class="label">${d.ongoing ? '적용 환율' : '연말 환율'} (USD/KRW) ${req('FR-AST-04')}</div><div class="value">${rate(d.basis.fxRate)}</div><div class="sub">${d.ongoing ? `${fmtTime(d.basis.fxTime)} 기준` : `${esc(String(d.basis.fxTime || '').slice(0, 10))} 기준`}</div></div>
         </div></div>
@@ -360,22 +360,36 @@
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table>
             <thead><tr>
-              <th>종목</th><th>구분</th><th class="num">보유 수량</th><th class="num">평균 매입단가</th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
-              <th class="num">평가금액</th><th class="num">원화 평가금액</th><th class="num">원화 평가손익</th><th class="num">수익률</th>
+              <th>종목</th><th class="num">보유 수량</th><th class="num">평균 매입단가<br/><small class="muted">${d.year}.1.1 기준</small></th><th class="num">매입금액<br/><small class="muted">원화 · ${d.year}.1.1 기준</small></th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
+              <th class="num">원화 평가금액</th><th class="num">원화 평가손익</th><th class="num">수익률</th>
             </tr></thead>
             <tbody>${(() => {
-              const cols = d.ongoing ? 10 : 9;
+              const cols = d.ongoing ? 9 : 8;
+              const gap = d.ongoing ? 2 : 1; // 현재가(·전일 대비) 칸
+              // 외화 종목: 원화 금액을 누르면 외화 금액을 툴팁으로 보여준다
+              const fxTip = (r, amount) => (r.instrument.currency === 'USD' ? `${usd(amount)} × ${rate(r.fxRate)}` : '');
+              const krwCell = (r, krwVal, amount, bold) => {
+                const txt = bold ? `<b>${krw(krwVal)}</b>` : krw(krwVal);
+                const tip = fxTip(r, amount);
+                return tip ? `<span class="tip" data-tip="${esc(tip)}" tabindex="0">${txt}</span>` : txt;
+              };
+              const avgTip = (r) => {
+                const c = r.instrument.currency;
+                const parts = [`실제 평균 매입단가 ${money(r.origAvgPrice, c)}`];
+                if (r.carriedQty > 0) parts.push(r.basisFallback ? `이월 ${qty(r.carriedQty)}주: 전년 종가가 없어 실제 매입단가 적용` : `이월 ${qty(r.carriedQty)}주: ${esc(r.startClose ? r.startClose.date : '')} 종가 ${money(r.startClose ? r.startClose.close : null, c)}`);
+                if (r.quantity - r.carriedQty > 1e-9) parts.push(`${d.year}년 매수분: 매수 단가`);
+                return parts.join(' · ');
+              };
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span>${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
-                <td>${badge(r.instrument.type)}</td>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
                 <td class="num">${qty(r.quantity)}</td>
-                <td class="num">${money(r.avgPrice, c)}</td>
+                <td class="num"><span class="tip" data-tip="${esc(avgTip(r))}" tabindex="0">${money(r.avgPrice, c)}</span></td>
+                <td class="num">${krwCell(r, r.costKrw, r.cost, false)}</td>
                 <td class="num">${money(r.price, c)}${d.ongoing ? '' : `<br/><small class="muted">${esc(String(r.priceTime).slice(0, 10))}</small>`}</td>
                 ${d.ongoing ? `<td class="num ${cls(r.change)}">${sMoney(r.change, c)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
-                <td class="num">${money(r.value, c)}${c === 'USD' ? `<br/><small class="muted">× ${rate(r.fxRate)}</small>` : ''}</td>
-                <td class="num"><b>${krw(r.valueKrw)}</b></td>
+                <td class="num">${krwCell(r, r.valueKrw, r.value, true)}</td>
                 <td class="num ${cls(r.pnlKrw)}">${sKrw(r.pnlKrw)}</td>
                 <td class="num ${cls(r.returnPct)}">${pct(r.returnPct)}</td>
               </tr>`;
@@ -386,17 +400,17 @@
                 const gt = d.groupTotals.find((x) => x.groupId === g.id) || {};
                 return `<tr class="group-row"><td colspan="${cols}"><a href="#/assets?year=${d.year}&group=${g.id}">${esc(g.name)}</a> <span class="muted" style="font-weight:400">${gt.count || 0}종목</span></td></tr>
                   ${ok.filter((r) => r.groupId === g.id).map(rowHtml).join('')}
-                  <tr class="group-sub"><td colspan="${cols - 3}">${esc(g.name)} 소계</td><td class="num">${krw(gt.valueKrw)}</td><td class="num ${cls(gt.pnlKrw)}">${sKrw(gt.pnlKrw)}</td><td class="num ${cls(gt.returnPct)}">${pct(gt.returnPct)}</td></tr>`;
+                  <tr class="group-sub"><td colspan="3">${esc(g.name)} 소계</td><td class="num">${krw(gt.costKrw)}</td><td colspan="${gap}"></td><td class="num">${krw(gt.valueKrw)}</td><td class="num ${cls(gt.pnlKrw)}">${sKrw(gt.pnlKrw)}</td><td class="num ${cls(gt.returnPct)}">${pct(gt.returnPct)}</td></tr>`;
               }).join('');
             })()}</tbody>
-            <tfoot><tr><td colspan="${d.ongoing ? 7 : 6}">합계 (원화)</td><td class="num">${krw(t.valueKrw)}</td><td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td></tr></tfoot>
+            <tfoot><tr><td colspan="3">합계 (원화)</td><td class="num">${krw(t.costKrw)}</td><td colspan="${d.ongoing ? 2 : 1}"></td><td class="num">${krw(t.valueKrw)}</td><td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td></tr></tfoot>
           </table></div>
           <div class="basis">
             <span>시세 기준 <b>${d.ongoing ? `${fmtTime(d.basis.priceTimeOldest)} ~ ${fmtTime(d.basis.priceTimeLatest)}` : `${d.year}년 마지막 거래일 종가`}</b></span>
             <span>환율 <b>${rate(d.basis.fxRate)}</b> (${d.ongoing ? fmtTime(d.basis.fxTime) : esc(String(d.basis.fxTime || '').slice(0, 10))}, ${esc(d.basis.fxSource || '-')})</span>
             ${d.ongoing ? `<span>현재가는 5분간 캐시 ${req('FR-DATA-05')}</span>` : ''}
           </div>
-          <p class="small muted" style="margin:10px 0 0">원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>의 매수·매도 기록으로 계산</p>
+          <p class="small muted" style="margin:10px 0 0">평균 매입단가·매입금액은 <b>${d.year}년 1월 1일 기준</b>입니다: ${d.year - 1}년 말까지 보유한 수량은 ${d.year}년 1월 1일 평가액(${d.year - 1}년 마지막 거래일 종가), ${d.year}년에 산 수량은 매수 단가로 계산합니다(평균 매입단가를 누르면 실제 평균 매입단가 표시) · 외화 종목은 원화 금액을 누르면 외화 금액이 보입니다 · 원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>의 매수·매도 기록으로 계산</p>
         </div>`);
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
@@ -1308,7 +1322,32 @@
     if (retry) retry.addEventListener('click', () => { closeModal(); openDividendModal(code, true); });
   }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeTip(); closeModal(); } });
+
+  // 툴팁: data-tip 요소를 누르면 말풍선으로 보여주고, 다른 곳을 누르면 닫는다 (휴대폰에서도 동작)
+  let tipEl = null;
+  let tipOwner = null;
+  function closeTip() {
+    if (tipEl) tipEl.remove();
+    tipEl = null;
+    tipOwner = null;
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (!t || t === tipOwner) { closeTip(); return; }
+    closeTip();
+    tipOwner = t;
+    tipEl = document.createElement('div');
+    tipEl.className = 'tip-bubble';
+    tipEl.textContent = t.dataset.tip;
+    document.body.appendChild(tipEl);
+    const r = t.getBoundingClientRect();
+    const w = tipEl.offsetWidth;
+    const left = Math.max(8, Math.min(window.scrollX + r.right - w, window.scrollX + document.documentElement.clientWidth - w - 8));
+    tipEl.style.left = `${left}px`;
+    tipEl.style.top = `${window.scrollY + r.bottom + 6}px`;
+  });
+  window.addEventListener('hashchange', closeTip);
   document.addEventListener('click', (e) => {
     const a = e.target.closest('[data-stock-popup]');
     if (!a) return;

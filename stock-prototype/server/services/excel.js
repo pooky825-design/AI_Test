@@ -40,10 +40,11 @@ async function assetsWorkbook(data) {
     ['시세 기준 시각', `${fmtTime(data.basis.priceTimeOldest)} ~ ${fmtTime(data.basis.priceTimeLatest)}`],
     ['적용 환율 (USD/KRW)', data.basis.fxRate],
     ['환율 기준 시각', fmtTime(data.basis.fxTime)],
+    ['매입 기준', `평균 매입단가·매입금액은 ${data.year}년 1월 1일 기준: 전년 말까지 보유한 수량은 1월 1일 평가액(전년 마지막 종가), 그 해 매수분은 매수 단가`],
     ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가. 미국 종목 손익은 매입·평가 모두 현재 환율 적용(환차손익 미반영).'],
     ['안내', '시세는 지연되거나 부정확할 수 있으며, 투자 권유가 아닌 참고용입니다.'],
   ]);
-  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각', '분류']);
+  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가(1/1 기준)', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각', '분류', '원화 매입금액(1/1 기준)', '실제 평균 매입단가']);
   for (const r of data.rows) {
     if (r.error) {
       ws.addRow([r.groupName, r.code, `조회 실패: ${r.error}`, '', '', '', r.quantity, r.avgPrice]);
@@ -52,8 +53,10 @@ async function assetsWorkbook(data) {
     const cur = r.instrument.currency === 'USD' ? USD : KRW;
     const row = ws.addRow([
       r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, r.quantity, r.avgPrice, r.price,
-      r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime), r.categoryLabel,
+      r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime), r.categoryLabel, r.costKrw, r.origAvgPrice,
     ]);
+    row.getCell(17).numFmt = KRW;
+    row.getCell(18).numFmt = cur;
     row.getCell(7).numFmt = QTY;
     [8, 9, 10].forEach((i) => (row.getCell(i).numFmt = cur));
     row.getCell(11).numFmt = USD;

@@ -47,19 +47,43 @@ async function getAssets(userId, year, groupId, merged) {
   const isMerged = !!merged && !gid;
   const perGroup = positions.positionsAt(userId, y, { groupId: gid })
     .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+
+  // 연초 기준 평균 매입단가·매입금액: 전년 말 이월분은 1월 1일 평가액(전년 마지막 종가), 그 해 매수분은 매수 단가
+  const allTrades = positions.tradesOf(userId);
+  const codes = [...new Set(perGroup.map((p) => p.code))];
+  await mapLimit(codes, 5, (c) => market.ensureInstrument(c).catch(() => null));
+  const startClose = new Map(codes.map((c) => [c, market.yearEndClose(c, y - 1)]));
+  for (const p of perGroup) {
+    const sc = startClose.get(p.code);
+    const b = positions.yearBasis(allTrades, p.groupId, p.code, y, sc ? sc.close : null);
+    p.origCost = p.cost;
+    p.origAvgPrice = p.avgPrice;
+    p.cost = b.cost;
+    p.avgPrice = b.cost / p.quantity;
+    p.carriedQty = b.startQty;
+    p.basisFallback = b.fallback;
+    p.startClose = b.startQty > 0 && sc ? sc : null;
+  }
   let list = perGroup;
   if (isMerged) {
     const byCode = new Map();
     for (const p of perGroup) {
-      const m = byCode.get(p.code) || { code: p.code, groupId: null, quantity: 0, cost: 0, tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [] };
+      const m = byCode.get(p.code) || {
+        code: p.code, groupId: null, quantity: 0, cost: 0, origCost: 0, carriedQty: 0, basisFallback: false, startClose: null,
+        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [],
+      };
       m.quantity += p.quantity;
       m.cost += p.cost;
+      m.origCost += p.origCost;
+      m.carriedQty += p.carriedQty;
+      m.basisFallback = m.basisFallback || p.basisFallback;
+      m.startClose = m.startClose || p.startClose;
       m.tradesInYear += p.tradesInYear;
       if (p.lastTradeAt > m.lastTradeAt) m.lastTradeAt = p.lastTradeAt;
       m.mergedGroups.push(groupName.get(p.groupId) || '-');
       byCode.set(p.code, m);
     }
-    list = [...byCode.values()].map((m) => ({ ...m, avgPrice: m.cost / m.quantity }));
+    list = [...byCode.values()].map((m) => ({ ...m, avgPrice: m.cost / m.quantity, origAvgPrice: m.origCost / m.quantity }));
   }
 
   let fx = null;
@@ -83,6 +107,7 @@ async function getAssets(userId, year, groupId, merged) {
     const base = {
       code: h.code, groupId: h.groupId, groupName: isMerged ? '통합' : groupName.get(h.groupId) || '-',
       mergedGroups: h.mergedGroups || null, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
+      origAvgPrice: h.origAvgPrice, carriedQty: h.carriedQty, basisFallback: h.basisFallback, startClose: h.startClose,
     };
     try {
       let price;
@@ -151,6 +176,7 @@ async function getAssets(userId, year, groupId, merged) {
   return {
     year: y,
     ongoing,
+    basisDate: `${y}-01-01`, // 평균 매입단가·매입금액 기준일
     groups,
     groupId: gid,
     merged: isMerged,
