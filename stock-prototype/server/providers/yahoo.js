@@ -19,8 +19,8 @@ function localDate(ts, gmtoffset) {
   return new Date((ts + (gmtoffset || 0)) * 1000).toISOString().slice(0, 10);
 }
 
-async function fetchChart(symbol, range, withSplits) {
-  const qs = `range=${range}&interval=1d${withSplits ? '&events=split' : ''}`;
+async function fetchChart(symbol, range, withSplits, extra = '', interval = '1d') {
+  const qs = `range=${range}&interval=${interval}${withSplits ? '&events=split' : ''}${extra}`;
   let lastErr;
   for (const host of HOSTS) {
     try {
@@ -120,4 +120,20 @@ async function loadFx(range) {
   };
 }
 
-module.exports = { NAME, load, loadFx };
+/**
+ * 배당 지급내역 (FR-STK-08): 최근 10년 배당락일·주당 배당금
+ * 야후는 배당락일만 제공하며 실제 지급일은 제공하지 않음(정의서 7.1 미결 사항)
+ */
+async function loadDividends(symbol) {
+  // 배당 이벤트만 필요하므로 월봉으로 받아 응답 크기를 줄임
+  const result = await fetchChart(symbol, '10y', false, '&events=div', '1mo');
+  const off = result.meta.gmtoffset || 0;
+  return {
+    source: NAME,
+    events: Object.values((result.events && result.events.dividends) || {})
+      .map((d) => ({ exDate: localDate(d.date, off), amount: d.amount }))
+      .sort((a, b) => (a.exDate < b.exDate ? -1 : 1)),
+  };
+}
+
+module.exports = { NAME, load, loadFx, loadDividends };

@@ -16,5 +16,9 @@
     "exceljs": "^4.4.0",
     "express": "^5.3.0",
     "sql.js": "^1.15.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "js-sha256": "^1.0.0"
   }
 }

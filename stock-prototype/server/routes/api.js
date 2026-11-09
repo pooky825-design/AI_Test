@@ -150,7 +150,12 @@ router.get('/stocks/:code/prices', async (req, res) => {
   const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : today();
   const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : to;
   if (from > to) throw new ValidationError('시작일이 종료일보다 늦습니다.', { from: '시작일이 종료일보다 늦습니다.' });
-  res.json({ from, to, prices: await market.getPrices(req.params.code, from, to) });
+  res.json({ from, to, ...(await market.getPeriod(req.params.code, from, to)) });
+});
+
+// 배당금 지급내역 팝업 (FR-STK-08)
+router.get('/stocks/:code/dividends', async (req, res) => {
+  res.json(await portfolio.getStockDividends(req.user.id, req.params.code, { force: req.query.refresh === '1' }));
 });
 
 // ---------------------------------------------------------------------------
@@ -319,7 +324,8 @@ router.delete('/dividends/:id', (req, res) => {
 function sendXlsx(res, buf, name) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
-  res.send(Buffer.from(buf));
+  // Node에서는 Buffer, 앱(WebView)에서는 ArrayBuffer 그대로 전달
+  res.send(typeof Buffer !== 'undefined' ? Buffer.from(buf) : buf);
 }
 
 router.get('/export/assets.xlsx', async (req, res) => {

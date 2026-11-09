@@ -5,6 +5,7 @@ const providers = require('../providers');
 const { NotFoundError, SourceError } = require('../providers/errors');
 
 const QUOTE_TTL_MS = 5 * 60 * 1000; // FR-DATA-05 현재가 캐시 5분 (제안값)
+const DIVIDEND_TTL_MS = 24 * 60 * 60 * 1000; // FR-DATA-09 배당 지급내역 재사용 1일 (제안값)
 const HISTORY_YEARS = 10; // FR-DATA-02 과거 종가 10년 (제안값)
 const FX = 'USD/KRW';
 
@@ -272,6 +273,77 @@ async function getPrices(rawCode, from, to) {
   ]);
 }
 
+/**
+ * 기간 종가 + 기간 수익률 (FR-STK-07)
+ * 시작일 직전 거래일 종가 대비 기간 마지막 종가. 직전 종가가 없으면 기간 첫 종가 기준.
+ * 배당과 환율 변동은 포함하지 않는다.
+ */
+async function getPeriod(rawCode, from, to) {
+  const prices = await getPrices(rawCode, from, to);
+  const code = normalizeCode(rawCode);
+  let base = null;
+  const prev = db.get('SELECT trade_date AS date, close FROM daily_prices WHERE code = ? AND trade_date < ? ORDER BY trade_date DESC LIMIT 1', [code, from]);
+  if (prev) base = { ...prev, kind: 'prev' };
+  else if (prices.length) base = { date: prices[0].date, close: prices[0].close, kind: 'first' };
+  const end = prices.length ? prices[prices.length - 1] : null;
+  const returnPct = base && end && base.close ? (end.close - base.close) / base.close : null;
+  return { prices, base, end: end && { date: end.date, close: end.close }, returnPct };
+}
+
+// ---------------------------------------------------------------------------
+// 배당 지급내역 (FR-STK-08, FR-DATA-09): 공통 데이터로 저장하고 1일 동안 재사용
+// ---------------------------------------------------------------------------
+const divInflight = new Map();
+
+async function refreshDividends(inst) {
+  const { primary, backup } = providers;
+  let r;
+  if (backup && inst.price_source === backup.NAME) {
+    // 예비 출처(네이버 차트)는 배당 정보를 주지 않음 → 빈 내역으로 기록
+    r = { source: backup.NAME, events: [] };
+  } else {
+    r = await primary.loadDividends(inst.provider_symbol);
+  }
+  const at = nowIso();
+  db.tx(() => {
+    db.run('DELETE FROM dividend_events WHERE code = ?', [inst.code]);
+    db.runMany('INSERT OR REPLACE INTO dividend_events (code, ex_date, amount, source, collected_at) VALUES (?, ?, ?, ?, ?)',
+      r.events.map((e) => [inst.code, e.exDate, e.amount, r.source, at]));
+    db.run('UPDATE instruments SET div_loaded_at = ?, div_source = ? WHERE code = ?', [at, r.source, inst.code]);
+  });
+}
+
+async function getDividendEvents(rawCode, { force = false } = {}) {
+  const inst = await ensureInstrument(rawCode);
+  let stale = false;
+  let staleReason = null;
+  const fresh = inst.div_loaded_at && Date.now() - new Date(inst.div_loaded_at).getTime() < DIVIDEND_TTL_MS;
+  if (force || !fresh) {
+    try {
+      if (!divInflight.has(inst.code)) {
+        divInflight.set(inst.code, refreshDividends(inst).finally(() => divInflight.delete(inst.code)));
+      }
+      await divInflight.get(inst.code);
+    } catch (e) {
+      stale = true;
+      staleReason = e.message;
+    }
+  }
+  const cur = getInstrumentRow(inst.code);
+  const since = `${new Date().getFullYear() - 9}-01-01`; // 최근 10년
+  const events = db.all('SELECT ex_date AS exDate, amount FROM dividend_events WHERE code = ? AND ex_date >= ? ORDER BY ex_date', [cur.code, since]);
+  return {
+    instrument: publicInstrument(cur),
+    lastPrice: cur.last_price,
+    events,
+    loadedAt: cur.div_loaded_at,
+    source: cur.div_source,
+    neverLoaded: !cur.div_loaded_at,
+    stale,
+    staleReason,
+  };
+}
+
 function yearEndClose(code, year) {
   return db.get(
     'SELECT trade_date AS date, close FROM daily_prices WHERE code = ? AND trade_date BETWEEN ? AND ? ORDER BY trade_date DESC LIMIT 1',
@@ -367,6 +439,8 @@ module.exports = {
   ensureInstrument,
   getQuote,
   getPrices,
+  getPeriod,
+  getDividendEvents,
   yearEndClose,
   getCurrentFx,
   fxOn,

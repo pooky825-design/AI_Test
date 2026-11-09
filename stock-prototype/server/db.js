@@ -1,13 +1,9 @@
 // SQLite (sql.js, WebAssembly) wrapper.
-// 네이티브 빌드 없이 Windows에서 바로 설치·실행되도록 sql.js를 쓰고,
-// 쓰기가 발생하면 data/stock.db 파일로 저장한다.
-const fs = require('fs');
-const path = require('path');
-const initSqlJs = require('sql.js');
-
-// 샘플 모드는 실데이터 DB와 섞이지 않도록 별도 폴더 사용
-const DATA_DIR = path.join(__dirname, '..', (process.env.DATA_PROVIDER || '').toLowerCase() === 'sample' ? 'data-sample' : 'data');
-const DB_FILE = path.join(DATA_DIR, 'stock.db');
+// 네이티브 빌드 없이 Windows에서 바로 설치·실행되도록 sql.js를 쓴다.
+// DB 파일을 어디에 저장할지는 storage.js가 정한다
+//  - PC(Node): data/stock.db 파일
+//  - 안드로이드 앱: 앱 내부 저장소 (mobile/storage.js로 교체되어 번들됨)
+const storage = require('./storage');
 
 let db = null;
 let saveTimer = null;
@@ -77,7 +73,9 @@ CREATE TABLE IF NOT EXISTS instruments (
   history_loaded_at TEXT,
   last_price REAL,
   price_time TEXT,                  -- 시세 기준 시각 (ISO)
-  price_fetched_at TEXT             -- 마지막으로 외부에서 가져온 시각 (캐시 판단용)
+  price_fetched_at TEXT,            -- 마지막으로 외부에서 가져온 시각 (캐시 판단용)
+  div_loaded_at TEXT,               -- 배당 지급내역 갱신 시각
+  div_source TEXT
 );
 
 CREATE TABLE IF NOT EXISTS daily_prices (
@@ -95,6 +93,16 @@ CREATE TABLE IF NOT EXISTS splits (
   ratio TEXT NOT NULL,
   detected_at TEXT NOT NULL,
   PRIMARY KEY (code, split_date)
+);
+
+-- 배당 지급내역 (FR-DATA-09): 배당락일·주당 배당금, 1일 동안 재사용
+CREATE TABLE IF NOT EXISTS dividend_events (
+  code TEXT NOT NULL,
+  ex_date TEXT NOT NULL,            -- 배당락일 (거래소 현지 날짜)
+  amount REAL NOT NULL,             -- 주당 배당금 (거래 통화, 분할 반영)
+  source TEXT NOT NULL,
+  collected_at TEXT NOT NULL,
+  PRIMARY KEY (code, ex_date)
 );
 
 CREATE TABLE IF NOT EXISTS fx_rates (
@@ -180,19 +188,25 @@ function saveNow() {
   const data = db.export();
   // export() 이후에도 foreign_keys 설정 유지
   db.run('PRAGMA foreign_keys = ON;');
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, Buffer.from(data));
-  fs.renameSync(tmp, DB_FILE);
+  storage.save(data);
 }
 
 async function init() {
-  const SQL = await initSqlJs();
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const isNew = !fs.existsSync(DB_FILE);
-  db = isNew ? new SQL.Database() : new SQL.Database(fs.readFileSync(DB_FILE));
+  const SQL = await storage.initSql();
+  const bytes = storage.load();
+  const isNew = !bytes;
+  db = isNew ? new SQL.Database() : new SQL.Database(bytes);
   db.run(SCHEMA);
+  migrate();
   if (isNew) saveNow();
   return { isNew };
 }
 
-module.exports = { init, all, get, run, runMany, tx, saveNow, DB_FILE };
+// 이전 버전 DB에 새 컬럼 추가
+function migrate() {
+  const cols = all('PRAGMA table_info(instruments)').map((c) => c.name);
+  if (!cols.includes('div_loaded_at')) db.run('ALTER TABLE instruments ADD COLUMN div_loaded_at TEXT');
+  if (!cols.includes('div_source')) db.run('ALTER TABLE instruments ADD COLUMN div_source TEXT');
+}
+
+module.exports = { init, all, get, run, runMany, tx, saveNow };

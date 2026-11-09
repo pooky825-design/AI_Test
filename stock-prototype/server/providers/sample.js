@@ -73,4 +73,23 @@ async function loadFx() {
   return { source: NAME, rate: rows[rows.length - 1].close, rateTime: new Date().toISOString(), rows };
 }
 
-module.exports = { NAME, load, loadFx };
+async function loadDividends(code) {
+  const s = LIST[code];
+  if (!s) throw new NotFoundError();
+  if (s.type === 'ETN') return { source: NAME, events: [] };
+  const r = rng(code + 'div');
+  const events = [];
+  const y0 = new Date().getFullYear() - 9;
+  for (let y = y0; y <= new Date().getFullYear(); y++) {
+    const per = s.currency === 'USD' ? [3, 6, 9, 12] : [4];
+    for (const m of per) {
+      const d = `${y}-${String(m).padStart(2, '0')}-15`;
+      if (d < new Date().toISOString().slice(0, 10) && d > s.listed) {
+        events.push({ exDate: d, amount: s.currency === 'USD' ? +(s.base * 0.004 * (1 + r())).toFixed(4) : Math.round(s.base * 0.02 * (1 + r())) });
+      }
+    }
+  }
+  return { source: NAME, events };
+}
+
+module.exports = { NAME, load, loadFx, loadDividends };

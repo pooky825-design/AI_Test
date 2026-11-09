@@ -247,7 +247,7 @@
         <div><h1>자산 현황 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.</p></div>
         <div class="field-row">
           <button class="secondary" data-refresh>새로고침</button>
-          <a href="/api/export/assets.xlsx"><button>엑셀 내보내기</button></a>
+          <button data-export="/export/assets.xlsx">엑셀 내보내기</button>
         </div>
       </div>`);
     loading(main, '시세와 환율을 불러오는 중… (처음 조회하는 종목은 10년치 종가를 적재해 시간이 걸릴 수 있습니다)');
@@ -404,6 +404,7 @@
         </dl>
         <div style="margin-top:14px" class="field-row">
           <a href="#/holdings?code=${encodeURIComponent(i.code)}"><button>보유 종목으로 등록</button></a>
+          <button class="secondary" data-divs>배당금 지급내역</button>
           <button class="secondary" data-refresh>현재가 새로고침</button>
         </div>
       </div>
@@ -418,11 +419,13 @@
             <button type="button" class="secondary" data-custom>직접 지정 조회</button>
           </div>
         </div>
+        <div class="period-ret" data-ret></div>
         <div class="chart-box"><canvas></canvas></div>
         <div class="table-wrap scroll-y" style="margin-top:14px" data-table></div>
         <p class="small muted" style="margin:8px 0 0">수정 종가: 액면분할·병합을 반영해 현재 주식 수 기준으로 환산한 과거 종가 (배당 미반영) ${req('FR-DATA-03')}</p>
       </div>`;
     box.querySelector('[data-refresh]').addEventListener('click', () => loadStock(main, i.code, true));
+    box.querySelector('[data-divs]').addEventListener('click', () => openDividendModal(i.code));
     const fromI = box.querySelector('input[name=from]');
     const toI = box.querySelector('input[name=to]');
     const loadPeriod = async (from, to) => {
@@ -430,6 +433,11 @@
       toI.value = to;
       const r = await api('GET', `/stocks/${encodeURIComponent(i.code)}/prices?from=${from}&to=${to}`);
       drawPriceChart(box.querySelector('canvas'), r.prices, c);
+      // FR-STK-07 기간 수익률: 시작일 직전 거래일 종가(없으면 기간 첫 종가) 대비 기간 마지막 종가
+      box.querySelector('[data-ret]').innerHTML = r.returnPct == null ? '' : `
+        <span class="label">기간 수익률 ${req('FR-STK-07')}</span>
+        <b class="${cls(r.returnPct)}">${pct(r.returnPct)}</b>
+        <span class="small muted">${esc(r.base.date)} 종가 ${money(r.base.close, c)}${r.base.kind === 'first' ? ' (기간 첫 종가)' : ' (시작일 직전 거래일)'} → ${esc(r.end.date)} 종가 ${money(r.end.close, c)} · 배당·환율 변동 미포함</span>`;
       const rows = r.prices.slice().reverse();
       box.querySelector('[data-table]').innerHTML = rows.length
         ? `<table><thead><tr><th>거래일</th><th class="num">종가</th><th class="num">전일 대비</th><th>출처</th></tr></thead><tbody>${rows.map((p, idx) => {
@@ -610,7 +618,7 @@
     const main = shell('#/yearly', `
       <div class="page-head">
         <div><h1>연도별 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>현재 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
-        <a href="/api/export/yearly.xlsx?from=${from}&to=${to}"><button>엑셀 내보내기</button></a>
+        <button data-export="/export/yearly.xlsx?from=${from}&to=${to}">엑셀 내보내기</button>
       </div>
       <div class="notice warn"><div><b>해석 주의:</b> 현재 보유 수량 기준의 가정 금액이며 실제 과거 자산이 아닙니다. 연도 중 수량 변화는 반영되지 않고, 보유 목록에서 삭제한 종목은 과거 연도에서도 제외됩니다. ${req('FR-YR-07')}</div></div>
       <div class="card">
@@ -898,6 +906,98 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 엑셀 내보내기: PC 브라우저는 바로 다운로드, 안드로이드 앱은 기기의 다운로드 폴더에 저장
+  // ---------------------------------------------------------------------------
+  async function download(path) {
+    if (!window.MobileApp) {
+      location.href = `/api${path}`;
+      return;
+    }
+    try {
+      toast('엑셀 파일을 만드는 중…');
+      const r = await window.MobileApp.request('GET', path);
+      if (r.status !== 200) throw new Error((r.json && r.json.error) || '내보내기에 실패했습니다.');
+      const msg = await window.MobileApp.saveFile(r.filename, r.bytes, r.contentType);
+      toast(msg);
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-export]');
+    if (b) download(b.dataset.export);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 배당금 지급내역 팝업 (FR-STK-08, FR-DATA-09)
+  // ---------------------------------------------------------------------------
+  function closeModal() {
+    const m = document.querySelector('.modal-back');
+    if (m) m.remove();
+    document.body.classList.remove('modal-open');
+  }
+
+  async function openDividendModal(code, refresh) {
+    closeModal();
+    document.body.classList.add('modal-open');
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-head"><h2>배당금 지급내역 ${req('FR-STK-08')}</h2><button class="linkish close" aria-label="닫기">✕</button></div>
+        <div class="modal-body"><div class="empty">최근 10년 배당 내역을 불러오는 중…</div></div>
+      </div></div>`);
+    const back = document.querySelector('.modal-back');
+    back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('.close')) closeModal(); });
+    const body = back.querySelector('.modal-body');
+    let d;
+    try {
+      d = await api('GET', `/stocks/${encodeURIComponent(code)}/dividends${refresh ? '?refresh=1' : ''}`);
+    } catch (err) {
+      body.innerHTML = `<div class="notice error"><div class="grow">${esc(err.message)}</div><button class="sm" data-retry>재시도</button></div>`;
+      body.querySelector('[data-retry]').addEventListener('click', () => openDividendModal(code, true));
+      return;
+    }
+    const i = d.instrument;
+    const c = i.currency;
+    const held = d.quantity != null;
+    const parts = [];
+    parts.push(`<div class="modal-title"><b>${esc(i.name)}</b> ${badge(i.type)} <span class="muted small">${esc(i.code)}</span></div>`);
+    if (d.stale) {
+      parts.push(`<div class="notice warn"><div class="grow"><b>최신 배당 내역이 아닐 수 있습니다.</b> ${d.neverLoaded ? '배당 내역을 가져오지 못했습니다.' : `마지막 저장값(${fmtTime(d.loadedAt)} 기준)을 표시합니다.`} ${req('FR-DATA-09')}<br/><span class="small">${esc(d.staleReason)}</span></div><button class="sm" data-retry>재시도</button></div>`);
+    }
+    if (!d.events.length) {
+      parts.push(`<div class="empty">${d.neverLoaded ? '' : '최근 10년간 배당(분배금) 지급 내역이 없습니다.'}${d.source && d.source.includes('Naver') ? '<br/><span class="small">예비 출처(네이버 차트)는 배당 정보를 제공하지 않습니다.</span>' : ''}</div>`);
+    } else {
+      if (held) parts.push(`<div class="notice info small"><div>현재 <b>${qty(d.quantity)}주</b> 보유 중입니다. 세전 추정액 = 주당 배당금 × 현재 보유 수량 (과거 보유 수량·세금 미반영)</div></div>`);
+      parts.push(`
+        <h3 style="margin:6px 0 8px">연도별 합계·배당수익률</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>연도</th><th class="num">횟수</th><th class="num">주당 배당 합계</th><th class="num">기준 종가</th><th class="num">배당수익률</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
+          <tbody>${d.years.map((y) => `<tr>
+            <td>${y.year} ${y.ongoing ? '<span class="badge ongoing">진행 중</span>' : ''}</td>
+            <td class="num">${y.count}</td>
+            <td class="num">${money(y.perShare, c)}</td>
+            <td class="num">${y.refClose == null ? '-' : money(y.refClose, c)}</td>
+            <td class="num">${y.yieldPct == null ? '-' : `${(y.yieldPct * 100).toFixed(1)}%`}</td>
+            ${held ? `<td class="num">${money(y.estimate, c)}${c === 'USD' && y.estimateKrw != null ? `<br/><small class="muted">≈ ${krw(y.estimateKrw)}</small>` : ''}</td>` : ''}
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <p class="small muted" style="margin:6px 0 14px">배당수익률 = 연간 주당 배당 합계 ÷ 연말 종가 (올해는 현재가 기준)</p>
+        <h3 style="margin:0 0 8px">배당락일별 주당 배당금</h3>
+        <div class="table-wrap scroll-y" style="max-height:260px"><table>
+          <thead><tr><th>배당락일</th><th class="num">주당 배당금</th>${held ? '<th class="num">세전 추정액</th>' : ''}</tr></thead>
+          <tbody>${d.events.map((e) => `<tr><td>${esc(e.exDate)}</td><td class="num">${money(e.amount, c)}</td>${held ? `<td class="num">${money(e.estimate, c)}${c === 'USD' && e.estimateKrw != null ? ` <small class="muted">≈ ${krw(e.estimateKrw)}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
+        </table></div>`);
+    }
+    parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 출처가 배당락일만 제공해 실제 지급일은 표시하지 않습니다. 실제 수령액은 배당금 관리 화면에 기록하세요.</p>`);
+    body.innerHTML = parts.join('');
+    const retry = body.querySelector('[data-retry]');
+    if (retry) retry.addEventListener('click', () => openDividendModal(code, true));
+  }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  // ---------------------------------------------------------------------------
   // 라우터
   // ---------------------------------------------------------------------------
   const PUBLIC = { '/login': viewLogin, '/signup': viewSignup, '/forgot': viewForgot, '/reset': viewReset };
@@ -905,6 +1005,7 @@
 
   async function render() {
     destroyCharts();
+    closeModal();
     const { path, query } = parseHash();
     if (PUBLIC[path]) {
       if (state.user && path !== '/reset') return go('#/assets');

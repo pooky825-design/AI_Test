@@ -192,6 +192,22 @@ button.linkish { background: none; border: none; color: var(--primary-2); paddin
 
 .mobile-top { display: none; }
 
+/* 기간 수익률 */
+.period-ret { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 10px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+.period-ret:empty { display: none; }
+.period-ret .label { color: var(--muted); font-size: 12px; }
+.period-ret b { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+/* 팝업 */
+body.modal-open { overflow: hidden; }
+.modal-back { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--surface); border-radius: 12px; width: 100%; max-width: 720px; min-width: 0; max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0, 0, 0, .25); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.modal-head .close { font-size: 18px; color: var(--muted); padding: 4px 8px; }
+.modal-body { padding: 14px 18px 18px; overflow-y: auto; min-width: 0; }
+@media (max-width: 520px) { .modal-back { padding: 8px; } .modal-body { padding: 12px; } .modal th, .modal td { padding: 7px 6px; } }
+.modal-title { margin-bottom: 10px; font-size: 15px; }
+
 /* ---------- responsive (NFR-UX-01) ---------- */
 @media (max-width: 1100px) {
   .grid.k4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

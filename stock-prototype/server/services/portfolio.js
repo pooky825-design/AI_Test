@@ -228,4 +228,56 @@ async function getYearly(userId, fromYear, toYear) {
   };
 }
 
-module.exports = { getAssets, getYearly, dividendsByYear, dividendKrw, mapLimit };
+// ---------------------------------------------------------------------------
+// 종목 배당 지급내역 팝업 (FR-STK-08)
+// 연도별 주당 배당 합계·배당수익률, 배당락일별 주당 배당금, 보유 중이면 세전 추정액
+// 배당수익률 = 연간 주당 배당 합계 ÷ 연말 종가 (올해는 현재가, 진행 중)
+// ---------------------------------------------------------------------------
+async function getStockDividends(userId, code, opts) {
+  const d = await market.getDividendEvents(code, opts);
+  const cur = d.instrument.currency;
+  const usd = cur === 'USD';
+  if (usd) {
+    try { await market.getCurrentFx(); } catch (_) { /* 환율 없으면 원화 추정액 '-' */ }
+  }
+  const h = db.get('SELECT quantity FROM holdings WHERE user_id = ? AND code = ?', [userId, d.instrument.code]);
+  const qty = h ? h.quantity : null;
+  const thisYear = new Date().getFullYear();
+
+  const events = d.events.map((e) => {
+    const est = qty == null ? null : e.amount * qty;
+    const fx = usd && est != null ? market.fxOn(e.exDate) : null;
+    return { ...e, estimate: est, estimateKrw: est == null ? null : usd ? (fx ? est * fx.rate : null) : est };
+  });
+
+  const byYear = {};
+  for (const e of events) {
+    const y = Number(e.exDate.slice(0, 4));
+    byYear[y] = byYear[y] || { year: y, perShare: 0, count: 0, estimate: qty == null ? null : 0, estimateKrw: qty == null ? null : 0 };
+    byYear[y].perShare += e.amount;
+    byYear[y].count++;
+    if (qty != null) {
+      byYear[y].estimate += e.estimate;
+      byYear[y].estimateKrw = byYear[y].estimateKrw == null || e.estimateKrw == null ? null : byYear[y].estimateKrw + e.estimateKrw;
+    }
+  }
+  const years = Object.values(byYear).sort((a, b) => b.year - a.year).map((y) => {
+    const ongoing = y.year === thisYear;
+    const ref = ongoing ? (d.lastPrice != null ? { close: d.lastPrice } : null) : market.yearEndClose(d.instrument.code, y.year);
+    return { ...y, ongoing, refClose: ref ? ref.close : null, yieldPct: ref && ref.close ? y.perShare / ref.close : null };
+  });
+
+  return {
+    instrument: d.instrument,
+    quantity: qty,
+    events: events.slice().reverse(),
+    years,
+    loadedAt: d.loadedAt,
+    source: d.source,
+    stale: d.stale,
+    staleReason: d.staleReason,
+    neverLoaded: d.neverLoaded,
+  };
+}
+
+module.exports = { getStockDividends, getAssets, getYearly, dividendsByYear, dividendKrw, mapLimit };
