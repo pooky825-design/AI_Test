@@ -304,12 +304,42 @@ async function refreshDividends(inst) {
   } else {
     r = await primary.loadDividends(inst.provider_symbol);
   }
+
+  // 국내 ETF: FunETF에서 회차별 주당과세표준액·실지급일을 받아 배당락일 기준으로 합친다.
+  // 실패해도 배당 내역은 갱신하고, 과세표준은 이전 저장값을 유지한 채 실패 사유를 기록한다.
+  const previous = new Map(
+    db.all('SELECT ex_date, tax_base, tax_source, pay_date FROM dividend_events WHERE code = ?', [inst.code]).map((x) => [x.ex_date, x])
+  );
+  let tax = null;
+  let taxError = null;
+  if (providers.taxBase && inst.currency === 'KRW' && inst.type !== '주식') {
+    try {
+      tax = await providers.taxBase.loadEtfTaxBase(inst.code);
+    } catch (e) {
+      taxError = e.message;
+    }
+  }
+  const taxMap = new Map(((tax && tax.events) || []).map((e) => [e.exDate, e]));
+  const rows = r.events.map((e) => {
+    const t = taxMap.get(e.exDate);
+    taxMap.delete(e.exDate);
+    const p = previous.get(e.exDate);
+    if (t) return { ...e, taxBase: t.taxBase, taxSource: tax.source, payDate: t.payDate, source: r.source };
+    if (tax || !p) return { ...e, taxBase: null, taxSource: null, payDate: null, source: r.source };
+    return { ...e, taxBase: p.tax_base, taxSource: p.tax_source, payDate: p.pay_date, source: r.source };
+  });
+  // 주 출처에 없고 FunETF에만 있는 회차도 추가
+  for (const t of taxMap.values()) rows.push({ ...t, taxSource: tax.source, source: tax.source });
+
   const at = nowIso();
   db.tx(() => {
     db.run('DELETE FROM dividend_events WHERE code = ?', [inst.code]);
-    db.runMany('INSERT OR REPLACE INTO dividend_events (code, ex_date, amount, source, collected_at) VALUES (?, ?, ?, ?, ?)',
-      r.events.map((e) => [inst.code, e.exDate, e.amount, r.source, at]));
-    db.run('UPDATE instruments SET div_loaded_at = ?, div_source = ? WHERE code = ?', [at, r.source, inst.code]);
+    db.runMany(
+      `INSERT OR REPLACE INTO dividend_events (code, ex_date, amount, source, collected_at, tax_base, tax_source, pay_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      rows.map((e) => [inst.code, e.exDate, e.amount, e.source, at, e.taxBase, e.taxSource, e.payDate])
+    );
+    db.run('UPDATE instruments SET div_loaded_at = ?, div_source = ?, div_tax_error = ? WHERE code = ?', [at, r.source, taxError, inst.code]);
   });
 }
 
@@ -331,13 +361,18 @@ async function getDividendEvents(rawCode, { force = false } = {}) {
   }
   const cur = getInstrumentRow(inst.code);
   const since = `${new Date().getFullYear() - 9}-01-01`; // 최근 10년
-  const events = db.all('SELECT ex_date AS exDate, amount FROM dividend_events WHERE code = ? AND ex_date >= ? ORDER BY ex_date', [cur.code, since]);
+  const events = db.all(
+    `SELECT ex_date AS exDate, amount, tax_base AS taxBase, tax_source AS taxSource, pay_date AS payDate
+     FROM dividend_events WHERE code = ? AND ex_date >= ? ORDER BY ex_date`,
+    [cur.code, since]
+  );
   return {
     instrument: publicInstrument(cur),
     lastPrice: cur.last_price,
     events,
     loadedAt: cur.div_loaded_at,
     source: cur.div_source,
+    taxError: cur.div_tax_error,
     neverLoaded: !cur.div_loaded_at,
     stale,
     staleReason,

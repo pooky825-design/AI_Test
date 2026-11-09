@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS instruments (
   price_time TEXT,                  -- 시세 기준 시각 (ISO)
   price_fetched_at TEXT,            -- 마지막으로 외부에서 가져온 시각 (캐시 판단용)
   div_loaded_at TEXT,               -- 배당 지급내역 갱신 시각
-  div_source TEXT
+  div_source TEXT,
+  div_tax_error TEXT                -- 주당과세표준액 갱신 실패 사유
 );
 
 CREATE TABLE IF NOT EXISTS daily_prices (
@@ -102,6 +103,9 @@ CREATE TABLE IF NOT EXISTS dividend_events (
   amount REAL NOT NULL,             -- 주당 배당금 (거래 통화, 분할 반영)
   source TEXT NOT NULL,
   collected_at TEXT NOT NULL,
+  tax_base REAL,                    -- 주당과세표준액 (국내 ETF, FunETF 공시값)
+  tax_source TEXT,
+  pay_date TEXT,                    -- 실지급일 (제공되는 경우만)
   PRIMARY KEY (code, ex_date)
 );
 
@@ -207,6 +211,11 @@ function migrate() {
   const cols = all('PRAGMA table_info(instruments)').map((c) => c.name);
   if (!cols.includes('div_loaded_at')) db.run('ALTER TABLE instruments ADD COLUMN div_loaded_at TEXT');
   if (!cols.includes('div_source')) db.run('ALTER TABLE instruments ADD COLUMN div_source TEXT');
+  if (!cols.includes('div_tax_error')) db.run('ALTER TABLE instruments ADD COLUMN div_tax_error TEXT');
+  const dcols = all('PRAGMA table_info(dividend_events)').map((c) => c.name);
+  if (!dcols.includes('tax_base')) db.run('ALTER TABLE dividend_events ADD COLUMN tax_base REAL');
+  if (!dcols.includes('tax_source')) db.run('ALTER TABLE dividend_events ADD COLUMN tax_source TEXT');
+  if (!dcols.includes('pay_date')) db.run('ALTER TABLE dividend_events ADD COLUMN pay_date TEXT');
 }
 
 module.exports = { init, all, get, run, runMany, tx, saveNow };

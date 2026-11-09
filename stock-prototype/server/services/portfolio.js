@@ -244,17 +244,19 @@ async function getStockDividends(userId, code, opts) {
   const qty = h ? h.quantity : null;
   const thisYear = new Date().getFullYear();
 
-  // 주당과세표준액: 국내 주식·미국 종목은 배당금 전액이 배당소득 과세 대상이므로 주당 배당금과 같다.
-  // 국내 ETF는 분배금 중 비과세 이익(국내 주식 매매차익 등)을 뺀 값을 회차별로 공시하므로
-  // 공시 데이터 출처가 확정될 때까지 '-'로 표시한다(정의서 7장 미결 사항).
-  const taxBaseKnown = !(cur === 'KRW' && d.instrument.type !== '주식');
+  // 주당과세표준액
+  //  - 국내 주식·미국 종목: 배당금 전액이 배당소득 과세 대상이므로 주당 배당금과 같다.
+  //  - 국내 ETF: 분배금 중 비과세 이익(국내 주식 매매차익 등)을 뺀 값이 회차별로 공시된다.
+  //    FunETF 공시값을 쓰고, 값이 없는 회차는 '-'로 표시한다.
+  const isKrEtf = cur === 'KRW' && d.instrument.type !== '주식';
+  const taxBaseKnown = !isKrEtf;
 
   const events = d.events.map((e) => {
     const est = qty == null ? null : e.amount * qty;
     const fx = usd && est != null ? market.fxOn(e.exDate) : null;
     return {
       ...e,
-      taxBase: taxBaseKnown ? e.amount : null,
+      taxBase: taxBaseKnown ? e.amount : e.taxBase,
       estimate: est,
       estimateKrw: est == null ? null : usd ? (fx ? est * fx.rate : null) : est,
     };
@@ -263,9 +265,10 @@ async function getStockDividends(userId, code, opts) {
   const byYear = {};
   for (const e of events) {
     const y = Number(e.exDate.slice(0, 4));
-    byYear[y] = byYear[y] || { year: y, perShare: 0, taxBase: taxBaseKnown ? 0 : null, count: 0, estimate: qty == null ? null : 0, estimateKrw: qty == null ? null : 0 };
+    byYear[y] = byYear[y] || { year: y, perShare: 0, taxBase: 0, taxMissing: 0, count: 0, estimate: qty == null ? null : 0, estimateKrw: qty == null ? null : 0 };
     byYear[y].perShare += e.amount;
-    if (taxBaseKnown) byYear[y].taxBase += e.taxBase;
+    if (e.taxBase == null) byYear[y].taxMissing++;
+    else byYear[y].taxBase += e.taxBase;
     byYear[y].count++;
     if (qty != null) {
       byYear[y].estimate += e.estimate;
@@ -275,16 +278,27 @@ async function getStockDividends(userId, code, opts) {
   const years = Object.values(byYear).sort((a, b) => b.year - a.year).map((y) => {
     const ongoing = y.year === thisYear;
     const ref = ongoing ? (d.lastPrice != null ? { close: d.lastPrice } : null) : market.yearEndClose(d.instrument.code, y.year);
-    return { ...y, ongoing, refClose: ref ? ref.close : null, yieldPct: ref && ref.close ? y.perShare / ref.close : null };
+    return {
+      ...y,
+      // 한 회차라도 과세표준이 없으면 연도 합계는 '-' (부분 합계로 오해하지 않도록)
+      taxBase: y.taxMissing ? null : y.taxBase,
+      ongoing,
+      refClose: ref ? ref.close : null,
+      yieldPct: ref && ref.close ? y.perShare / ref.close : null,
+    };
   });
 
   return {
     instrument: d.instrument,
     quantity: qty,
+    isKrEtf,
     taxBaseKnown,
+    taxCount: events.filter((e) => e.taxBase != null).length,
+    taxError: d.taxError,
+    hasPayDate: events.some((e) => e.payDate),
     taxBaseNote: taxBaseKnown
       ? '배당금 전액이 배당소득 과세 대상이므로 주당 배당금과 같습니다.'
-      : '국내 ETF의 주당과세표준액은 운용사·예탁결제원이 회차별로 공시하는 값으로, 데이터 출처가 확정되지 않아 표시하지 않습니다(정의서 7장 미결 사항).',
+      : '국내 ETF는 분배금 중 비과세 이익(국내 주식 매매차익 등)을 뺀 금액에 과세하며, FunETF가 공시한 회차별 값을 표시합니다. FunETF는 KODEX ETF의 2022년 이후 회차만 제공하므로, 값이 없는 회차는 ‘-’로 표시합니다.',
     events: events.slice().reverse(),
     years,
     loadedAt: d.loadedAt,

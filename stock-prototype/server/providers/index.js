@@ -3,10 +3,11 @@
 const yahoo = require('./yahoo');
 const naver = require('./naver');
 const sample = require('./sample');
+const funetf = require('./funetf');
 
 const mode = (process.env.DATA_PROVIDER || 'live').toLowerCase();
 
 module.exports =
   mode === 'sample'
-    ? { mode, primary: sample, backup: null, fx: sample, koreanName: async () => null }
-    : { mode, primary: yahoo, backup: naver, fx: yahoo, koreanName: naver.koreanName };
+    ? { mode, primary: sample, backup: null, fx: sample, taxBase: null, koreanName: async () => null }
+    : { mode, primary: yahoo, backup: naver, fx: yahoo, taxBase: funetf, koreanName: naver.koreanName };

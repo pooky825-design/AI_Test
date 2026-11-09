@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
 
     // 호출을 허용하는 외부 출처 (그 밖의 주소는 차단)
     private static final Set<String> ALLOWED_HOSTS = new HashSet<String>(Arrays.asList(
-            "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com"));
+            "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com", "www.funetf.co.kr"));
 
     private WebView webView;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
