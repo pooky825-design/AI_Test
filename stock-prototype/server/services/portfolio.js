@@ -33,12 +33,17 @@ function splitNotice(p) {
 // 지난 연도: 원화 평가금액 = 연말 수정 종가 × 그 해 말 보유 수량 × 연말 환율
 // 수익률 = (가격 − 평균 매입단가) ÷ 평균 매입단가
 // ---------------------------------------------------------------------------
-async function getAssets(userId, year) {
+async function getAssets(userId, year, groupId) {
   const ty = thisYear();
   const y = Number(year) || ty;
   const ongoing = y >= ty;
   const yearEnd = `${y}-12-31`;
-  const list = positions.positionsAt(userId, y);
+  const groups = positions.groupsOf(userId);
+  const gid = groups.some((g) => g.id === Number(groupId)) ? Number(groupId) : null; // 없거나 잘못되면 전체
+  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+  const order = new Map(groups.map((g, i) => [g.id, i]));
+  const list = positions.positionsAt(userId, y, { groupId: gid })
+    .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
 
   let fx = null;
   let fxError = null;
@@ -58,7 +63,9 @@ async function getAssets(userId, year) {
   }
 
   const rows = await mapLimit(list, 5, async (h) => {
-    const base = { code: h.code, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear };
+    const base = {
+      code: h.code, groupId: h.groupId, groupName: groupName.get(h.groupId) || '-', quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
+    };
     try {
       let price;
       let priceTime;
@@ -109,9 +116,19 @@ async function getAssets(userId, year) {
   const totalCost = ok.reduce((s, r) => s + r.costKrw, 0);
   const priceTimes = ok.map((r) => r.priceTime).sort();
   const range = positions.tradeYearRange(userId);
+  // 그룹별 합계
+  const groupTotals = groups.map((g) => {
+    const rs = ok.filter((r) => r.groupId === g.id);
+    const v = rs.reduce((a, r) => a + r.valueKrw, 0);
+    const c = rs.reduce((a, r) => a + r.costKrw, 0);
+    return { groupId: g.id, name: g.name, count: rs.length, valueKrw: v, costKrw: c, pnlKrw: v - c, returnPct: c ? (v - c) / c : null };
+  }).filter((g) => g.count && (!gid || g.groupId === gid));
   return {
     year: y,
     ongoing,
+    groups,
+    groupId: gid,
+    groupTotals,
     yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
     total: {
@@ -192,7 +209,7 @@ async function getYearly(userId, fromYear, toYear) {
     const ongoing = y === thisYear;
     const yearEnd = `${y}-12-31`;
     const fxEnd = ongoing ? (fx ? { rate: fx.rate, date: fx.time } : null) : market.fxOn(yearEnd);
-    const held = positions.accumulate(allTrades, y);
+    const held = positions.accumulateByCode(allTrades, y); // 그룹 합산
     const items = prepared.filter(({ h }) => held.has(h.code) && held.get(h.code).quantity > 1e-9).map(({ h, inst, quote, error }) => {
       const pos = held.get(h.code);
       const base = {
@@ -290,7 +307,7 @@ async function getStockDividends(userId, code, opts) {
   if (usd) {
     try { await market.getCurrentFx(); } catch (_) { /* 환율 없으면 원화 추정액 '-' */ }
   }
-  const held = positions.positionsAt(userId, new Date().getFullYear()).find((p) => p.code === d.instrument.code);
+  const held = positions.totalsAt(userId, new Date().getFullYear()).find((p) => p.code === d.instrument.code);
   const qty = held ? held.quantity : null;
   const thisYear = new Date().getFullYear();
 

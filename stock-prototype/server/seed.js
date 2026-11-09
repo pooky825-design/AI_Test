@@ -8,22 +8,27 @@ async function seedDemo() {
   const { lastId: uid } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [
     'demo@example.com', hash, now,
   ]);
-  // 데모 매수·매도 기록 (연도별 관리 예시, 수량·단가는 가상의 값)
+  // 데모 그룹과 매수·매도 기록 (그룹별·연도별 관리 예시, 수량·단가는 가상의 값)
+  const gid = {};
+  ['일반', 'ISA', '연금'].forEach((name, i) => {
+    gid[name] = db.run('INSERT INTO holding_groups (user_id, name, sort_order, created_at) VALUES (?, ?, ?, ?)', [uid, name, i, now]).lastId;
+  });
   const ty = new Date().getFullYear();
   const trades = [
-    ['005930', ty - 4, 'BUY', 50, 60000, '첫 매수'],
-    ['005930', ty - 2, 'BUY', 50, 55000, '추가 매수'],
-    ['069500', ty - 3, 'BUY', 50, 35000, null],
-    ['0080G0', ty - 1, 'BUY', 200, 5000, null],
-    ['AAPL', ty - 5, 'BUY', 10, 150, null],
-    ['AAPL', ty - 2, 'SELL', 3, null, '일부 매도'],
-    ['AAPL', ty - 1, 'BUY', 3, 220, '다시 매수'],
-    ['SPY', ty - 3, 'BUY', 5, 450, null],
+    ['일반', '005930', ty - 4, 'BUY', 50, 60000, '첫 매수'],
+    ['일반', '005930', ty - 2, 'BUY', 50, 55000, '추가 매수'],
+    ['일반', 'AAPL', ty - 5, 'BUY', 10, 150, null],
+    ['일반', 'AAPL', ty - 2, 'SELL', 3, null, '일부 매도'],
+    ['일반', 'AAPL', ty - 1, 'BUY', 3, 220, '다시 매수'],
+    ['ISA', '069500', ty - 3, 'BUY', 50, 35000, null],
+    ['ISA', '0080G0', ty - 1, 'BUY', 200, 5000, null],
+    ['연금', 'SPY', ty - 3, 'BUY', 5, 450, null],
+    ['연금', '069500', ty - 2, 'BUY', 20, 33000, '연금 계좌에서도 보유'],
   ];
-  for (const [code, year, side, q, p, memo] of trades) {
+  for (const [g, code, year, side, q, p, memo] of trades) {
     db.run(
-      'INSERT INTO holding_trades (user_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [uid, code, year, side, q, p, memo, now, now]
+      'INSERT INTO holding_trades (user_id, group_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [uid, gid[g], code, year, side, q, p, memo, now, now]
     );
   }
   const y = new Date().getFullYear();

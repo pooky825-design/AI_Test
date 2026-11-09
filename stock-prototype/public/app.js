@@ -260,28 +260,39 @@
   async function viewAssets(query) {
     const year = Math.min(Number(query.year) || Number(settings.get('assets.year')) || THIS_YEAR, THIS_YEAR);
     const ongoing = year >= THIS_YEAR;
+    const groupParam = query.group !== undefined ? query.group : (settings.get('assets.group') || '');
+    const groupQs = groupParam ? `&group=${encodeURIComponent(groupParam)}` : '';
     const main = shell('#/assets', `
       <div class="page-head">
         <div><h1>자산 현황 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
         <div class="field-row">
+          <div class="field"><label>그룹</label><select data-group><option value="">전체</option></select></div>
           <div class="field"><label>기준 연도</label><select data-year>${yearOptions(year)}</select></div>
           <button class="secondary" data-refresh>새로고침</button>
-          <button data-export="/export/assets.xlsx?year=${year}">엑셀 내보내기</button>
+          <button data-export="/export/assets.xlsx?year=${year}${groupQs}">엑셀 내보내기</button>
         </div>
       </div>`);
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('assets.year', Number(e.target.value));
-      go(`#/assets?year=${e.target.value}`);
+      go(`#/assets?year=${e.target.value}${groupQs}`);
+    });
+    main.querySelector('[data-group]').addEventListener('change', (e) => {
+      settings.set('assets.group', e.target.value);
+      go(`#/assets?year=${year}&group=${e.target.value}`);
     });
     loading(main, '시세와 환율을 불러오는 중… (처음 조회하는 종목은 10년치 종가를 적재해 시간이 걸릴 수 있습니다)');
     main.querySelector('[data-refresh]').addEventListener('click', () => render());
     let d;
     try {
-      d = await api('GET', `/assets?year=${year}`);
+      d = await api('GET', `/assets?year=${year}${groupQs}`);
     } catch (err) {
       main.querySelector('[data-loading]').outerHTML = `<div class="notice error"><div class="grow">${esc(err.message)}</div><button class="sm" onclick="location.reload()">재시도</button></div>`;
       return;
     }
+    const gsel = main.querySelector('[data-group]');
+    gsel.innerHTML = '<option value="">전체</option>' + d.groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+    gsel.value = d.groupId ? String(d.groupId) : '';
+    const showGroup = !d.groupId && d.groups.length > 1;
     const ok = d.rows.filter((r) => !r.error);
     const html = [];
     if (!d.ongoing) {
@@ -298,7 +309,7 @@
     });
 
     if (!d.rows.length) {
-      html.push(`<div class="card empty">${d.year}년 말 보유 종목이 없습니다.<br/><br/><a href="#/stock"><button>종목 조회하러 가기</button></a> <a href="#/holdings?year=${d.year}"><button class="secondary">${d.year}년 매수 기록 등록</button></a></div>`);
+      html.push(`<div class="card empty">${d.year}년 말 ${d.groupId ? `‘${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}’ 그룹의 ` : ''}보유 종목이 없습니다.<br/><br/><a href="#/stock"><button>종목 조회하러 가기</button></a> <a href="#/holdings?year=${d.year}"><button class="secondary">${d.year}년 매수 기록 등록</button></a></div>`);
     } else {
       const t = d.total;
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
@@ -309,8 +320,19 @@
           <div class="kpi"><div class="label">수익률</div><div class="value ${cls(t.returnPct)}">${pct(t.returnPct)}</div><div class="sub">전체 손익 ÷ 전체 매입금액</div></div>
           <div class="kpi"><div class="label">${d.ongoing ? '적용 환율' : '연말 환율'} (USD/KRW) ${req('FR-AST-04')}</div><div class="value">${rate(d.basis.fxRate)}</div><div class="sub">${d.ongoing ? `${fmtTime(d.basis.fxTime)} 기준` : `${esc(String(d.basis.fxTime || '').slice(0, 10))} 기준`}</div></div>
         </div>
+        ${showGroup && d.groupTotals.length > 1 ? `<div class="card">
+          <h2>그룹별 합계</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
+            <tbody>${d.groupTotals.map((g) => `<tr>
+              <td><a href="#/assets?year=${d.year}&group=${g.groupId}">${esc(g.name)}</a></td><td class="num">${g.count}</td>
+              <td class="num"><b>${krw(g.valueKrw)}</b></td><td class="num">${pct(t.valueKrw ? g.valueKrw / t.valueKrw : null).replace('+', '')}</td>
+              <td class="num ${cls(g.pnlKrw)}">${sKrw(g.pnlKrw)}</td><td class="num ${cls(g.returnPct)}">${pct(g.returnPct)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>` : ''}
         <div class="card">
-          <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액 ${req('FR-AST-01 · FR-STK-06')}</h2>
+          <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
           <div class="table-wrap"><table>
             <thead><tr>
               <th>종목</th><th>구분</th><th class="num">보유 수량</th><th class="num">평균 매입단가</th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
@@ -319,7 +341,7 @@
             <tbody>${ok.map((r) => {
               const c = r.instrument.currency;
               return `<tr>
-                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}">${esc(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
+                <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}">${esc(r.instrument.name)}</a><small>${showGroup ? `<span class="badge grp">${esc(r.groupName)}</span> ` : ''}${esc(r.code)} · ${esc(r.instrument.market)}${r.stale ? ' · <span class="up">지연</span>' : ''}</small></div></td>
                 <td>${badge(r.instrument.type)}</td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.avgPrice, c)}</td>
@@ -525,44 +547,52 @@
   // SC-04 보유 종목 관리
   // ---------------------------------------------------------------------------
   async function viewHoldings(query) {
-    // 종목 조회에서 ‘보유 종목으로 등록’으로 들어오면 올해, 아니면 마지막으로 본 연도
+    // 종목 조회에서 ‘보유 종목으로 등록’으로 들어오면 올해, 아니면 마지막으로 본 연도·그룹
     const year = Math.min(Number(query.year) || (query.code ? THIS_YEAR : Number(settings.get('holdings.year')) || THIS_YEAR), THIS_YEAR);
+    const groupParam = query.group !== undefined ? query.group : settings.get('holdings.group');
     const sideLabel = (sd) => (sd === 'SELL' ? '<span class="badge side-sell">매도</span>' : '<span class="badge side-buy">매수</span>');
     const main = shell('#/holdings', `
       <div class="page-head">
-        <div><h1>보유 종목 관리 ${req('SC-04 · FR-HLD')}</h1><p>연도별로 매수·매도 기록을 등록하면, 그 해 말 보유 수량과 평균 매입단가를 계산합니다. 기록이 없는 연도는 직전 연도 보유가 그대로 이어집니다.</p></div>
+        <div><h1>보유 종목 관리 ${req('SC-04 · FR-HLD')}</h1><p>그룹(ISA·연금·일반 등)과 연도를 골라 매수·매도 기록을 관리합니다. 수량을 바꾸려면 기록의 <b>수정</b>을 누르세요. 기록이 없는 연도는 직전 연도 보유가 그대로 이어집니다.</p></div>
         <div class="field-row"><div class="field"><label>관리 연도</label><select data-year>${yearOptions(year)}</select></div></div>
       </div>
       <div class="card">
-        <h2 data-form-title>${year}년 매수·매도 기록 등록 ${req('FR-HLD-01 · FR-HLD-04')}</h2>
+        <div class="group-bar"><div class="group-tabs" data-tabs></div><button class="sm secondary" data-manage>그룹 관리</button></div>
+        <div data-group-panel hidden></div>
+      </div>
+      <div class="card">
+        <h2 data-form-title></h2>
         <form class="inline" data-add novalidate>
           <input type="hidden" name="id" />
-          <div class="field" style="width:160px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
-          <div class="field" style="width:100px"><label>구분</label><select name="side"><option value="BUY">매수</option><option value="SELL">매도</option></select><span class="err" data-err="side"></span></div>
-          <div class="field" style="width:140px"><label>수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10 또는 0.5" /><span class="hint">소수 6자리까지</span><span class="err" data-err="quantity"></span></div>
-          <div class="field" style="width:150px"><label data-price-label>매수 단가 <span data-cur></span></label><input name="price" inputmode="decimal" placeholder="거래 통화 기준" /><span class="hint" data-price-hint>국내 원 · 미국 달러</span><span class="err" data-err="price"></span></div>
-          <div class="field" style="flex:1;min-width:140px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
+          <div class="field" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
+          <div class="field" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
+          <div class="field" style="width:90px"><label>구분</label><select name="side"><option value="BUY">매수</option><option value="SELL">매도</option></select><span class="err" data-err="side"></span></div>
+          <div class="field" style="width:120px"><label>수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">소수 6자리까지</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" style="width:140px"><label data-price-label>매수 단가 <span data-cur></span></label><input name="price" inputmode="decimal" placeholder="거래 통화 기준" /><span class="hint" data-price-hint>국내 원 · 미국 달러</span><span class="err" data-err="price"></span></div>
+          <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
         <div data-msg></div>
       </div>
-      <div class="card"><h2>${year}년 매수·매도 기록 ${req('FR-HLD-02')}</h2><div data-trades><div class="empty">불러오는 중…</div></div></div>
-      <div class="card"><h2>${year}년 말 보유 현황</h2><div data-positions><div class="empty">불러오는 중…</div></div>
-        <p class="small muted" style="margin:8px 0 0">보유 수량 = ${year}년까지의 매수 합계 − 매도 합계 · 평균 매입단가는 매수할 때마다 이동평균으로 다시 계산하고, 매도해도 바뀌지 않습니다 · 같은 해 안에서는 매수를 먼저 반영합니다.</p></div>`);
+      <div class="card"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
 
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('holdings.year', Number(e.target.value));
-      go(`#/holdings?year=${e.target.value}`);
+      go(`#/holdings?year=${e.target.value}${groupParam ? `&group=${groupParam}` : ''}`);
     });
     if (!query.code) settings.set('holdings.year', year);
 
     const form = main.querySelector('[data-add]');
     const hint = form.querySelector('[data-hint]');
     const curLabel = form.querySelector('[data-cur]');
+    let groups = [];
+    let groupId = null; // null = 전체
+    const groupName = () => (groupId ? (groups.find((g) => g.id === groupId) || {}).name : '전체 그룹');
+
     const syncSide = () => {
       const sell = form.side.value === 'SELL';
       form.querySelector('[data-price-label]').firstChild.textContent = sell ? '매도 단가 (선택) ' : '매수 단가 ';
-      form.querySelector('[data-price-hint]').textContent = sell ? '평균 매입단가 계산에는 쓰지 않음' : '국내 원 · 미국 달러';
+      form.querySelector('[data-price-hint]').textContent = sell ? '평균 매입단가 계산에는 안 씀' : '국내 원 · 미국 달러';
     };
     form.side.addEventListener('change', syncSide);
     const lookup = async () => {
@@ -582,8 +612,11 @@
       }
     };
     form.code.addEventListener('change', lookup);
-    if (query.code) { lookup(); form.quantity.focus(); }
 
+    const setTitles = () => {
+      main.querySelector('[data-list-title]').innerHTML = `${year}년 매수·매도 기록 · ${esc(groupName())} ${req('FR-HLD-02')}`;
+      if (!form.id.value) main.querySelector('[data-form-title]').innerHTML = `${year}년 매수·매도 기록 등록 ${req('FR-HLD-01 · FR-HLD-04')}`;
+    };
     const resetForm = () => {
       form.reset();
       form.id.value = '';
@@ -592,20 +625,12 @@
       curLabel.textContent = '';
       showFieldErrors(form, {});
       syncSide();
-      main.querySelector('[data-form-title]').innerHTML = `${year}년 매수·매도 기록 등록 ${req('FR-HLD-01 · FR-HLD-04')}`;
+      if (groups.length) form.groupId.value = String(groupId || groups[0].id);
       form.querySelector('[data-submit]').textContent = '등록';
       form.querySelector('[data-cancel]').hidden = true;
+      setTitles();
     };
     form.querySelector('[data-cancel]').addEventListener('click', resetForm);
-    const prefill = (code, side) => {
-      resetForm();
-      form.code.value = code;
-      form.side.value = side;
-      syncSide();
-      lookup();
-      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      form.quantity.focus();
-    };
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -619,7 +644,7 @@
         else await api('POST', '/trades', d);
         toast(d.id ? '기록을 수정했습니다.' : `${year}년 ${d.side === 'SELL' ? '매도' : '매수'} 기록을 등록했습니다.`);
         resetForm();
-        load();
+        loadTrades();
       } catch (err) {
         showFieldErrors(form, err.fields);
         if (!Object.keys(err.fields || {}).length) msg.innerHTML = `<div class="notice error" style="margin:12px 0 0">${esc(err.message)}</div>`;
@@ -628,30 +653,122 @@
       }
     });
 
-    async function load() {
-      const d = await api('GET', `/holdings?year=${year}`);
+    // ---- 그룹 탭·관리
+    function renderTabs() {
+      const tabs = main.querySelector('[data-tabs]');
+      tabs.innerHTML = [`<button class="${groupId ? '' : 'on'}" data-g="">전체</button>`]
+        .concat(groups.map((g) => `<button class="${groupId === g.id ? 'on' : ''}" data-g="${g.id}">${esc(g.name)}</button>`)).join('');
+      tabs.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => {
+        settings.set('holdings.group', b.dataset.g);
+        go(`#/holdings?year=${year}&group=${b.dataset.g}`);
+      }));
+      form.groupId.innerHTML = groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+      if (!form.id.value) form.groupId.value = String(groupId || groups[0].id);
+    }
+
+    async function loadGroups() {
+      groups = (await api('GET', '/groups')).groups;
+      const want = Number(groupParam);
+      groupId = groups.some((g) => g.id === want) ? want : null;
+      renderTabs();
+      renderGroupPanel();
+      setTitles();
+    }
+
+    function renderGroupPanel() {
+      const panel = main.querySelector('[data-group-panel]');
+      panel.innerHTML = `
+        <div class="group-panel">
+          <table><thead><tr><th>그룹 이름</th><th class="num">기록</th><th></th></tr></thead><tbody>
+          ${groups.map((g) => `<tr data-gid="${g.id}">
+            <td><input name="name" value="${esc(g.name)}" maxlength="20" style="width:100%;max-width:220px" /><div class="err small" data-err="name"></div></td>
+            <td class="num">${g.tradeCount}건</td>
+            <td class="num"><button class="sm" data-rename>이름 저장</button> <button class="sm danger" data-gdel ${g.tradeCount ? 'disabled title="기록이 있는 그룹은 삭제할 수 없습니다"' : ''}>삭제</button></td>
+          </tr>`).join('')}
+          </tbody></table>
+          <form class="field-row" data-gadd novalidate style="margin-top:10px">
+            <div class="field" style="min-width:200px"><label>새 그룹</label><input name="name" maxlength="20" placeholder="예: ISA, 연금저축, IRP, 해외" /><span class="err" data-err="name"></span></div>
+            <button type="submit">그룹 추가</button>
+          </form>
+          <p class="small muted" style="margin:8px 0 0">같은 종목이라도 그룹이 다르면 수량과 평균 매입단가를 따로 계산합니다. 기록이 있는 그룹은 기록을 다른 그룹으로 옮기거나 삭제한 뒤 지울 수 있습니다.</p>
+        </div>`;
+      panel.querySelectorAll('tr[data-gid]').forEach((tr) => {
+        const id = tr.dataset.gid;
+        tr.querySelector('[data-rename]').addEventListener('click', async () => {
+          try {
+            await api('PUT', `/groups/${id}`, { name: tr.querySelector('[name=name]').value });
+            toast('그룹 이름을 바꿨습니다.');
+            await loadGroups();
+            main.querySelector('[data-group-panel]').hidden = false;
+            loadTrades();
+          } catch (err) { showFieldErrors(tr, err.fields); if (!err.fields || !err.fields.name) toast(err.message); }
+        });
+        tr.querySelector('[data-gdel]').addEventListener('click', async () => {
+          if (!confirm('이 그룹을 삭제할까요?')) return;
+          try {
+            await api('DELETE', `/groups/${id}`);
+            toast('그룹을 삭제했습니다.');
+            if (String(groupId) === id) settings.set('holdings.group', '');
+            await loadGroups();
+            main.querySelector('[data-group-panel]').hidden = false;
+          } catch (err) { toast(err.message); }
+        });
+      });
+      const add = panel.querySelector('[data-gadd]');
+      add.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await api('POST', '/groups', { name: add.name.value });
+          toast('그룹을 추가했습니다.');
+          await loadGroups();
+          main.querySelector('[data-group-panel]').hidden = false;
+        } catch (err) { showFieldErrors(add, err.fields); }
+      });
+    }
+    main.querySelector('[data-manage]').addEventListener('click', () => {
+      const p = main.querySelector('[data-group-panel]');
+      p.hidden = !p.hidden;
+    });
+
+    // ---- 기록 목록
+    async function loadTrades() {
+      const d = await api('GET', `/holdings?year=${year}${groupId ? `&group=${groupId}` : ''}`);
       const tbox = main.querySelector('[data-trades]');
-      tbox.innerHTML = d.trades.length
-        ? `<div class="table-wrap"><table>
-          <thead><tr><th>종목</th><th>구분</th><th class="num">수량</th><th class="num">단가</th><th>메모</th><th>수정일</th><th></th></tr></thead>
-          <tbody>${d.trades.map((t) => `<tr data-id="${t.id}">
-            <td><div class="name-cell"><span>${esc(t.name || t.code)} ${badge(t.type)}</span><small>${esc(t.code)}</small></div></td>
-            <td>${sideLabel(t.side)}</td>
-            <td class="num">${qty(t.quantity)}</td>
-            <td class="num">${t.price == null ? '-' : money(t.price, t.currency)}</td>
-            <td class="small">${esc(t.memo || '')}</td>
-            <td class="small muted">${fmtTime(t.updated_at)}</td>
-            <td class="num"><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
-          </tr>`).join('')}</tbody></table></div>`
-        : `<div class="empty">${year}년에 등록한 매수·매도 기록이 없습니다.${d.holdings.length ? '<br/><span class="small">아래 보유 현황은 이전 연도 기록에서 이어진 것입니다.</span>' : ''}</div>`;
+      if (!d.trades.length) {
+        tbox.innerHTML = `<div class="empty">${year}년 ${esc(groupName())}에 등록한 매수·매도 기록이 없습니다.<br/><span class="small">이전 연도에 산 종목은 그대로 보유한 것으로 이어집니다. 자산 현황에서 ${year}년 말 보유를 확인할 수 있습니다.</span></div>`;
+        return;
+      }
+      const order = new Map(groups.map((g, i) => [g.id, i]));
+      const list = d.trades.slice().sort((a, b) => (order.get(a.group_id) ?? 99) - (order.get(b.group_id) ?? 99) || a.id - b.id);
+      let lastGroup = null;
+      const rows = list.map((t) => {
+        let head = '';
+        if (!groupId && t.group_id !== lastGroup) {
+          lastGroup = t.group_id;
+          head = `<tr class="group-row"><td colspan="7">${esc(t.group_name)}</td></tr>`;
+        }
+        return `${head}<tr data-id="${t.id}">
+          <td><div class="name-cell"><span>${esc(t.name || t.code)} ${badge(t.type)}</span><small>${esc(t.code)}</small></div></td>
+          <td>${sideLabel(t.side)}</td>
+          <td class="num">${qty(t.quantity)}</td>
+          <td class="num">${t.price == null ? '-' : money(t.price, t.currency)}</td>
+          <td class="small">${esc(t.memo || '')}</td>
+          <td class="small muted">${fmtTime(t.updated_at)}</td>
+          <td class="num"><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
+        </tr>`;
+      }).join('');
+      tbox.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>종목</th><th>구분</th><th class="num">수량</th><th class="num">단가</th><th>메모</th><th>수정일</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
       tbox.querySelectorAll('tr[data-id]').forEach((tr) => {
         const t = d.trades.find((x) => String(x.id) === tr.dataset.id);
         tr.querySelector('[data-del]').addEventListener('click', async () => {
-          if (!confirm(`${t.name || t.code} ${t.side === 'SELL' ? '매도' : '매수'} ${qty(t.quantity)}주 기록을 삭제할까요?\n(배당 내역은 유지됩니다)`)) return;
+          if (!confirm(`[${t.group_name}] ${t.name || t.code} ${t.side === 'SELL' ? '매도' : '매수'} ${qty(t.quantity)}주 기록을 삭제할까요?\n(배당 내역은 유지됩니다)`)) return;
           try {
             await api('DELETE', `/trades/${t.id}`);
             toast('삭제했습니다.');
-            load();
+            loadTrades();
+            loadGroups();
           } catch (err) {
             toast(err.message);
           }
@@ -659,6 +776,7 @@
         tr.querySelector('[data-edit]').addEventListener('click', () => {
           resetForm();
           form.id.value = t.id;
+          form.groupId.value = String(t.group_id);
           form.code.value = t.code;
           form.code.disabled = true;
           form.side.value = t.side;
@@ -671,27 +789,15 @@
           form.querySelector('[data-submit]').textContent = '저장';
           form.querySelector('[data-cancel]').hidden = false;
           form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          form.quantity.focus();
         });
       });
-
-      const pbox = main.querySelector('[data-positions]');
-      pbox.innerHTML = d.holdings.length
-        ? `<div class="table-wrap"><table>
-          <thead><tr><th>종목</th><th class="num">보유 수량</th><th class="num">평균 매입단가</th><th>구분</th><th>시장</th><th>첫 매수</th><th>${year}년 매매</th><th></th></tr></thead>
-          <tbody>${d.holdings.map((h) => `<tr>
-            <td><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(h.code)}">${esc(h.name || h.code)}</a><small>${esc(h.code)}</small></div></td>
-            <td class="num"><b>${qty(h.quantity)}</b></td>
-            <td class="num">${money(h.avg_price, h.currency)}</td>
-            <td>${badge(h.type)}</td><td>${esc(h.market || '-')}</td>
-            <td>${h.firstYear}년</td>
-            <td class="small">${h.tradesInYear ? `${h.tradesInYear}건` : '<span class="muted">없음 (이어 씀)</span>'}</td>
-            <td class="num"><button class="sm secondary" data-buy="${esc(h.code)}">매수</button> <button class="sm secondary" data-sell="${esc(h.code)}">매도</button></td>
-          </tr>`).join('')}</tbody></table></div>`
-        : `<div class="empty">${year}년 말 보유 종목이 없습니다. 위에서 매수 기록을 등록하세요.</div>`;
-      pbox.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => prefill(b.dataset.buy, 'BUY')));
-      pbox.querySelectorAll('[data-sell]').forEach((b) => b.addEventListener('click', () => prefill(b.dataset.sell, 'SELL')));
     }
-    load();
+
+    await loadGroups();
+    syncSide();
+    if (query.code) { lookup(); form.quantity.focus(); }
+    loadTrades();
   }
 
   // ---------------------------------------------------------------------------

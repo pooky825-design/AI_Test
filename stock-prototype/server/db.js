@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS holdings (
   UNIQUE (user_id, code)
 );
 
+-- 보유 종목 그룹 (v0.6): ISA·연금·일반 등 회원이 만드는 계좌 그룹
+CREATE TABLE IF NOT EXISTS holding_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, name)
+);
+
 -- 연도별 매수·매도 기록 (v0.5): 연도 말 보유 수량 = 그 해까지의 기록 누적
 CREATE TABLE IF NOT EXISTS holding_trades (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +63,7 @@ CREATE TABLE IF NOT EXISTS holding_trades (
   code TEXT NOT NULL,
   year INTEGER NOT NULL,
   side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+  group_id INTEGER,                 -- holding_groups.id (v0.6)
   quantity REAL NOT NULL,           -- 항상 양수
   price REAL,                       -- 매수 단가 (거래 통화). 매도는 선택
   memo TEXT,
@@ -253,6 +264,18 @@ function migrate() {
       );
     }
     db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
+  }
+
+  // v0.6: 그룹 컬럼 추가, 그룹이 없는 기록은 회원별 '일반' 그룹으로
+  const tcols = all('PRAGMA table_info(holding_trades)').map((c) => c.name);
+  if (!tcols.includes('group_id')) db.run('ALTER TABLE holding_trades ADD COLUMN group_id INTEGER');
+  for (const r of all('SELECT DISTINCT user_id FROM holding_trades WHERE group_id IS NULL')) {
+    let g = all('SELECT id FROM holding_groups WHERE user_id = ? ORDER BY sort_order, id LIMIT 1', [r.user_id])[0];
+    if (!g) {
+      db.run('INSERT INTO holding_groups (user_id, name, sort_order, created_at) VALUES (?, ?, 0, ?)', [r.user_id, '일반', new Date().toISOString()]);
+      g = { id: all('SELECT last_insert_rowid() AS id')[0].id };
+    }
+    db.run('UPDATE holding_trades SET group_id = ? WHERE user_id = ? AND group_id IS NULL', [g.id, r.user_id]);
   }
 }
 
