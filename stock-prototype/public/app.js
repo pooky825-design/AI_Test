@@ -367,6 +367,11 @@
               <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
               <td class="num ${cls(c.pnlKrw)}">${c.count ? sKrw(c.pnlKrw) : '-'}</td><td class="num ${cls(c.returnPct)}">${c.count ? pct(c.returnPct) : '-'}</td>${c.count ? todayCells(c) : (d.ongoing ? '<td class="num today-col">-</td><td class="num today-col">-</td>' : '')}
             </tr>`).join('')}</tbody>
+            <tfoot><tr class="sum-row">
+              <td>소계</td><td class="num">${d.categoryTotals.reduce((n, c) => n + c.count, 0)}</td>
+              <td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
+              <td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td>${todayCells(t)}
+            </tr></tfoot>
           </table></div>
           ${todayNote}
           <p class="small muted" style="margin:4px 0 0">분류는 보유 종목 관리에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
