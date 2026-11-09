@@ -70,21 +70,21 @@ async function assetsWorkbook(data) {
   // 그룹별 합계
   if ((data.groupTotals || []).length > 1) {
     ws.addRow([]);
-    header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률']);
+    header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const g of data.groupTotals) {
-      const r = ws.addRow([g.name, g.count, g.valueKrw, g.costKrw, g.pnlKrw, g.returnPct]);
-      [3, 4, 5].forEach((i) => (r.getCell(i).numFmt = KRW));
-      r.getCell(6).numFmt = PCT;
+      const r = ws.addRow([g.name, g.count, g.valueKrw, g.costKrw, g.pnlKrw, g.returnPct, ...(data.ongoing ? [g.todayPnlKrw, g.todayPct] : [])]);
+      [3, 4, 5, 7].forEach((i) => (r.getCell(i).numFmt = KRW));
+      [6, 8].forEach((i) => (r.getCell(i).numFmt = PCT));
     }
   }
   // 분류별 합계
   if ((data.categoryTotals || []).length) {
     ws.addRow([]);
-    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률']);
+    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const c of data.categoryTotals) {
-      const r = ws.addRow([c.label, c.count, c.valueKrw, c.costKrw, c.pnlKrw, c.returnPct]);
-      [3, 4, 5].forEach((i) => (r.getCell(i).numFmt = KRW));
-      r.getCell(6).numFmt = PCT;
+      const r = ws.addRow([c.label, c.count, c.valueKrw, c.costKrw, c.pnlKrw, c.returnPct, ...(data.ongoing ? [c.todayPnlKrw, c.todayPct] : [])]);
+      [3, 4, 5, 7].forEach((i) => (r.getCell(i).numFmt = KRW));
+      [6, 8].forEach((i) => (r.getCell(i).numFmt = PCT));
     }
   }
   ws.columns.forEach((c, i) => (c.width = [10, 10, 30, 8, 12, 7, 12, 14, 12, 18, 10, 16, 16, 9, 22][i] || 12));

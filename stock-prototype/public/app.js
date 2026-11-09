@@ -53,7 +53,11 @@
   const signed = (s, n) => (n > 0 ? `+${s}` : s);
   const sKrw = (n) => (n == null ? '-' : signed(krw(n), Math.round(n)));
   const sMoney = (n, cur) => (n == null ? '-' : cur === 'USD' ? signed(usd(n), n) : sKrw(n));
-  const pct = (r) => (r == null ? '-' : signed(`${(r * 100).toFixed(1)}%`, Number((r * 100).toFixed(1))));
+  const pct = (r) => {
+    if (r == null) return '-';
+    const v = Number((r * 100).toFixed(1));
+    return signed(`${(v === 0 ? 0 : v).toFixed(1)}%`, v); // 반올림해 0이면 -0.0% 대신 0.0%
+  };
   const qty = (n) => nfq.format(n);
   const rate = (n) => (n == null ? '-' : `${nf2.format(n)}원`);
   const cls = (n) => (n == null ? '' : n > 0 ? 'up' : n < 0 ? 'down' : '');
@@ -324,6 +328,12 @@
     } else {
       const t = d.total;
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
+      // 오늘 손익·손익률 열 (올해만: 전일 종가 대비)
+      const todayHead = d.ongoing ? '<th class="num today-col">오늘 손익</th><th class="num today-col">오늘 손익률</th>' : '';
+      const todayCells = (x) => (d.ongoing
+        ? `<td class="num today-col ${cls(x.todayPnlKrw)}">${x.todayPnlKrw == null ? '-' : sKrw(x.todayPnlKrw)}</td><td class="num today-col ${cls(x.todayPct)}">${x.todayPct == null ? '-' : pct(x.todayPct)}</td>`
+        : '');
+      const todayNote = d.ongoing ? `<p class="small muted" style="margin:8px 0 0">오늘 손익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · 오늘 손익률 = 오늘 손익 ÷ 전일 종가 기준 평가금액 (환율 변동은 반영하지 않음) · 합계 오늘 손익 ${sKrw(t.todayPnlKrw)} (${pct(t.todayPct)})</p>` : '';
       html.push(`
         <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
         <div class="grid k4">
@@ -335,25 +345,26 @@
         ${showGroup && d.groupTotals.length > 1 ? `<div class="card" data-ckey="group">
           <h2>그룹별 합계</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
+            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th>${todayHead}</tr></thead>
             <tbody>${d.groupTotals.map((g) => `<tr>
               <td><a href="#/assets?year=${d.year}&group=${g.groupId}">${esc(g.name)}</a></td><td class="num">${g.count}</td>
               <td class="num"><b>${krw(g.valueKrw)}</b></td><td class="num">${pct(t.valueKrw ? g.valueKrw / t.valueKrw : null).replace('+', '')}</td>
-              <td class="num ${cls(g.pnlKrw)}">${sKrw(g.pnlKrw)}</td><td class="num ${cls(g.returnPct)}">${pct(g.returnPct)}</td>
+              <td class="num ${cls(g.pnlKrw)}">${sKrw(g.pnlKrw)}</td><td class="num ${cls(g.returnPct)}">${pct(g.returnPct)}</td>${todayCells(g)}
             </tr>`).join('')}</tbody>
           </table></div>
         </div>` : ''}
         ${(d.categoryTotals || []).some((c) => c.count) ? `<div class="card" data-ckey="category">
           <h2>분류별 합계${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th></tr></thead>
+            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th><th class="num">원화 평가손익</th><th class="num">수익률</th>${todayHead}</tr></thead>
             <tbody>${d.categoryTotals.map((c) => `<tr>
               <td><span class="cat cat-${c.id}">${esc(c.label)}</span></td><td class="num">${c.count}</td>
               <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
-              <td class="num ${cls(c.pnlKrw)}">${c.count ? sKrw(c.pnlKrw) : '-'}</td><td class="num ${cls(c.returnPct)}">${c.count ? pct(c.returnPct) : '-'}</td>
+              <td class="num ${cls(c.pnlKrw)}">${c.count ? sKrw(c.pnlKrw) : '-'}</td><td class="num ${cls(c.returnPct)}">${c.count ? pct(c.returnPct) : '-'}</td>${c.count ? todayCells(c) : (d.ongoing ? '<td class="num today-col">-</td><td class="num today-col">-</td>' : '')}
             </tr>`).join('')}</tbody>
           </table></div>
-          <p class="small muted" style="margin:8px 0 0">분류는 보유 종목 관리에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
+          ${todayNote}
+          <p class="small muted" style="margin:4px 0 0">분류는 보유 종목 관리에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
         </div>` : ''}
         <div class="card" data-ckey="stocks">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>

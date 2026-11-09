@@ -146,6 +146,8 @@ async function getAssets(userId, year, groupId, merged) {
         valueKrw: rate == null ? null : value * rate,
         costKrw: rate == null ? null : cost * rate,
         pnlKrw: rate == null ? null : (value - cost) * rate,
+        // 오늘 손익 = 전일 대비 × 보유 수량 × 현재 환율 (올해만, 환율 변동 미반영)
+        todayPnlKrw: ongoing && rate != null && extra.change != null ? extra.change * h.quantity * rate : null,
         returnPct: (price - h.avgPrice) / h.avgPrice,
         splitNotice: ongoing ? splitNotice(h) : null,
       };
@@ -167,11 +169,19 @@ async function getAssets(userId, year, groupId, merged) {
   const priceTimes = ok.map((r) => r.priceTime).sort();
   const range = positions.tradeYearRange(userId);
   // 그룹별 합계
+  // 오늘 손익 합계와 손익률 (오늘 손익 ÷ 전일 종가 기준 평가금액)
+  const todayOf = (rs) => {
+    const t = rs.filter((r) => r.todayPnlKrw != null);
+    if (!ongoing || !t.length) return { todayPnlKrw: null, todayPct: null };
+    const pnl = t.reduce((a, r) => a + r.todayPnlKrw, 0);
+    const prev = t.reduce((a, r) => a + r.valueKrw - r.todayPnlKrw, 0);
+    return { todayPnlKrw: pnl, todayPct: prev ? pnl / prev : null };
+  };
   const groupTotals = groups.map((g) => {
     const rs = ok.filter((r) => r.groupId === g.id);
     const v = rs.reduce((a, r) => a + r.valueKrw, 0);
     const c = rs.reduce((a, r) => a + r.costKrw, 0);
-    return { groupId: g.id, name: g.name, count: rs.length, valueKrw: v, costKrw: c, pnlKrw: v - c, returnPct: c ? (v - c) / c : null };
+    return { groupId: g.id, name: g.name, count: rs.length, valueKrw: v, costKrw: c, pnlKrw: v - c, returnPct: c ? (v - c) / c : null, ...todayOf(rs) };
   }).filter((g) => g.count && (!gid || g.groupId === gid));
   return {
     year: y,
@@ -186,7 +196,7 @@ async function getAssets(userId, year, groupId, merged) {
       const rs = ok.filter((r) => r.category === c.id);
       const v = rs.reduce((a, r) => a + r.valueKrw, 0);
       const cst = rs.reduce((a, r) => a + r.costKrw, 0);
-      return { id: c.id, label: c.label, count: new Set(rs.map((r) => r.code)).size, valueKrw: v, costKrw: cst, pnlKrw: v - cst, returnPct: cst ? (v - cst) / cst : null };
+      return { id: c.id, label: c.label, count: new Set(rs.map((r) => r.code)).size, valueKrw: v, costKrw: cst, pnlKrw: v - cst, returnPct: cst ? (v - cst) / cst : null, ...todayOf(rs) };
     }),
     yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
@@ -195,6 +205,7 @@ async function getAssets(userId, year, groupId, merged) {
       costKrw: totalCost,
       pnlKrw: totalValue - totalCost,
       returnPct: totalCost ? (totalValue - totalCost) / totalCost : null,
+      ...todayOf(ok),
       excluded: rows.length - ok.length,
     },
     basis: {
