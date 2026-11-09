@@ -240,9 +240,9 @@ function etfTaxNote(name) {
   if (/^SOL\b/i.test(n)) return base + '출처: 신한자산운용 SOL ETF 홈페이지.';
   if (/^KODEX\b/i.test(n)) return base + '출처: FunETF (2022년 이후 회차만 제공). 값이 없는 회차는 ‘-’로 표시합니다.';
   if (/^TIGER\b/i.test(n)) {
-    return base + 'TIGER(미래에셋자산운용)는 운용사 홈페이지가 자동 조회를 차단해 과세표준을 가져오지 못하므로 ‘-’로 표시합니다. 실지급일은 FunETF 값입니다.';
+    return base + '출처: 미래에셋자산운용 TIGER ETF 홈페이지. 홈페이지가 접속을 거절하는 환경(클라우드 서버 등)에서는 ‘-’로 표시합니다.';
   }
-  return base + '이 운용사는 과세표준 출처가 연동되지 않아 ‘-’로 표시합니다(현재 연동: KODEX·SOL).';
+  return base + '이 운용사는 과세표준 출처가 연동되지 않아 ‘-’로 표시합니다(현재 연동: KODEX·SOL·TIGER).';
 }
 
 async function getStockDividends(userId, code, opts) {

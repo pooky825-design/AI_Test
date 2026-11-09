@@ -315,6 +315,7 @@ async function refreshDividends(inst) {
   if (providers.taxBase && inst.currency === 'KRW' && inst.type !== '주식') {
     try {
       tax = await providers.taxBase.loadEtfTaxBase(inst.code, inst.name);
+      if (tax.warning) taxError = tax.warning;
     } catch (e) {
       taxError = e.message;
     }
@@ -324,6 +325,10 @@ async function refreshDividends(inst) {
     const t = taxMap.get(e.exDate);
     taxMap.delete(e.exDate);
     const p = previous.get(e.exDate);
+    // 대체 출처로 받은 경우(tax.warning)에는 이전에 저장한 과세표준을 지우지 않는다
+    if (t && tax.warning && p && p.tax_base != null) {
+      return { ...e, taxBase: p.tax_base, taxSource: p.tax_source, payDate: t.payDate || p.pay_date, source: r.source };
+    }
     if (t) return { ...e, taxBase: t.taxBase, taxSource: tax.source, payDate: t.payDate, source: r.source };
     if (tax || !p) return { ...e, taxBase: null, taxSource: null, payDate: null, source: r.source };
     return { ...e, taxBase: p.tax_base, taxSource: p.tax_source, payDate: p.pay_date, source: r.source };
