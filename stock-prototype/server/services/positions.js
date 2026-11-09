@@ -30,6 +30,7 @@ function stateAt(items, upToYear) {
       memo: it.memo,
       carryMode: it.year === upToYear ? it.carry_mode || null : null, // 그 해 항목에 지정한 이월 여부
       lastTradeAt: it.updated_at,
+      createdAt: it.created_at, // 입력일
       firstYear: prev ? prev.firstYear : it.year,
       tradesInYear: it.year === upToYear ? 1 : 0,
     });
@@ -63,7 +64,11 @@ function positionsAt(userId, upToYear, { groupId } = {}) {
     .filter((p) => p.quantity > EPS && (!groupId || p.groupId === groupId))
     .map((p) => {
       const pv = prev.get(`${p.groupId}|${p.code}`);
-      // 이월 여부: 그 해 항목에 지정한 값이 있으면 그 값, 없으면 전년 말에도 보유했는지로 판단
+      // 이월 여부
+      //  - 이전 연도 항목을 그대로 가져온 종목(그 해 항목 없음) → 항상 이월
+      //  - 그 해 항목에 이월 여부를 지정했으면 그 값
+      //  - 그 밖에는 전년 말에도 보유했는지로 판단
+      if (p.itemYear < upToYear) return { ...p, carried: true };
       const auto = !!(pv && pv.quantity > EPS);
       return { ...p, carried: p.carryMode ? p.carryMode === 'CARRIED' : auto };
     });

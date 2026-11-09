@@ -191,50 +191,18 @@ router.get('/holdings', async (req, res) => {
   const pos = positions.positionsAt(req.user.id, year, { groupId: gid })
     .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
 
-  // 평가금액
-  let rate = null;
-  try {
-    const cur = await market.getCurrentFx(); // 환율 이력 적재도 함께 보장
-    rate = year >= ty ? cur.rate : (market.fxOn(`${year}-12-31`) || {}).rate || null;
-  } catch (_) { /* 환율 없으면 외화 종목 평가금액 '-' */ }
+  // 종목 정보(이름·구분)를 적재한 뒤 표시. 매입금액 = 수량 × 평균 매입단가 (거래 통화)
   const items = await portfolio.mapLimit(pos, 5, async (p) => {
-    const info = instInfo(p.code);
-    const c = categories.categoryOf(req.user.id, p.code, info, saved);
-    const item = {
-      group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code, ...info,
-      quantity: p.quantity, avg_price: p.avgPrice, memo: p.memo, updated_at: p.lastTradeAt,
-      carried: p.carried, carry_mode: p.carryMode, purchase_amount: p.quantity * p.avgPrice,
-      item_year: p.itemYear, category: c.id, category_label: c.label,
+    let inst = instInfo(p.code);
+    try { inst = market.publicInstrument(await market.ensureInstrument(p.code)); } catch (_) { /* 저장된 정보로 표시 */ }
+    const c = categories.categoryOf(req.user.id, p.code, inst, saved);
+    return {
+      group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
+      name: inst.name, market: inst.market, type: inst.type, currency: inst.currency,
+      quantity: p.quantity, avg_price: p.avgPrice, purchase_amount: p.quantity * p.avgPrice,
+      memo: p.memo, created_at: p.createdAt, updated_at: p.lastTradeAt,
+      carried: p.carried, carry_mode: p.carryMode, item_year: p.itemYear, category: c.id, category_label: c.label,
     };
-    try {
-      let price = null;
-      let inst = info;
-      if (year >= ty) {
-        const q = await market.getQuote(p.code);
-        price = q.price;
-        inst = q.instrument;
-      } else {
-        inst = market.publicInstrument(await market.ensureInstrument(p.code));
-        const yc = market.yearEndClose(p.code, year);
-        price = yc ? yc.close : null;
-      }
-      // 종목 정보가 처음 적재된 경우를 위해 이름·구분·분류를 적재 후 값으로 다시 채운다
-      item.name = inst.name;
-      item.market = inst.market;
-      item.type = inst.type;
-      const cat = categories.categoryOf(req.user.id, p.code, inst, saved);
-      item.category = cat.id;
-      item.category_label = cat.label;
-      const r = inst.currency === 'USD' ? rate : 1;
-      item.price = price;
-      item.value = price == null ? null : price * p.quantity;
-      item.value_krw = price == null || r == null ? null : price * p.quantity * r;
-      item.fx_rate = r;
-      item.currency = inst.currency;
-    } catch (e) {
-      item.value_error = e.message;
-    }
-    return item;
   });
   const range = positions.tradeYearRange(req.user.id);
   res.json({ year, groupId: gid, groups, yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty }, holdings: list, items });

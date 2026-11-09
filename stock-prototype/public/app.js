@@ -866,11 +866,6 @@
       }
       const cols = 8;
       let lastGroup = null;
-      const valueCell = (it) => {
-        if (it.value_krw == null) return '<span class="muted">-</span>';
-        const txt = `<b>${krw(it.value_krw)}</b>`;
-        return it.currency === 'USD' ? `<span class="tip" data-tip="${esc(`${usd(it.value)} × ${rate(it.fx_rate)}`)}" tabindex="0">${txt}</span>` : txt;
-      };
       const rows = d.items.map((it, idx) => {
         let head = '';
         if (!groupId && it.group_id !== lastGroup) {
@@ -882,16 +877,16 @@
           <td>${it.carried ? '<span class="badge carry">이월</span>' : '<span class="muted small">신규</span>'}</td>
           <td class="right">${qty(it.quantity)}</td>
           <td class="right">${money(it.avg_price, it.currency)}</td>
-          <td class="right">${valueCell(it)}</td>
+          <td class="right"><b>${money(it.purchase_amount, it.currency)}</b></td>
           <td class="small">${esc(it.memo || '')}</td>
-          <td class="small muted">${fmtTime(it.updated_at)}</td>
+          <td class="small muted">${esc(String(it.created_at || '').slice(0, 10).replace(/-/g, '.'))}${it.item_year < year ? `<br/><span class="muted">${it.item_year}년 항목</span>` : ''}</td>
           <td><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
         </tr>`;
       }).join('');
       tbox.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th class="left">종목</th><th>이월</th><th class="right">수량</th><th class="right">평균 매입단가</th><th class="right">평가금액</th><th>메모</th><th>수정일</th><th></th></tr></thead>
+        <thead><tr><th class="left">종목</th><th>이월</th><th class="right">수량</th><th class="right">평균 매입단가</th><th class="right">매입금액</th><th>메모</th><th>입력일</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">이월 = 전년도부터 보유(자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 평균 매입단가 = ${year}년 말 기준 · 평가금액 = ${year >= THIS_YEAR ? '현재가' : `${year}년 말 종가`} × 수량 (외화 종목은 원화 금액을 누르면 외화 금액 표시) · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">이월 = 전년도부터 보유(이전 연도에서 자동으로 이어진 종목은 이월, 자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 매입금액 = 보유 수량 × 평균 매입단가(거래 통화) · 입력일 = 종목을 입력한 날 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', async () => {
