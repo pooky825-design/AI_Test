@@ -311,20 +311,20 @@
     const ok = d.rows.filter((r) => !r.error);
     const html = [];
     if (!d.ongoing) {
-      html.push(`<div class="notice info"><div><b>${d.year}년 말 기준</b>: ${d.year}년까지의 매수·매도 기록을 누적한 보유 수량을 ${d.year}년 마지막 거래일 종가와 연말 환율로 평가했습니다. 평균 매입단가도 ${d.year}년 말 기준입니다.</div></div>`);
+      html.push(`<div class="notice info"><div><b>${d.year}년 말 기준</b>: 보유 종목 관리에 입력한 ${d.year}년 말 보유 수량을 ${d.year}년 마지막 거래일 종가와 연말 환율로 평가했습니다. 평균 매입단가도 ${d.year}년 말 기준입니다.</div></div>`);
     }
     if (d.basis.anyStale || d.basis.fxError) {
       html.push(`<div class="notice warn"><div><b>${d.ongoing ? '최신 시세가 아닐 수 있습니다.' : '일부 값을 계산하지 못했습니다.'}</b> ${d.ongoing ? `외부 출처에서 일부 시세·환율을 가져오지 못해 마지막 저장값을 표시합니다. ${req('FR-DATA-06')}` : ''}<br/><span class="small">${esc(d.basis.fxError || ok.filter((r) => r.stale).map((r) => `${r.code}: ${r.staleReason}`).join(' / '))}</span></div></div>`);
     }
     d.rows.filter((r) => r.splitNotice).forEach((r) => {
-      html.push(`<div class="notice warn"><div class="grow"><b>${esc(r.instrument.name)}</b>에 액면분할·병합(${esc(r.splitNotice.ratio)}, ${esc(r.splitNotice.date)})이 발생했습니다. 과거 종가는 다시 수집했으며, 보유 수량은 자동으로 바꾸지 않으니 확인 후 매수·매도 기록을 고쳐 주세요. ${req('FR-DATA-03')}</div><a href="#/holdings?year=${THIS_YEAR}"><button class="sm secondary">기록 수정</button></a></div>`);
+      html.push(`<div class="notice warn"><div class="grow"><b>${esc(r.instrument.name)}</b>에 액면분할·병합(${esc(r.splitNotice.ratio)}, ${esc(r.splitNotice.date)})이 발생했습니다. 과거 종가는 다시 수집했으며, 보유 수량은 자동으로 바꾸지 않으니 확인 후 보유 수량을 고쳐 주세요. ${req('FR-DATA-03')}</div><a href="#/holdings?year=${THIS_YEAR}"><button class="sm secondary">종목 수정</button></a></div>`);
     });
     d.rows.filter((r) => r.error).forEach((r) => {
       html.push(`<div class="notice error"><div class="grow"><b>${esc(r.instrument ? r.instrument.name : r.code)}</b> 합계에서 제외했습니다: ${esc(r.error)}</div>${d.ongoing ? '<button class="sm" data-refresh2>재시도</button>' : ''}</div>`);
     });
 
     if (!d.rows.length) {
-      html.push(`<div class="card empty">${d.year}년 말 ${d.groupId ? `‘${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}’ 그룹의 ` : ''}보유 종목이 없습니다.<br/><br/><a href="#/stock"><button>종목 조회하러 가기</button></a> <a href="#/holdings?year=${d.year}"><button class="secondary">${d.year}년 매수 기록 등록</button></a></div>`);
+      html.push(`<div class="card empty">${d.year}년 말 ${d.groupId ? `‘${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}’ 그룹의 ` : ''}보유 종목이 없습니다.<br/><br/><a href="#/stock"><button>종목 조회하러 가기</button></a> <a href="#/holdings?year=${d.year}"><button class="secondary">${d.year}년 종목 등록</button></a></div>`);
     } else {
       const t = d.total;
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
@@ -439,7 +439,7 @@
             <span>환율 <b>${rate(d.basis.fxRate)}</b> (${d.ongoing ? fmtTime(d.basis.fxTime) : esc(String(d.basis.fxTime || '').slice(0, 10))}, ${esc(d.basis.fxSource || '-')})</span>
             ${d.ongoing ? `<span>현재가는 5분간 캐시 ${req('FR-DATA-05')}</span>` : ''}
           </div>
-          <p class="small muted" style="margin:10px 0 0">평균 매입단가·매입금액은 <b>${d.year}년 1월 1일 기준</b>입니다: ${d.year - 1}년 말까지 보유한 수량은 ${d.year}년 1월 1일 평가액(${d.year - 1}년 마지막 거래일 종가), ${d.year}년에 산 수량은 매수 단가로 계산합니다(평균 매입단가를 누르면 실제 평균 매입단가 표시) · 외화 종목은 원화 금액을 누르면 외화 금액이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>의 매수·매도 기록으로 계산</p>
+          <p class="small muted" style="margin:10px 0 0">평균 매입단가·매입금액은 <b>${d.year}년 1월 1일 기준</b>입니다: ${d.year - 1}년 말까지 보유한 수량은 ${d.year}년 1월 1일 평가액(${d.year - 1}년 마지막 거래일 종가), ${d.year}년에 산 수량은 매수 단가로 계산합니다(평균 매입단가를 누르면 실제 평균 매입단가 표시) · 외화 종목은 원화 금액을 누르면 외화 금액이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>에 입력한 연도별 보유 수량(주식 항목)으로 계산</p>
         </div>`);
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
@@ -521,7 +521,7 @@
         ? `<div class="card">
             <h2>내 보유 종목 <span class="small muted" style="font-weight:400">${held.length}개 · 눌러서 조회</span></h2>
             <div class="stock-chips">${held.map((h) => `<a class="stock-chip" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} ${esc(h.name || h.code)}<span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
-            <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 관리</a>의 매수·매도 기록으로 계산한 올해 말 보유 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
+            <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 관리</a>에 입력한 올해 보유 수량 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
           </div>`
         : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`;
       return;
@@ -1027,10 +1027,10 @@
     const opts = (sel) => Array.from({ length: 10 }, (_, k) => thisYear - 9 + k).map((y) => `<option ${y === sel ? 'selected' : ''}>${y}</option>`).join('');
     const main = shell('#/yearly', `
       <div class="page-head">
-        <div><h1>연도별 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>연도별 매수·매도 기록으로 계산한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
+        <div><h1>연도별 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 관리에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
         <button data-export="/export/yearly.xlsx?from=${from}&to=${to}">엑셀 내보내기</button>
       </div>
-      <div class="notice warn"><div><b>해석 주의:</b> 연도별 매수·매도 기록을 누적한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 기록을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
+      <div class="notice warn"><div><b>해석 주의:</b> 연도별로 입력한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 종목을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
       <div class="card">
         <form class="field-row" data-range>
           <div class="field"><label>시작 연도</label><select name="from">${opts(from)}</select></div>

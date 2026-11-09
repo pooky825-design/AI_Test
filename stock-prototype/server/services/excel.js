@@ -112,7 +112,7 @@ async function yearlyWorkbook(data) {
   ws.columns.forEach((c, i) => (c.width = [24, 10, 12, 18, 16, 12, 12, 30][i] || 12));
 
   const ws2 = wb.addWorksheet('종목별 내역');
-  header(ws2, ['연도', '종목코드', '종목명', '구분', '통화', '현재 보유 수량', '연말 종가', '종가 기준일', '적용 환율', '원화 금액', '비고']);
+  header(ws2, ['연도', '종목코드', '종목명', '구분', '통화', '그 해 말 보유 수량', '연말 종가', '종가 기준일', '적용 환율', '원화 금액', '비고']);
   for (const y of data.years) {
     for (const i of y.items) {
       const r = ws2.addRow([

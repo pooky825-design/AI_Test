@@ -1,6 +1,6 @@
 # 주식 관리시스템 프로토타입
 
-「주식 관리시스템 요구사항 정의서 v0.3」(`docs/requirements/`)을 정확히 이해했는지 확인받기 위한 동작 프로토타입입니다.
+「주식 관리시스템 요구사항 정의서」를 정확히 이해했는지 확인받기 위한 동작 프로토타입입니다. 프로토타입 검토 결과를 반영한 **최종본은 `docs/requirements/주식관리시스템_요구사항정의서_v1.0_최종.pdf`**(원본 HTML: `docs/requirements/source/requirements_v1.0.html`)입니다.
 Front(HTML/JS + Chart.js), Back(Node.js + Express), DB(SQLite)로 구성했고, 실제 시세(야후 파이낸스, 네이버 증권)를 가져옵니다.
 PC(Windows)에서 실행하는 웹 버전과, 휴대폰에 설치하는 **안드로이드 앱(APK)** 두 가지로 제공합니다.
 
@@ -29,7 +29,7 @@ npm start
 
 ## 안드로이드 앱 (APK)
 
-- 설치 파일: **`release/stock-manager-v0.9.3.apk`** (Android 6.0 이상)
+- 설치 파일: **`release/stock-manager-v0.9.4.apk`** (Android 6.0 이상)
 - 휴대폰으로 파일을 옮겨 실행하면 설치됩니다. 처음 설치할 때 "출처를 알 수 없는 앱 설치"를 허용해야 하며, Play 프로텍트 경고가 나오면 "무시하고 설치"를 선택합니다.
 - 서버 없이 앱 혼자 동작합니다. PC 버전의 서버 코드(`server/`)를 그대로 묶어 앱 안에서 실행하고, 시세는 앱이 야후·네이버에서 직접 가져오며, DB는 휴대폰 안에 저장합니다. 화면 코드(`public/`)도 PC와 같습니다.
 - 데모 계정(`demo@example.com` / `demo1234`)이 들어 있고, 엑셀 내보내기 파일은 휴대폰의 **다운로드** 폴더에 저장됩니다.

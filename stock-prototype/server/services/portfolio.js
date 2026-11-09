@@ -347,7 +347,7 @@ async function getYearly(userId, fromYear, toYear) {
       generatedAt: new Date().toISOString(),
       fxRate: fx ? fx.rate : null,
       fxTime: fx ? fx.time : null,
-      note: '연도별 매수·매도 기록을 누적한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않습니다.',
+      note: '연도별로 입력한 연말 보유 수량 기준 금액입니다(입력하지 않은 연도는 직전 연도 수량이 이어짐). 연도 중 매매 시점의 가격 변동은 반영하지 않습니다.',
       formula: '연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율). 올해는 최신 시세와 현재 환율로 계산(진행 중).',
     },
   };
