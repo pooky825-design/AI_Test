@@ -38,16 +38,43 @@ function parseRows(html) {
   return { events, total };
 }
 
-async function loadEtfTaxBase(code, name) {
+const PAGE_SIZE = 10; // 홈페이지 팝업과 같은 단위(10건씩 ‘더보기’)
+const MAX_PAGES = 30;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchPage(code, name, page) {
   const res = await fetchRaw(URL, {
-    form: { pageIndex: '1', listCnt: '200', ksdFund: toIsin(code), jongName: name || '' },
+    form: {
+      pageIndex: String(page),
+      firstIndex: String((page - 1) * PAGE_SIZE),
+      listCnt: String(PAGE_SIZE),
+      ksdFund: toIsin(code),
+      jongName: name || '',
+    },
   });
   if (res.status === 403) {
     throw new SourceError('미래에셋 홈페이지가 접속을 거절했습니다(HTTP 403). 클라우드 서버 등 일부 환경에서는 차단되며, 사용자 PC나 휴대폰에서 실행하면 동작할 수 있습니다.');
   }
   if (!res.ok) throw new SourceError(`TIGER 홈페이지 응답 오류 (HTTP ${res.status})`);
   const html = new TextDecoder('utf-8').decode(await res.arrayBuffer());
-  return { source: NAME, ...parseRows(html) };
+  return { ...parseRows(html), size: html.length, head: html.replace(/\s+/g, ' ').slice(0, 80) };
+}
+
+async function loadEtfTaxBase(code, name) {
+  const first = await fetchPage(code, name, 1);
+  if (!first.events.length) {
+    // 응답은 받았지만 분배금 행이 없음 → 원인 파악을 위해 응답 정보를 사유에 남긴다
+    throw new SourceError(`TIGER 홈페이지 응답에 분배금 내역이 없습니다(HTTP 200, ${first.size}자, 시작: "${first.head}")`);
+  }
+  const events = [...first.events];
+  const total = first.total || events.length;
+  for (let page = 2; events.length < total && page <= MAX_PAGES; page++) {
+    await sleep(150); // 짧은 간격으로 몰아서 요청하지 않음
+    const next = await fetchPage(code, name, page);
+    if (!next.events.length) break;
+    events.push(...next.events);
+  }
+  return { source: NAME, events, total };
 }
 
 module.exports = { NAME, loadEtfTaxBase, parseRows };
