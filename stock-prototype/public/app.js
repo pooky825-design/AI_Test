@@ -403,7 +403,20 @@
     });
     if (!query.code) {
       form.code.focus();
-      main.querySelector('[data-result]').innerHTML = `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">예시: <a href="#/stock?code=005930">005930</a> · <a href="#/stock?code=0080G0">0080G0</a> · <a href="#/stock?code=530036">530036</a> · <a href="#/stock?code=AAPL">AAPL</a> · <a href="#/stock?code=SPY">SPY</a></span></div>`;
+      const box = main.querySelector('[data-result]');
+      const samples = '<a href="#/stock?code=005930">005930</a> · <a href="#/stock?code=0080G0">0080G0</a> · <a href="#/stock?code=530036">530036</a> · <a href="#/stock?code=AAPL">AAPL</a> · <a href="#/stock?code=SPY">SPY</a>';
+      box.innerHTML = '<div class="card empty">종목코드를 입력해 조회하세요.</div>';
+      // 내가 보유한 모든 종목(올해 말 기준, 전 그룹 합산)을 바로 조회할 수 있는 링크로 보여준다
+      let held = [];
+      try { held = (await api('GET', `/holdings?year=${THIS_YEAR}`)).holdings || []; } catch (_) { /* 예시만 표시 */ }
+      held.sort((a, b) => String(a.name || a.code).localeCompare(String(b.name || b.code), 'ko'));
+      box.innerHTML = held.length
+        ? `<div class="card">
+            <h2>내 보유 종목 <span class="small muted" style="font-weight:400">${held.length}개 · 눌러서 조회</span></h2>
+            <div class="stock-chips">${held.map((h) => `<a class="stock-chip" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} ${esc(h.name || h.code)}<span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
+            <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 관리</a>의 매수·매도 기록으로 계산한 올해 말 보유 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
+          </div>`
+        : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`;
       return;
     }
     await loadStock(main.querySelector('[data-result]'), query.code, query.refresh === '1', main.querySelector('[data-search]'));

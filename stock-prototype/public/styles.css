@@ -108,6 +108,9 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .badge.t-ETF { background: #e7f5ff; color: #0b6bcb; border-color: #b8dcfb; }
 .badge.t-ETN { background: #f3ecff; color: #6b3fc6; border-color: #d9c8fb; }
 .badge.ongoing { background: #fff1d6; color: #8a5300; border-color: #f3d39a; }
+.stock-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.stock-chip { display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface-2); color: var(--text); font-size: 13px; }
+.stock-chip:hover { border-color: var(--primary-2); background: var(--primary-soft); text-decoration: none; }
 .group-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .group-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .group-tabs button { background: #fff; color: var(--text); border: 1px solid #cbd5e1; border-radius: 99px; padding: 6px 14px; font-weight: 500; }
