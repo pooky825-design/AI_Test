@@ -1,50 +1,49 @@
-// 연도별 매수·매도 기록 → 연도 말 보유 수량·평균 매입단가 (v0.5, 그룹별 v0.6)
-// - 보유는 (그룹, 종목) 단위로 계산한다. 같은 종목이라도 그룹(ISA·연금·일반 등)이 다르면 따로 관리
-// - 연도 말 보유 수량 = 그 해까지의 매수 합계 − 매도 합계
-// - 평균 매입단가: 이동평균. 매수하면 (기존 원가 + 수량 × 단가) ÷ 새 수량, 매도하면 평균 단가는 그대로
-// - 같은 해 안의 매매 시점은 알 수 없으므로, 한 해 안에서는 매수를 먼저 반영하고 매도를 나중에 반영한다
+// 보유 종목: 연도별 주식 항목 (v0.8)
+// - 그룹·종목별로 그 해 말 보유 수량과 평균 매입단가를 저장한다(holding_items).
+// - 어느 연도의 보유 = 그 연도 이하에서 가장 최근 항목 (그 해 항목이 없으면 직전 항목이 이어짐 = 이월)
+// - 수량 0 항목 = 그 해부터 보유하지 않음
 const db = require('../db');
 
 const EPS = 1e-9;
 const keyOf = (t) => `${t.group_id || 0}|${t.code}`;
 
-function tradesOf(userId) {
-  return db.all('SELECT * FROM holding_trades WHERE user_id = ?', [userId]);
+function itemsOf(userId) {
+  return db.all('SELECT * FROM holding_items WHERE user_id = ? ORDER BY year, id', [userId]);
 }
 
-function sortTrades(list) {
-  return list.slice().sort((a, b) => a.year - b.year || (a.side === b.side ? 0 : a.side === 'BUY' ? -1 : 1) || (a.id || 0) - (b.id || 0));
-}
-
-/** 기록을 (그룹, 종목)별로 누적. upToYear 까지 반영 */
-function accumulate(trades, upToYear) {
+/** 각 (그룹, 종목)의 upToYear 기준 상태. items 는 itemsOf 결과 */
+function stateAt(items, upToYear) {
   const map = new Map();
-  for (const t of sortTrades(trades)) {
-    if (t.year > upToYear) continue;
-    const k = keyOf(t);
-    const p = map.get(k) || {
-      code: t.code, groupId: t.group_id || null, quantity: 0, cost: 0, firstYear: t.year, lastTradeAt: t.updated_at, tradesInYear: 0,
-    };
-    if (t.side === 'BUY') {
-      p.cost += t.quantity * t.price;
-      p.quantity += t.quantity;
-    } else {
-      const avg = p.quantity > EPS ? p.cost / p.quantity : 0;
-      p.quantity -= t.quantity;
-      p.cost -= avg * t.quantity;
-      if (p.quantity < EPS) { p.quantity = Math.max(p.quantity, 0); p.cost = 0; }
-    }
-    if (!p.lastTradeAt || t.updated_at > p.lastTradeAt) p.lastTradeAt = t.updated_at;
-    if (t.year === upToYear) p.tradesInYear++;
-    map.set(k, p);
+  for (const it of items) {
+    if (it.year > upToYear) continue;
+    const k = keyOf(it);
+    const prev = map.get(k);
+    if (prev && prev.itemYear > it.year) continue;
+    map.set(k, {
+      code: it.code,
+      groupId: it.group_id,
+      quantity: it.quantity,
+      avgPrice: it.quantity > EPS ? it.avg_price : 0,
+      cost: it.quantity > EPS ? it.quantity * it.avg_price : 0,
+      itemId: it.id,
+      itemYear: it.year,
+      memo: it.memo,
+      lastTradeAt: it.updated_at,
+      firstYear: prev ? prev.firstYear : it.year,
+      tradesInYear: it.year === upToYear ? 1 : 0,
+    });
   }
   return map;
 }
 
-/** 종목별 합계 (그룹 합산). 연도별 조회·배당 추정액에 사용 */
-function accumulateByCode(trades, upToYear) {
+// 이전 코드와 같은 이름: (그룹, 종목)별 상태
+const accumulate = stateAt;
+
+/** 종목별 합계 (그룹 합산) */
+function accumulateByCode(items, upToYear) {
   const out = new Map();
-  for (const p of accumulate(trades, upToYear).values()) {
+  for (const p of stateAt(items, upToYear).values()) {
+    if (p.quantity <= EPS) continue;
     const o = out.get(p.code) || { code: p.code, quantity: 0, cost: 0, tradesInYear: 0, lastTradeAt: p.lastTradeAt };
     o.quantity += p.quantity;
     o.cost += p.cost;
@@ -57,74 +56,49 @@ function accumulateByCode(trades, upToYear) {
 
 /** upToYear 말 보유 (그룹, 종목) 목록 (수량 0 초과만). groupId 를 주면 그 그룹만 */
 function positionsAt(userId, upToYear, { groupId } = {}) {
-  return [...accumulate(tradesOf(userId), upToYear).values()]
+  const items = itemsOf(userId);
+  const prev = stateAt(items, upToYear - 1);
+  return [...stateAt(items, upToYear).values()]
     .filter((p) => p.quantity > EPS && (!groupId || p.groupId === groupId))
-    .map((p) => ({ ...p, avgPrice: p.cost / p.quantity }));
-}
-
-/**
- * 연초 기준 매입금액 (v0.7.2): 선택 연도 1월 1일을 기준으로 다시 잡은 매입금액
- * - 전년 말까지 보유해 이월된 수량은 전년 마지막 거래일 종가(= 1월 1일 평가액)로 평가
- * - 그 해에 새로 산 수량은 매수 단가 그대로
- * - 그 해에 판 수량은 이동평균으로 차감
- * startPrice 가 없으면(종가 데이터 없음) 이월분은 원래 평균 매입단가를 쓰고 fallback 으로 표시
- */
-function yearBasis(trades, groupId, code, year, startPrice) {
-  const list = sortTrades(trades.filter((t) => t.code === code && (t.group_id || 0) === (groupId || 0) && t.year <= year));
-  let qty = 0;
-  let cost = 0;
-  for (const t of list) {
-    if (t.year >= year) break;
-    if (t.side === 'BUY') { cost += t.quantity * t.price; qty += t.quantity; } else {
-      const avg = qty > EPS ? cost / qty : 0;
-      qty -= t.quantity; cost -= avg * t.quantity;
-      if (qty < EPS) { qty = Math.max(qty, 0); cost = 0; }
-    }
-  }
-  const startQty = qty;
-  const fallback = startQty > EPS && startPrice == null;
-  let bq = startQty;
-  let bc = startQty > EPS ? (startPrice == null ? cost : startQty * startPrice) : 0;
-  for (const t of list) {
-    if (t.year !== year) continue;
-    if (t.side === 'BUY') { bc += t.quantity * t.price; bq += t.quantity; } else {
-      const avg = bq > EPS ? bc / bq : 0;
-      bq -= t.quantity; bc -= avg * t.quantity;
-      if (bq < EPS) { bq = Math.max(bq, 0); bc = 0; }
-    }
-  }
-  return { cost: bc, quantity: bq, startQty, fallback };
+    .map((p) => {
+      const pv = prev.get(`${p.groupId}|${p.code}`);
+      return { ...p, carried: !!(pv && pv.quantity > EPS) }; // 전년 말에도 보유 → 이월
+    });
 }
 
 /** upToYear 말 종목별 합계 (그룹 합산, 수량 0 초과만) */
 function totalsAt(userId, upToYear) {
-  return [...accumulateByCode(tradesOf(userId), upToYear).values()]
-    .filter((p) => p.quantity > EPS)
-    .map((p) => ({ ...p, avgPrice: p.cost / p.quantity }));
+  return [...accumulateByCode(itemsOf(userId), upToYear).values()].map((p) => ({ ...p, avgPrice: p.cost / p.quantity }));
 }
 
 /**
- * 같은 그룹·종목에서 매도 수량이 보유 수량을 넘지 않는지 확인 (모든 연도 말 기준)
- * @returns null 또는 { code, groupId, year, held } (처음으로 음수가 되는 연도)
+ * 연초 기준 매입금액: 선택 연도 1월 1일을 기준으로 다시 잡은 매입금액
+ * - 전년 말 보유(이월) 수량은 전년 마지막 거래일 종가(= 1월 1일 평가액)로 평가
+ * - 수량이 늘었으면 늘어난 수량은 그 해 매수분: 매수 금액 = 올해 말 매입금액 − 전년 말 매입금액 (이동평균 역산)
+ * - 수량이 줄었으면 이월분에서 판 것으로 보고 남은 수량 × 1월 1일 평가액
+ * startPrice 가 없으면(종가 없음) 이월분은 실제 평균 매입단가를 쓰고 fallback 으로 표시
  */
-function findShortfall(trades, code, groupId) {
-  const list = sortTrades(trades.filter((t) => t.code === code && (t.group_id || 0) === (groupId || 0)));
-  let qty = 0;
-  for (const t of list) {
-    qty += t.side === 'BUY' ? t.quantity : -t.quantity;
-    if (qty < -EPS) return { code, groupId, year: t.year, held: qty + t.quantity };
-  }
-  return null;
+function yearBasis(items, groupId, code, year, startPrice) {
+  const k = `${groupId || 0}|${code}`;
+  const prev = stateAt(items, year - 1).get(k);
+  const cur = stateAt(items, year).get(k);
+  const Q = prev && prev.quantity > EPS ? prev.quantity : 0;
+  const N = cur && cur.quantity > EPS ? cur.quantity : 0;
+  const startUnit = startPrice == null ? (prev ? prev.avgPrice : 0) : startPrice;
+  const carried = Math.min(Q, N);
+  let cost = carried * startUnit;
+  if (N > Q + EPS) cost += Math.max(0, cur.cost - (prev ? prev.cost : 0));
+  return { cost, quantity: N, startQty: carried, fallback: carried > EPS && startPrice == null };
 }
 
 function tradeYearRange(userId) {
-  const r = db.get('SELECT MIN(year) AS minY, MAX(year) AS maxY FROM holding_trades WHERE user_id = ?', [userId]);
+  const r = db.get('SELECT MIN(year) AS minY, MAX(year) AS maxY FROM holding_items WHERE user_id = ?', [userId]);
   return { min: r && r.minY, max: r && r.maxY };
 }
 
-/** 그 해까지 한 번이라도 기록이 있는 종목코드 */
+/** 그 해까지 한 번이라도 항목이 있는 종목코드 */
 function codesUpTo(userId, upToYear) {
-  return db.all('SELECT DISTINCT code FROM holding_trades WHERE user_id = ? AND year <= ?', [userId, upToYear]).map((r) => r.code);
+  return db.all('SELECT DISTINCT code FROM holding_items WHERE user_id = ? AND year <= ?', [userId, upToYear]).map((r) => r.code);
 }
 
 // ---------------------------------------------------------------------------
@@ -133,11 +107,12 @@ function codesUpTo(userId, upToYear) {
 function groupsOf(userId) {
   let list = db.all('SELECT id, name, sort_order FROM holding_groups WHERE user_id = ? ORDER BY sort_order, id', [userId]);
   if (!list.length) {
-    // 그룹이 하나도 없으면 기본 '일반' 그룹을 만든다
     db.run('INSERT INTO holding_groups (user_id, name, sort_order, created_at) VALUES (?, ?, 0, ?)', [userId, '일반', new Date().toISOString()]);
     list = db.all('SELECT id, name, sort_order FROM holding_groups WHERE user_id = ? ORDER BY sort_order, id', [userId]);
   }
   return list;
 }
 
-module.exports = { yearBasis, tradesOf, positionsAt, totalsAt, accumulate, accumulateByCode, findShortfall, tradeYearRange, codesUpTo, groupsOf };
+module.exports = {
+  itemsOf, tradesOf: itemsOf, stateAt, accumulate, accumulateByCode, positionsAt, totalsAt, yearBasis, tradeYearRange, codesUpTo, groupsOf,
+};

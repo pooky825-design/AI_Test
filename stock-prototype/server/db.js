@@ -72,6 +72,22 @@ CREATE TABLE IF NOT EXISTS holding_trades (
 );
 CREATE INDEX IF NOT EXISTS idx_trades_user ON holding_trades (user_id, year, code);
 
+-- 연도별 주식 항목 (v0.8): 그룹·종목별 그 해 말 보유 수량과 평균 매입단가.
+-- 그 해 항목이 없으면 직전 연도 항목이 이어진다(이월). 수량 0 = 그 해부터 보유하지 않음
+CREATE TABLE IF NOT EXISTS holding_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  quantity REAL NOT NULL,
+  avg_price REAL,
+  memo TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (user_id, group_id, code, year)
+);
+
 -- 회원별 종목 분류 (v0.7): 국내 / 해외 / 해외추종(해외 자산을 따라가는 국내 상장 ETF 등)
 CREATE TABLE IF NOT EXISTS stock_categories (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -273,6 +289,33 @@ function migrate() {
       );
     }
     db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
+  }
+
+  // v0.8: 매수·매도 기록(holding_trades)을 연도별 주식 항목(holding_items)으로 한 번 변환
+  if (!all("SELECT value FROM app_meta WHERE key = 'trades_to_items'")[0]) {
+    const now = new Date().toISOString();
+    const trades = all('SELECT * FROM holding_trades ORDER BY year, CASE side WHEN \'BUY\' THEN 0 ELSE 1 END, id');
+    const state = new Map(); // user|group|code → {qty, cost}
+    const byYear = new Map(); // user|group|code|year → 마지막 상태
+    for (const t of trades) {
+      const k = `${t.user_id}|${t.group_id || 0}|${t.code}`;
+      const st = state.get(k) || { qty: 0, cost: 0, memos: [] };
+      if (t.side === 'BUY') { st.cost += t.quantity * t.price; st.qty += t.quantity; } else {
+        const avg = st.qty > 1e-9 ? st.cost / st.qty : 0;
+        st.qty -= t.quantity; st.cost -= avg * t.quantity;
+        if (st.qty < 1e-9) { st.qty = 0; st.cost = 0; }
+      }
+      state.set(k, st);
+      const yk = `${k}|${t.year}`;
+      const prev = byYear.get(yk);
+      byYear.set(yk, { user: t.user_id, group: t.group_id, code: t.code, year: t.year, qty: st.qty, avg: st.qty > 0 ? st.cost / st.qty : null, memo: [prev && prev.memo, t.memo].filter(Boolean).join(' / ') || null });
+    }
+    for (const v of byYear.values()) {
+      if (!v.group) continue;
+      db.run('INSERT OR REPLACE INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [v.user, v.group, v.code, v.year, v.qty, v.avg, v.memo, now, now]);
+    }
+    db.run("INSERT INTO app_meta (key, value) VALUES ('trades_to_items', ?)", [now]);
   }
 
   // v0.7: 네이버에서 받은 종목명에 남아 있던 XML 문자 참조 복원 (예: S&amp;P → S&P)

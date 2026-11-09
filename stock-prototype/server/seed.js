@@ -13,23 +13,24 @@ async function seedDemo() {
   ['일반', 'ISA', '연금'].forEach((name, i) => {
     gid[name] = db.run('INSERT INTO holding_groups (user_id, name, sort_order, created_at) VALUES (?, ?, ?, ?)', [uid, name, i, now]).lastId;
   });
+  // 연도별 주식 항목: 그 해 말 보유 수량·평균 매입단가 (그 해 항목이 없으면 직전 연도 항목이 이어짐)
   const ty = new Date().getFullYear();
-  const trades = [
-    ['일반', '005930', ty - 4, 'BUY', 50, 60000, '첫 매수'],
-    ['일반', '005930', ty - 2, 'BUY', 50, 55000, '추가 매수'],
-    ['일반', 'AAPL', ty - 5, 'BUY', 10, 150, null],
-    ['일반', 'AAPL', ty - 2, 'SELL', 3, null, '일부 매도'],
-    ['일반', 'AAPL', ty - 1, 'BUY', 3, 220, '다시 매수'],
-    ['ISA', '069500', ty - 3, 'BUY', 50, 35000, null],
-    ['ISA', '0080G0', ty - 1, 'BUY', 200, 5000, null],
-    ['연금', 'SPY', ty - 3, 'BUY', 5, 450, null],
-    ['연금', '069500', ty - 2, 'BUY', 20, 33000, '연금 계좌에서도 보유'],
-    ['연금', '360750', ty - 1, 'BUY', 30, 18000, '해외추종 예시'],
+  const items = [
+    ['일반', 'AAPL', ty - 5, 10, 150, null],
+    ['일반', '005930', ty - 4, 50, 60000, '첫 매수'],
+    ['일반', '005930', ty - 2, 100, 57500, '추가 매수'],
+    ['일반', 'AAPL', ty - 2, 7, 150, '일부 매도'],
+    ['일반', 'AAPL', ty - 1, 10, 171, '다시 매수'],
+    ['ISA', '069500', ty - 3, 50, 35000, null],
+    ['ISA', '0080G0', ty - 1, 200, 5000, null],
+    ['연금', 'SPY', ty - 3, 5, 450, null],
+    ['연금', '069500', ty - 2, 20, 33000, '연금 계좌에서도 보유'],
+    ['연금', '360750', ty - 1, 30, 18000, '해외추종 예시'],
   ];
-  for (const [g, code, year, side, q, p, memo] of trades) {
+  for (const [g, code, year, q, p, memo] of items) {
     db.run(
-      'INSERT INTO holding_trades (user_id, group_id, code, year, side, quantity, price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [uid, gid[g], code, year, side, q, p, memo, now, now]
+      'INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [uid, gid[g], code, year, q, p, memo, now, now]
     );
   }
   // 종목 분류 (국내·해외·해외추종)

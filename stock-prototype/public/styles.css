@@ -136,6 +136,11 @@ th.today-col { background: #f3f0de; }
 .card[data-ckey] tfoot td.today-col { background: #f1edd6; }
 .card[data-ckey] tfoot td.up { color: #c62a22; }
 .card[data-ckey] tfoot td.down { color: #1c5bb8; }
+.badge.carry { background: #eef2f7; color: #334155; border-color: #cbd5e1; }
+/* 모든 표: 머리글과 칸 가운데 정렬 */
+th, td, th.num, td.num, .card[data-ckey] th { text-align: center; }
+.name-cell { align-items: center; }
+tr.group-row td { text-align: left; } /* 그룹 제목 행은 휴대폰에서도 보이도록 왼쪽 정렬 */
 .group-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .group-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .group-tabs button { background: #fff; color: var(--text); border: 1px solid #cbd5e1; border-radius: 99px; padding: 6px 14px; font-weight: 500; }
