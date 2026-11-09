@@ -379,7 +379,7 @@
         <div class="card" data-ckey="stocks">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${esc((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
-          <div class="table-wrap"><table>
+          <div class="table-wrap"><table class="stock-table">
             <thead><tr>
               <th>종목</th><th class="num">보유 수량</th><th class="num">평균 매입단가<br/><small class="muted">${d.year}.1.1 기준</small></th><th class="num">매입금액<br/><small class="muted">원화 · ${d.year}.1.1 기준</small></th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
               <th class="num">원화 평가금액</th><th class="num">원화 평가손익</th><th class="num">수익률</th>

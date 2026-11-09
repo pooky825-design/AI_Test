@@ -294,3 +294,6 @@ body.modal-open { overflow: hidden; }
 /* 종목 열 왼쪽 정렬 (자산 현황 종목별 평가금액 등) */
 td.left { text-align: left; }
 td.left .name-cell { align-items: flex-start; }
+/* 자산 현황 종목별 평가금액: 종목 열은 왼쪽, 나머지 숫자 열은 오른쪽 정렬 · 그룹 소계 줄은 한 단계 크게 */
+.stock-table td.num { text-align: right; }
+.stock-table tr.group-sub td { font-size: 13px; }
