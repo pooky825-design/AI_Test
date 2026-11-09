@@ -328,6 +328,8 @@
     } else {
       const t = d.total;
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
+      // 소계·합계 행의 현재가(·전일 대비) 칸: 전일 대비 칸에는 보유 종목 전체의 오늘 손익 합계
+      const gapCells = (x) => (d.ongoing ? `<td></td><td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : '<td></td>');
       // 오늘 손익·손익률 열 (올해만: 전일 종가 대비)
       const todayHead = d.ongoing ? '<th class="num today-col">오늘 손익</th><th class="num today-col">오늘 손익률</th>' : '';
       const todayCells = (x) => (d.ongoing
@@ -381,12 +383,11 @@
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table class="stock-table">
             <thead><tr>
-              <th>종목</th><th class="num">보유 수량</th><th class="num">평균 매입단가<br/><small class="muted">${d.year}.1.1 기준</small></th><th class="num">매입금액<br/><small class="muted">원화 · ${d.year}.1.1 기준</small></th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
+              <th>종목</th><th class="num">보유 수량</th><th class="num">평균 매입단가<br/><small class="muted">${d.year}.1.1 기준</small></th><th class="num">매입금액<br/><small class="muted">원화 · ${d.year}.1.1 기준</small></th><th class="num">${priceLabel}</th>${d.ongoing ? '<th class="num">전일 대비<br/><small class="muted">원화 · 보유 수량 전체</small></th>' : ''}
               <th class="num">원화 평가금액</th><th class="num">원화 평가손익</th><th class="num">수익률</th>
             </tr></thead>
             <tbody>${(() => {
               const cols = d.ongoing ? 9 : 8;
-              const gap = d.ongoing ? 2 : 1; // 현재가(·전일 대비) 칸
               // 외화 종목: 원화 금액을 누르면 외화 금액을 툴팁으로 보여준다
               const fxTip = (r, amount) => (r.instrument.currency === 'USD' ? `${usd(amount)} × ${rate(r.fxRate)}` : '');
               const krwCell = (r, krwVal, amount, bold) => {
@@ -401,6 +402,13 @@
                 if (r.quantity - r.carriedQty > 1e-9) parts.push(`${d.year}년 매수분: 매수 단가`);
                 return parts.join(' · ');
               };
+              // 전일 대비: 1주당 가격 변동 × 보유 수량 전체 (원화). 툴팁에 1주당 변동(외화 종목은 외화 금액도)
+              const todayCell = (r) => {
+                if (r.todayPnlKrw == null) return sMoney(r.change, r.instrument.currency);
+                const c = r.instrument.currency;
+                const tip = `1주당 ${sMoney(r.change, c)} × ${qty(r.quantity)}주${c === 'USD' ? ` = ${sMoney(r.change * r.quantity, c)} × ${rate(r.fxRate)}` : ''}`;
+                return `<span class="tip" data-tip="${esc(tip)}" tabindex="0">${sKrw(r.todayPnlKrw)}</span>`;
+              };
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
@@ -409,7 +417,7 @@
                 <td class="num"><span class="tip" data-tip="${esc(avgTip(r))}" tabindex="0">${money(r.avgPrice, c)}</span></td>
                 <td class="num">${krwCell(r, r.costKrw, r.cost, false)}</td>
                 <td class="num">${money(r.price, c)}${d.ongoing ? '' : `<br/><small class="muted">${esc(String(r.priceTime).slice(0, 10))}</small>`}</td>
-                ${d.ongoing ? `<td class="num ${cls(r.change)}">${sMoney(r.change, c)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
+                ${d.ongoing ? `<td class="num ${cls(r.change)}">${todayCell(r)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
                 <td class="num">${krwCell(r, r.valueKrw, r.value, true)}</td>
                 <td class="num ${cls(r.pnlKrw)}">${sKrw(r.pnlKrw)}</td>
                 <td class="num ${cls(r.returnPct)}">${pct(r.returnPct)}</td>
@@ -421,17 +429,17 @@
                 const gt = d.groupTotals.find((x) => x.groupId === g.id) || {};
                 return `<tr class="group-row"><td colspan="${cols}"><a href="#/assets?year=${d.year}&group=${g.id}">${esc(g.name)}</a> <span class="muted" style="font-weight:400">${gt.count || 0}종목</span></td></tr>
                   ${ok.filter((r) => r.groupId === g.id).map(rowHtml).join('')}
-                  <tr class="group-sub"><td colspan="3">${esc(g.name)} 소계</td><td class="num">${krw(gt.costKrw)}</td><td colspan="${gap}"></td><td class="num">${krw(gt.valueKrw)}</td><td class="num ${cls(gt.pnlKrw)}">${sKrw(gt.pnlKrw)}</td><td class="num ${cls(gt.returnPct)}">${pct(gt.returnPct)}</td></tr>`;
+                  <tr class="group-sub"><td colspan="3">${esc(g.name)} 소계</td><td class="num">${krw(gt.costKrw)}</td>${gapCells(gt)}<td class="num">${krw(gt.valueKrw)}</td><td class="num ${cls(gt.pnlKrw)}">${sKrw(gt.pnlKrw)}</td><td class="num ${cls(gt.returnPct)}">${pct(gt.returnPct)}</td></tr>`;
               }).join('');
             })()}</tbody>
-            <tfoot><tr><td colspan="3">합계 (원화)</td><td class="num">${krw(t.costKrw)}</td><td colspan="${d.ongoing ? 2 : 1}"></td><td class="num">${krw(t.valueKrw)}</td><td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td></tr></tfoot>
+            <tfoot><tr><td colspan="3">합계 (원화)</td><td class="num">${krw(t.costKrw)}</td>${gapCells(t)}<td class="num">${krw(t.valueKrw)}</td><td class="num ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</td><td class="num ${cls(t.returnPct)}">${pct(t.returnPct)}</td></tr></tfoot>
           </table></div>
           <div class="basis">
             <span>시세 기준 <b>${d.ongoing ? `${fmtTime(d.basis.priceTimeOldest)} ~ ${fmtTime(d.basis.priceTimeLatest)}` : `${d.year}년 마지막 거래일 종가`}</b></span>
             <span>환율 <b>${rate(d.basis.fxRate)}</b> (${d.ongoing ? fmtTime(d.basis.fxTime) : esc(String(d.basis.fxTime || '').slice(0, 10))}, ${esc(d.basis.fxSource || '-')})</span>
             ${d.ongoing ? `<span>현재가는 5분간 캐시 ${req('FR-DATA-05')}</span>` : ''}
           </div>
-          <p class="small muted" style="margin:10px 0 0">평균 매입단가·매입금액은 <b>${d.year}년 1월 1일 기준</b>입니다: ${d.year - 1}년 말까지 보유한 수량은 ${d.year}년 1월 1일 평가액(${d.year - 1}년 마지막 거래일 종가), ${d.year}년에 산 수량은 매수 단가로 계산합니다(평균 매입단가를 누르면 실제 평균 매입단가 표시) · 외화 종목은 원화 금액을 누르면 외화 금액이 보입니다 · 원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>의 매수·매도 기록으로 계산</p>
+          <p class="small muted" style="margin:10px 0 0">평균 매입단가·매입금액은 <b>${d.year}년 1월 1일 기준</b>입니다: ${d.year - 1}년 말까지 보유한 수량은 ${d.year}년 1월 1일 평가액(${d.year - 1}년 마지막 거래일 종가), ${d.year}년에 산 수량은 매수 단가로 계산합니다(평균 매입단가를 누르면 실제 평균 매입단가 표시) · 외화 종목은 원화 금액을 누르면 외화 금액이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 원화 평가금액 = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · 수익률 = (${priceLabel} − 평균 매입단가) ÷ 평균 매입단가 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>의 매수·매도 기록으로 계산</p>
         </div>`);
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
