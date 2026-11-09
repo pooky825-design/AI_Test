@@ -1,13 +1,19 @@
 const { SourceError } = require('./errors');
 
 // 외부 호출 공통: 타임아웃 + 오류 변환
-async function fetchRaw(url, { timeoutMs = 12000 } = {}) {
+// form: POST로 보낼 폼 값 (application/x-www-form-urlencoded). 없으면 GET
+async function fetchRaw(url, { timeoutMs = 12000, form } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     return await fetch(url, {
       signal: ctrl.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (stock-manager-prototype)' },
+      method: form ? 'POST' : 'GET',
+      body: form ? new URLSearchParams(form).toString() : undefined,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (stock-manager-prototype)',
+        ...(form ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+      },
     });
   } catch (e) {
     throw new SourceError(

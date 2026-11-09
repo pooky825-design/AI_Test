@@ -3,11 +3,11 @@
 const yahoo = require('./yahoo');
 const naver = require('./naver');
 const sample = require('./sample');
-const funetf = require('./funetf');
+const etfTax = require('./etfTax');
 
 const mode = (process.env.DATA_PROVIDER || 'live').toLowerCase();
 
 module.exports =
   mode === 'sample'
     ? { mode, primary: sample, backup: null, fx: sample, taxBase: null, koreanName: async () => null }
-    : { mode, primary: yahoo, backup: naver, fx: yahoo, taxBase: funetf, koreanName: naver.koreanName };
+    : { mode, primary: yahoo, backup: naver, fx: yahoo, taxBase: etfTax, koreanName: naver.koreanName };

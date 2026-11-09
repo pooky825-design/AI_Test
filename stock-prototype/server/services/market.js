@@ -314,12 +314,12 @@ async function refreshDividends(inst) {
   let taxError = null;
   if (providers.taxBase && inst.currency === 'KRW' && inst.type !== '주식') {
     try {
-      tax = await providers.taxBase.loadEtfTaxBase(inst.code);
+      tax = await providers.taxBase.loadEtfTaxBase(inst.code, inst.name);
     } catch (e) {
       taxError = e.message;
     }
   }
-  const taxMap = new Map(((tax && tax.events) || []).map((e) => [e.exDate, e]));
+  const taxMap = new Map(((tax && tax.events) || []).map((e) => [e.exDate || alignToExDate(e.recordDate, r.events), e]).filter(([k]) => k));
   const rows = r.events.map((e) => {
     const t = taxMap.get(e.exDate);
     taxMap.delete(e.exDate);
@@ -328,8 +328,10 @@ async function refreshDividends(inst) {
     if (tax || !p) return { ...e, taxBase: null, taxSource: null, payDate: null, source: r.source };
     return { ...e, taxBase: p.tax_base, taxSource: p.tax_source, payDate: p.pay_date, source: r.source };
   });
-  // 주 출처에 없고 FunETF에만 있는 회차도 추가
-  for (const t of taxMap.values()) rows.push({ ...t, taxSource: tax.source, source: tax.source });
+  // 주 출처에 없고 과세표준 출처에만 있는 회차도 추가 (배당락일을 아는 경우만)
+  for (const [exDate, t] of taxMap.entries()) {
+    if (t.exDate) rows.push({ ...t, exDate, taxSource: tax.source, source: tax.source });
+  }
 
   const at = nowIso();
   db.tx(() => {
@@ -341,6 +343,21 @@ async function refreshDividends(inst) {
     );
     db.run('UPDATE instruments SET div_loaded_at = ?, div_source = ?, div_tax_error = ? WHERE code = ?', [at, r.source, taxError, inst.code]);
   });
+}
+
+/**
+ * 지급기준일만 주는 출처(SOL 등)의 회차를 배당락일에 맞춘다.
+ * 배당락일은 지급기준일 직전 영업일이므로, 지급기준일 전 7일 안에서 가장 가까운 배당락일을 고른다.
+ * 맞는 회차가 없으면 null (배당락일을 지어내지 않음)
+ */
+function alignToExDate(recordDate, events) {
+  if (!recordDate) return null;
+  const from = new Date(new Date(`${recordDate}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  let best = null;
+  for (const e of events) {
+    if (e.exDate < recordDate && e.exDate >= from && (!best || e.exDate > best)) best = e.exDate;
+  }
+  return best;
 }
 
 async function getDividendEvents(rawCode, { force = false } = {}) {

@@ -2,11 +2,11 @@
 const { SourceError } = require('../server/providers/errors');
 const bridge = require('./bridge');
 
-async function fetchRaw(url, { timeoutMs = 12000 } = {}) {
+async function fetchRaw(url, { timeoutMs = 12000, form } = {}) {
   let r;
   try {
     r = await Promise.race([
-      bridge.httpGet(url),
+      form ? bridge.httpPost(url, new URLSearchParams(form).toString()) : bridge.httpGet(url),
       new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { name: 'AbortError' })), timeoutMs + 2000)),
     ]);
   } catch (e) {

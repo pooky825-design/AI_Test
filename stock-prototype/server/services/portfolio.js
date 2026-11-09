@@ -233,6 +233,18 @@ async function getYearly(userId, fromYear, toYear) {
 // 연도별 주당 배당 합계·배당수익률, 배당락일별 주당 배당금, 보유 중이면 세전 추정액
 // 배당수익률 = 연간 주당 배당 합계 ÷ 연말 종가 (올해는 현재가, 진행 중)
 // ---------------------------------------------------------------------------
+// 국내 ETF 주당과세표준액 출처 안내 (운용사별)
+function etfTaxNote(name) {
+  const base = '국내 ETF는 분배금 중 비과세 이익(국내 주식 매매차익 등)을 뺀 금액에 과세하며, 운용사가 공시한 회차별 값을 표시합니다. ';
+  const n = String(name || '').trim();
+  if (/^SOL\b/i.test(n)) return base + '출처: 신한자산운용 SOL ETF 홈페이지.';
+  if (/^KODEX\b/i.test(n)) return base + '출처: FunETF (2022년 이후 회차만 제공). 값이 없는 회차는 ‘-’로 표시합니다.';
+  if (/^TIGER\b/i.test(n)) {
+    return base + 'TIGER(미래에셋자산운용)는 운용사 홈페이지가 자동 조회를 차단해 과세표준을 가져오지 못하므로 ‘-’로 표시합니다. 실지급일은 FunETF 값입니다.';
+  }
+  return base + '이 운용사는 과세표준 출처가 연동되지 않아 ‘-’로 표시합니다(현재 연동: KODEX·SOL).';
+}
+
 async function getStockDividends(userId, code, opts) {
   const d = await market.getDividendEvents(code, opts);
   const cur = d.instrument.currency;
@@ -294,11 +306,12 @@ async function getStockDividends(userId, code, opts) {
     isKrEtf,
     taxBaseKnown,
     taxCount: events.filter((e) => e.taxBase != null).length,
+    taxSource: isKrEtf ? (events.find((e) => e.taxBase != null && e.taxSource) || {}).taxSource || null : null,
     taxError: d.taxError,
     hasPayDate: events.some((e) => e.payDate),
     taxBaseNote: taxBaseKnown
       ? '배당금 전액이 배당소득 과세 대상이므로 주당 배당금과 같습니다.'
-      : '국내 ETF는 분배금 중 비과세 이익(국내 주식 매매차익 등)을 뺀 금액에 과세하며, FunETF가 공시한 회차별 값을 표시합니다. FunETF는 KODEX ETF의 2022년 이후 회차만 제공하므로, 값이 없는 회차는 ‘-’로 표시합니다.',
+      : etfTaxNote(d.instrument.name),
     events: events.slice().reverse(),
     years,
     loadedAt: d.loadedAt,

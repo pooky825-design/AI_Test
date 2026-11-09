@@ -40,4 +40,16 @@ function httpGet(url) {
   });
 }
 
-module.exports = { Native, toBase64, fromBase64, httpGet };
+function httpPost(url, body) {
+  if (!Native) {
+    return fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+      .then(async (r) => ({ status: r.status, bytes: new Uint8Array(await r.arrayBuffer()) }));
+  }
+  return new Promise((resolve, reject) => {
+    const id = String(++seq);
+    pending.set(id, { resolve, reject });
+    Native.httpPost(id, url, body);
+  });
+}
+
+module.exports = { Native, toBase64, fromBase64, httpGet, httpPost };

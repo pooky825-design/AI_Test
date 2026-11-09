@@ -45,7 +45,8 @@ public class MainActivity extends Activity {
 
     // 호출을 허용하는 외부 출처 (그 밖의 주소는 차단)
     private static final Set<String> ALLOWED_HOSTS = new HashSet<String>(Arrays.asList(
-            "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com", "www.funetf.co.kr"));
+            "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com", "www.funetf.co.kr",
+            "www.soletf.com"));
 
     private WebView webView;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -100,6 +101,16 @@ public class MainActivity extends Activity {
         /** 외부 출처 GET. 결과는 window.__mobileHttpDone(id, status, base64, error) 로 돌려준다. */
         @JavascriptInterface
         public void httpGet(final String id, final String url) {
+            request(id, url, null);
+        }
+
+        /** 외부 출처 POST (폼 전송). 결과 전달 방식은 httpGet 과 같다. */
+        @JavascriptInterface
+        public void httpPost(final String id, final String url, final String formBody) {
+            request(id, url, formBody == null ? "" : formBody);
+        }
+
+        private void request(final String id, final String url, final String formBody) {
             pool.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -116,6 +127,14 @@ public class MainActivity extends Activity {
                         c.setConnectTimeout(12000);
                         c.setReadTimeout(12000);
                         c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) stock-manager-prototype");
+                        if (formBody != null) {
+                            c.setRequestMethod("POST");
+                            c.setDoOutput(true);
+                            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                            OutputStream os = c.getOutputStream();
+                            os.write(formBody.getBytes("UTF-8"));
+                            os.close();
+                        }
                         status = c.getResponseCode();
                         InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
                         byte[] body = in == null ? new byte[0] : readAll(in);
