@@ -320,7 +320,12 @@ async function refreshDividends(inst) {
       taxError = e.message;
     }
   }
-  const taxMap = new Map(((tax && tax.events) || []).map((e) => [e.exDate || alignToExDate(e.recordDate, r.events), e]).filter(([k]) => k));
+  // 배당락일 결정: 출처가 주면 그대로 → 주 출처(야후)의 배당락일과 맞춤 → 없으면 지급기준일 직전 거래일(저장된 일별 종가 기준)
+  const taxMap = new Map(
+    ((tax && tax.events) || [])
+      .map((e) => [e.exDate || alignToExDate(e.recordDate, r.events) || prevTradingDay(inst.code, e.recordDate), e])
+      .filter(([k]) => k)
+  );
   const rows = r.events.map((e) => {
     const t = taxMap.get(e.exDate);
     taxMap.delete(e.exDate);
@@ -333,9 +338,10 @@ async function refreshDividends(inst) {
     if (tax || !p) return { ...e, taxBase: null, taxSource: null, payDate: null, source: r.source };
     return { ...e, taxBase: p.tax_base, taxSource: p.tax_source, payDate: p.pay_date, source: r.source };
   });
-  // 주 출처에 없고 과세표준 출처에만 있는 회차도 추가 (배당락일을 아는 경우만)
+  // 주 출처(야후)에 빠진 회차도 운용사 공시에 있으면 추가
   for (const [exDate, t] of taxMap.entries()) {
-    if (t.exDate) rows.push({ ...t, exDate, taxSource: tax.source, source: tax.source });
+    if (t.amount == null) continue;
+    rows.push({ exDate, amount: t.amount, taxBase: t.taxBase, taxSource: tax.source, payDate: t.payDate, source: tax.source });
   }
 
   const at = nowIso();
@@ -363,6 +369,15 @@ function alignToExDate(recordDate, events) {
     if (e.exDate < recordDate && e.exDate >= from && (!best || e.exDate > best)) best = e.exDate;
   }
   return best;
+}
+
+/** 지급기준일 직전 거래일 (국내는 배당락일 = 지급기준일 전 1거래일). 저장된 일별 종가가 없으면 null */
+function prevTradingDay(code, recordDate) {
+  if (!recordDate) return null;
+  const r = db.get('SELECT MAX(trade_date) AS d FROM daily_prices WHERE code = ? AND trade_date < ? AND trade_date >= ?', [
+    code, recordDate, new Date(new Date(`${recordDate}T00:00:00Z`).getTime() - 10 * 86400000).toISOString().slice(0, 10),
+  ]);
+  return r && r.d ? r.d : null;
 }
 
 async function getDividendEvents(rawCode, { force = false } = {}) {

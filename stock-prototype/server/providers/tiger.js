@@ -45,8 +45,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function fetchPage(code, name, page) {
   const res = await fetchRaw(URL, {
     form: {
+      // 홈페이지가 보내는 값과 동일 (pageIndex, listCnt, ksdFund, jongName)
       pageIndex: String(page),
-      firstIndex: String((page - 1) * PAGE_SIZE),
       listCnt: String(PAGE_SIZE),
       ksdFund: toIsin(code),
       jongName: name || '',
