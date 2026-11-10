@@ -1667,7 +1667,7 @@
             <td class="right">${x.tax_per_share == null ? dash : money(x.tax_per_share, c)}</td>
             <td class="right">${x.ref_close == null ? dash : `${money(x.ref_close, c)}<br/><small class="muted">${esc(String(x.ref_date).slice(5).replace('-', '.'))}</small>`}</td>
             <td class="right">${x.yield_pct == null ? dash : pct(x.yield_pct).replace('+', '')}</td>
-            <td class="right"><input name="qty" inputmode="decimal" value="${esc(String(q))}" class="qty-input" /></td>
+            <td class="right qty-col"><input name="qty" inputmode="decimal" value="${esc(String(q))}" class="qty-input" /></td>
             <td class="right" data-amt></td>
             <td class="right" data-tax></td>
           </tr>`;
@@ -1679,7 +1679,7 @@
           </div>
           <p class="small muted" style="margin:0 0 8px">현재 보유수량 ${qty(r.quantity)}주 (회차별로 수정 가능) · 금액 단위 ${c === 'USD' ? '달러' : '원'}</p>
           ${r.rounds.length ? `<div class="table-wrap"><table class="div-input-table">
-            <thead><tr><th><input type="checkbox" data-all aria-label="전체 선택" /></th><th>횟수</th><th>실지급일</th><th>주당 배당금</th><th>주당 과세표준</th><th>기준종가</th><th>배당수익률</th><th>보유수량</th><th>총 배당금</th><th>총 과세표준</th></tr></thead>
+            <thead><tr><th><input type="checkbox" data-all aria-label="전체 선택" /></th><th>횟수</th><th>실지급일</th><th>주당 배당금</th><th>주당 과세표준</th><th>기준종가</th><th>배당수익률</th><th class="qty-col">보유수량</th><th>총 배당금</th><th>총 과세표준</th></tr></thead>
             <tbody>${rowsHtml}</tbody></table></div>` : `<div class="empty">${y}년 배당 내역이 없습니다.</div>`}
           <p class="small muted" style="margin:8px 0 0">횟수 아래 날짜 = 배당락일 · 총 배당금 = 보유수량 × 주당 배당금 · 총 과세표준 = 보유수량 × 주당 과세표준 · 기준종가 = 배당락 전일 종가, 배당수익률 = 주당 배당금 ÷ 기준종가 · 체크한 회차만 저장되며, 이 연도에 저장했던 회차 중 체크를 푼 회차는 지워집니다.${r.taxError ? ` · 과세표준 갱신 실패: ${esc(r.taxError)}` : ''}</p>
 `;
