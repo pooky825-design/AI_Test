@@ -1163,27 +1163,34 @@
     }
     const years = d.years;
     const hasHoldings = years.some((y) => y.items.length); // 연도별 보유가 다르므로 한 해라도 있으면 표시
+    // 분류별 자산금액 칸 (v0.13.11): 금액 + 비중
+    const catCell = (y, id) => {
+      const v = y.byCategory ? y.byCategory[id] || 0 : 0;
+      if (!v) return '<span class="muted">-</span>';
+      return `${krw(v)}<br/><small class="muted">${y.valueKrw ? pct(v / y.valueKrw).replace('+', '') : ''}</small>`;
+    };
     main.querySelector('[data-loading]').outerHTML = !hasHoldings
       ? '<div class="card empty">보유 종목이 없습니다. 보유 종목을 먼저 등록하세요.</div>'
       : `
       <div class="card">
         <h2>연도별 자산금액 · 전년 대비 ${req('FR-YR-01 · 02 · 03 · 05 · 06 · FR-CHT-02')}</h2>
-        <div class="grid c2">
-          <div class="chart-box" style="height:280px"><canvas data-c1></canvas></div>
-          <div class="table-wrap"><table>
-            <thead><tr><th>연도</th><th class="num">연말 환율</th><th class="num">자산금액</th><th class="num">전년 대비</th><th class="num">증감률</th></tr></thead>
+        <div class="grid c2 yr-grid">
+          <div class="chart-box" style="height:300px"><canvas data-c1></canvas></div>
+          <div class="table-wrap"><table class="yr-table">
+            <thead><tr><th>연도</th><th class="num">총자산</th><th class="num">국내</th><th class="num">해외</th><th class="num">해외추종</th><th class="num">전년 대비</th></tr></thead>
             <tbody>${years.slice().reverse().map((y) => `
               <tr class="clickable" data-y="${y.year}">
                 <td><b>${y.year}</b> <span class="small muted">▾</span>${y.ongoing ? '<br/><span class="badge ongoing">진행 중</span>' : ''}${y.excludedCount ? `<br/><small class="up">제외 ${y.excludedCount}개</small>` : ''}</td>
-                <td class="num">${rate(y.fxRate)}</td>
-                <td class="num"><b>${krw(y.valueKrw)}</b></td>
-                <td class="num ${cls(y.diffKrw)}">${y.diffKrw == null ? '-' : sKrw(y.diffKrw)}</td>
-                <td class="num ${cls(y.diffPct)}">${pct(y.diffPct)}</td>
+                <td class="num"><span class="tip" data-tip="연말 환율 ${esc(rate(y.fxRate))}" tabindex="0"><b>${krw(y.valueKrw)}</b></span></td>
+                <td class="num">${catCell(y, 'DOMESTIC')}</td>
+                <td class="num">${catCell(y, 'OVERSEAS')}</td>
+                <td class="num">${catCell(y, 'OVERSEAS_TRACK')}</td>
+                <td class="num ${cls(y.diffKrw)}">${y.diffKrw == null ? '-' : `${sKrw(y.diffKrw)}<br/><small>${pct(y.diffPct)}</small>`}</td>
               </tr>`).join('')}</tbody>
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card" data-divlist>${divListShell()}</div>`;
@@ -1217,10 +1224,25 @@
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => krw(ctx.parsed.y) } } },
       scales: { y: { beginAtZero: true, suggestedMax: 1, ticks: { precision: 0, callback: (v) => (v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${nf0.format(v / 1e4)}만` : nf0.format(v)) } }, x: { grid: { display: false } } },
     };
+    // 연도별 자산금액: 한 막대에 국내·해외·해외추종을 층으로 쌓는다 (v0.13.11)
+    const CAT_COLORS = { DOMESTIC: '#3f9d6a', OVERSEAS: '#2b6cb0', OVERSEAS_TRACK: '#e08e2b' };
+    const CAT_LABELS = { DOMESTIC: '국내', OVERSEAS: '해외', OVERSEAS_TRACK: '해외추종' };
     state.charts.push(new Chart(main.querySelector('[data-c1]'), {
       type: 'bar',
-      data: { labels, datasets: [{ data: years.map((y) => y.valueKrw), backgroundColor: years.map((y) => (y.ongoing ? '#f0b44c' : '#2b6cb0')), borderRadius: 4 }] },
-      options: baseOpts,
+      data: {
+        labels,
+        datasets: Object.keys(CAT_LABELS).map((id) => ({
+          label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], stack: 'asset',
+        })),
+      },
+      options: {
+        ...baseOpts,
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label} ${krw(ctx.parsed.y)}`, footer: (items) => `총자산 ${krw(years[items[0].dataIndex].valueKrw)}` } },
+        },
+        scales: { ...baseOpts.scales, x: { ...baseOpts.scales.x, stacked: true }, y: { ...baseOpts.scales.y, stacked: true } },
+      },
     }));
     // 연도별 배당 합계 (v0.13.8): 배당금 조회(요약)와 같은 카드, 조회 기간의 모든 연도
     const loadDivYearly = () => api('GET', `/dividends/yearly?from=${from}&to=${to}`).then(({ years: dy }) => {

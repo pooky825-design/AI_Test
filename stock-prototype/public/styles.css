@@ -346,3 +346,7 @@ td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 
 .divm-table tr.group-sub td, .divm-table tfoot td { text-align: right; }
 .divm-table tr.group-sub td:first-child, .divm-table tfoot td:first-child { text-align: center; }
 tr.clickable.on td { background: #eef3fa; }
+/* 연도별 자산금액: 표가 조금 더 넓게, 칸 여백 축소 (v0.13.11) */
+.grid.c2.yr-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.yr-table th, .yr-table td { padding-left: 6px; padding-right: 6px; }
+@media (max-width: 900px) { .grid.c2.yr-grid { grid-template-columns: 1fr; } }

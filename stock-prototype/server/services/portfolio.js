@@ -407,7 +407,17 @@ async function getYearly(userId, fromYear, toYear) {
       return { ...base, close, closeDate, fxRate: rate, valueKrw: close * pos.quantity * rate, excluded: false };
     });
     const included = items.filter((i) => !i.excluded);
+    // 분류별 자산금액 (v0.13.11): 국내·해외·해외추종
+    const savedCats = categories.savedMap(userId);
+    const byCategory = { DOMESTIC: 0, OVERSEAS: 0, OVERSEAS_TRACK: 0 };
+    for (const i of items) {
+      const c = categories.categoryOf(userId, i.code, prepared.find((x) => x.h.code === i.code)?.inst || null, savedCats);
+      i.category = c.id;
+      i.categoryLabel = c.label;
+      if (!i.excluded) byCategory[c.id] = (byCategory[c.id] || 0) + i.valueKrw;
+    }
     years.push({
+      byCategory,
       year: y,
       ongoing,
       fxRate: fxEnd ? fxEnd.rate : null,
