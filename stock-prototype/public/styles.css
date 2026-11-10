@@ -341,3 +341,7 @@ td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 
 /* 체크한 회차 줄 전체 선택 표시 */
 .div-input-table tr.picked td { background: #dbe7f5; }
 .div-input-table tr[data-ri] { cursor: default; }
+/* 배당금 관리 합계 행 (자산 현황 합계와 같은 스타일) */
+.divm-table tfoot td { background: #e6edf5; font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.divm-table tr.group-sub td, .divm-table tfoot td { text-align: right; }
+.divm-table tr.group-sub td:first-child, .divm-table tfoot td:first-child { text-align: center; }

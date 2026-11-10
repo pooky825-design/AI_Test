@@ -1614,30 +1614,53 @@
         return;
       }
       const cols = 9;
+      // 소계·합계 (원화 환산): 과세표준이 없는 회차가 있으면 과세표준 합계는 '-'
+      const sumOf = (list) => {
+        const add = (f) => list.reduce((a, x) => a + (x.krw[f] || 0), 0);
+        const withLast = list.filter((x) => x.last);
+        const withYtd = list.filter((x) => x.ytd_count);
+        return {
+          value: add('value'),
+          last: withLast.length ? add('last') : null,
+          last_tax: withLast.length ? (withLast.some((x) => x.krw.last_tax == null) ? NaN : add('last_tax')) : null,
+          ytd: withYtd.length ? add('ytd') : null,
+          ytd_tax: withYtd.length ? (withYtd.some((x) => x.krw.ytd_tax == null) ? NaN : add('ytd_tax')) : null,
+        };
+      };
+      const sumCell = (v) => (v == null ? dash : Number.isNaN(v) ? '<span class="tip" data-tip="과세표준이 없는 회차가 있어 합계를 표시하지 않습니다" tabindex="0">-</span>' : krw(v));
+      const sumRow = (label, x, tag = 'tr class="group-sub"') => `<${tag}><td colspan="3">${label}</td><td class="right">${krw(x.value)}</td><td class="right"><b>${sumCell(x.last)}</b></td><td class="right">${sumCell(x.last_tax)}</td><td class="right"><b>${sumCell(x.ytd)}</b></td><td class="right">${sumCell(x.ytd_tax)}</td><td></td></tr>`;
       let lastGroup = null;
       const rows = d.items.map((it, idx) => {
         let head = '';
         if (!d.groupId && it.group_id !== lastGroup) {
+          // 앞 그룹의 소계
+          if (lastGroup != null) {
+            const prev = d.items.filter((x) => x.group_id === lastGroup);
+            head += sumRow(`${esc(prev[0].group_name)} 소계`, sumOf(prev));
+          }
           lastGroup = it.group_id;
-          head = `<tr class="group-row"><td colspan="${cols}">${esc(it.group_name)}</td></tr>`;
+          head += `<tr class="group-row"><td colspan="${cols}">${esc(it.group_name)}</td></tr>`;
         }
         const c = it.currency;
         return `${head}<tr data-idx="${idx}">
           <td class="left"><div class="name-cell"><span>${esc(it.name || it.code)}</span><small>${esc(it.code)} ${badge(it.type)}</small></div></td>
           <td class="right">${qty(it.quantity)}</td>
           <td class="right">${it.price == null ? dash : money(it.price, c)}</td>
-          <td class="right"><b>${it.value == null ? dash : money(it.value, c)}</b></td>
-          <td class="right">${it.last ? `${money(it.last.amount, c)}<br/><small class="muted">${esc(it.last.ex_date)}</small>` : dash}</td>
+          <td class="right">${it.value == null ? dash : money(it.value, c)}</td>
+          <td class="right">${it.last ? `<b>${money(it.last.amount, c)}</b><br/><small class="muted">${esc(it.last.ex_date)}</small>` : dash}</td>
           <td class="right">${it.last ? (it.last.tax == null ? dash : money(it.last.tax, c)) : dash}</td>
           <td class="right"><b>${it.ytd_count ? money(it.ytd_amount, c) : dash}</b>${it.ytd_count ? `<br/><small class="muted">${it.ytd_count}회</small>` : ''}</td>
           <td class="right">${it.ytd_count ? (it.ytd_tax == null ? `<span class="tip" data-tip="과세표준이 없는 회차가 있어 합계를 표시하지 않습니다" tabindex="0">-</span>` : money(it.ytd_tax, c)) : dash}</td>
           <td class="right icon-actions"><button class="icon-btn" data-input title="입력" aria-label="월 배당금 입력">${ICON_EDIT}</button></td>
         </tr>`;
       }).join('');
-      box.innerHTML = `<div class="table-wrap"><table>
+      const lastSub = !d.groupId && lastGroup != null ? sumRow(`${esc(d.items.filter((x) => x.group_id === lastGroup)[0].group_name)} 소계`, sumOf(d.items.filter((x) => x.group_id === lastGroup))) : '';
+      const hasUsd = d.items.some((x) => x.currency === 'USD');
+      box.innerHTML = `<div class="table-wrap"><table class="divm-table">
         <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(연간)</th><th>누적 과세표준액</th><th></th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">월 배당액(최근)·월 과세표준액 = 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
+        <tbody>${rows}${lastSub}</tbody>
+        <tfoot>${sumRow('합계 (원화)', sumOf(d.items), 'tr')}</tfoot></table></div>
+        <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
       box.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-input]').addEventListener('click', () => openDivInput(it, year));

@@ -244,6 +244,10 @@ router.get('/divmgmt', async (req, res) => {
   const order = new Map(groups.map((g, i) => [g.id, i]));
   const pos = positions.positionsAt(req.user.id, year, { groupId: gid })
     .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+  // 소계·합계용 원화 환산 환율 (v0.13.5): 올해는 현재 환율, 지난 연도는 연말 환율
+  let fxRate = null;
+  try { const fx = await market.getCurrentFx(); fxRate = fx ? fx.rate : null; } catch (_) { /* 저장된 환율 사용 */ }
+  if (year < ty || fxRate == null) { const r = market.fxOn(`${year}-12-31`); if (r && (year < ty || fxRate == null)) fxRate = r.rate; }
   const items = await portfolio.mapLimit(pos, 5, async (p) => {
     let inst = instInfo(p.code);
     let price = null;
@@ -266,15 +270,22 @@ router.get('/divmgmt', async (req, res) => {
       'SELECT COUNT(*) AS n, SUM(amount) AS amount, SUM(tax_amount) AS tax, SUM(CASE WHEN tax_amount IS NULL THEN 1 ELSE 0 END) AS taxMissing FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ?',
       [req.user.id, p.groupId, p.code, `${year}-01-01`, `${year}-12-31`]
     );
+    const rate = inst.currency === 'USD' ? fxRate : 1;
+    const k = (v) => (v == null || rate == null ? null : v * rate);
+    const value = price == null ? null : price * p.quantity;
+    const ytdTax = ytd.n ? (ytd.taxMissing ? null : ytd.tax) : 0;
     return {
       group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
       name: inst.name, type: inst.type, currency: inst.currency, market: inst.market,
-      quantity: p.quantity, price, price_time: priceTime, value: price == null ? null : price * p.quantity,
+      quantity: p.quantity, price, price_time: priceTime, value,
       last: last ? { ex_date: last.ex_date, amount: last.amount, tax: last.tax_amount, quantity: last.quantity } : null,
-      ytd_count: ytd.n, ytd_amount: ytd.n ? ytd.amount : 0, ytd_tax: ytd.n ? (ytd.taxMissing ? null : ytd.tax) : 0,
+      ytd_count: ytd.n, ytd_amount: ytd.n ? ytd.amount : 0, ytd_tax: ytdTax,
+      // 원화 환산 (소계·합계용)
+      fx_rate: rate,
+      krw: { value: k(value), last: last ? k(last.amount) : null, last_tax: last ? k(last.tax_amount) : null, ytd: k(ytd.n ? ytd.amount : 0), ytd_tax: k(ytdTax) },
     };
   });
-  res.json({ year, ongoing: year >= ty, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, items });
+  res.json({ year, ongoing: year >= ty, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, fxRate, items });
 });
 
 // 배당 회차 목록: 종목 배당 내역(최근 10년)을 불러와 선택 연도의 회차를 보여 주고, 저장한 회차는 표시
