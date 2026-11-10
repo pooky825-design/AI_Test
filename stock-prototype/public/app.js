@@ -680,15 +680,17 @@
   }
 
   // 상자(카드) 접기·펴기: 제목 오른쪽 −/+ 버튼. 접은 상자는 settingKey 에 저장해 다음에도 유지
+  // v0.23: 나의 자산(data-ckey) 외 화면은 data-fold 로 지정. 버튼은 상자 오른쪽 위에 두어 제목이 다시 그려져도 유지
   function makeFoldable(root, settingKey) {
     const folded = new Set(settings.get(settingKey) || []);
-    root.querySelectorAll('.card[data-ckey]').forEach((card) => {
+    root.querySelectorAll('.card[data-ckey], .card[data-fold]').forEach((card) => {
       const h2 = card.querySelector(':scope > h2');
-      if (!h2 || h2.querySelector('.fold-btn')) return;
-      const key = card.dataset.ckey;
+      if (!h2 || card.querySelector(':scope > .fold-btn')) return;
+      const key = card.dataset.ckey || card.dataset.fold;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'fold-btn';
+      card.classList.add('foldable');
       const apply = () => {
         const on = folded.has(key);
         card.classList.toggle('collapsed', on);
@@ -701,7 +703,8 @@
         apply();
         settings.set(settingKey, [...folded]);
       });
-      h2.appendChild(btn);
+      card._unfold = () => { if (folded.has(key)) btn.click(); }; // 수정 버튼 등으로 상자를 써야 할 때 자동으로 펴기
+      card.appendChild(btn);
       apply();
     });
   }
@@ -1038,7 +1041,7 @@
         <div class="group-bar"><div class="group-tabs" data-tabs></div><button class="sm secondary" data-manage>그룹 관리</button></div>
         <div data-group-panel hidden></div>
       </div>
-      <div class="card ro-hide">
+      <div class="card ro-hide" data-fold="form">
         <h2 data-form-title></h2>
         <form class="inline edit-mode" data-add novalidate>
           <input type="hidden" name="id" />
@@ -1056,7 +1059,8 @@
         </form>
         <div data-msg></div>
       </div>
-      <div class="card"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
+      <div class="card" data-fold="list"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
+    makeFoldable(main, 'holdings.collapsed');
 
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('holdings.year', Number(e.target.value));
@@ -1347,6 +1351,8 @@
           form.querySelector('[data-carry]').hidden = true;
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${esc(it.group_name)} ${req('FR-HLD-02')}`;
+          const formCard = main.querySelector('[data-fold="form"]');
+          if (formCard && formCard._unfold) formCard._unfold();
           form.querySelector('[data-submit]').textContent = '저장';
           form.querySelector('[data-cancel]').hidden = false;
           form.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1492,7 +1498,7 @@
     main.querySelector('[data-loading]').outerHTML = !hasHoldings
       ? '<div class="card empty">보유 종목이 없습니다. 보유 종목을 먼저 등록하세요.</div>'
       : `
-      <div class="card">
+      <div class="card" data-fold="assets">
         <h2>연도별 자산 증감 ${req('FR-YR-01 · 02 · 03 · 05 · 06 · FR-CHT-02')}</h2>
         <div class="grid c2 yr-grid">
           <div class="chart-box" style="height:300px"><canvas data-c1></canvas></div>
@@ -1512,8 +1518,8 @@
         <div data-ydetail></div>
         <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
-      <div class="card" data-divyearly>${divYearlyShell()}</div>
-      <div class="card" data-divlist>${divListShell()}</div>`;
+      <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>
+      <div class="card" data-divlist data-fold="divlist">${divListShell()}</div>`;
     // 종목별 내역 (연도 행을 누르면 표 아래에 전체 폭으로 표시)
     const detailHtml = (y) => `<div class="inner" style="margin-top:12px">
       <h3 style="margin:0 0 8px">${y.year}년 종목별 내역${y.ongoing ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
@@ -1527,6 +1533,7 @@
         <td class="num">${i.excluded ? `- <span class="small up">(${esc(i.reason)} · 합계 제외)</span>` : krw(i.valueKrw)}</td>
       </tr>`).join('')}</tbody></table></div></div>`;
     if (!hasHoldings) return;
+    makeFoldable(main, 'yearly.collapsed');
     main.classList.add('yr-page'); // 표 데이터 정렬: 종목·메모 왼쪽, 지급일 가운데, 나머지 오른쪽
     main.querySelectorAll('tr[data-y]').forEach((tr) => tr.addEventListener('click', () => {
       const box = main.querySelector('[data-ydetail]');
@@ -1932,7 +1939,7 @@
   function viewMe() {
     const main = shell('#/me', `
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
-      <div class="card">
+      <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
         <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 내역 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
         <div class="field-row" style="gap:10px;flex-wrap:wrap">
@@ -1941,7 +1948,7 @@
         </div>
         <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
       </div>
-      <div class="card" data-theme-card>
+      <div class="card" data-theme-card data-fold="theme">
         <h2>화면 테마 ${req('FR-UI-01')}</h2>
         <p style="margin:0 0 6px">기준 색을 고르면 왼쪽 메뉴·버튼·탭·합계 행·배경 등 <b>전체 화면 색</b>이 그 색에 맞춰 바뀝니다. 계정에 저장되어 PC·앱 어디서나 같은 테마로 보입니다.</p>
         <div class="theme-swatches" data-swatches></div>
@@ -1962,13 +1969,13 @@
         </div>
         <p class="small muted" style="margin:10px 0 0">연도별 자산·배당 그래프도 테마 색 한 계열로 바뀝니다(조금 진하게·기본·조금 연하게, 환율 선은 아주 진하게). 상승 빨강·하락 파랑(종목 시세 그래프 포함)과 분류 배지 색은 의미가 있는 색이라 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
       </div>
-      <div class="card" data-share-card>
+      <div class="card" data-share-card data-fold="share">
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
         <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
         <div data-share-body><div class="empty">불러오는 중…</div></div>
       </div>
       <div class="grid c2">
-        <div class="card">
+        <div class="card" data-fold="password">
           <h2>비밀번호 변경</h2>
           <form data-pw novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
             <div class="field"><label>현재 비밀번호</label><input type="password" name="current" autocomplete="current-password" /><span class="err" data-err="current"></span></div>
@@ -1976,7 +1983,7 @@
             <div><button type="submit">변경</button></div>
           </form>
         </div>
-        <div class="card">
+        <div class="card" data-fold="withdraw">
           <h2>회원 탈퇴</h2>
           <div class="notice warn"><div>탈퇴하면 계정, 보유 종목, 배당 내역이 모두 삭제되며 복구할 수 없습니다. ${req('NFR-PRI-01')}</div></div>
           <form data-del novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
@@ -1985,6 +1992,7 @@
           </form>
         </div>
       </div>`);
+    makeFoldable(main, 'me.collapsed');
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);

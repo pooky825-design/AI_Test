@@ -135,7 +135,7 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .card[data-ckey] > h2 { display: flex; align-items: center; }
 .fold-btn { margin-left: auto; width: 28px; height: 28px; padding: 0; border-radius: 6px; background: #fff; color: var(--text); border: 1px solid #cbd5e1; font-size: 18px; line-height: 1; font-weight: 600; flex: none; }
 .fold-btn:hover { background: var(--primary-soft); border-color: var(--primary-2); }
-.card.collapsed > :not(h2) { display: none !important; }
+.card.collapsed > :not(h2):not(.fold-btn) { display: none !important; }
 .card.collapsed > h2 { margin-bottom: 0; }
 .fold-card .grid.k4 .kpi { box-shadow: none; background: var(--surface-2); }
 .tip { cursor: pointer; border-bottom: 1px dotted #94a3b8; }
@@ -474,3 +474,8 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .mobile-top nav a .nav-ico { width: 17px; height: 17px; }
 .side .nav-label { white-space: nowrap; }
 .side .sc { white-space: nowrap; }
+
+/* 상자 접기·펴기 공통 (v0.23): 버튼은 상자 오른쪽 위 */
+.card.foldable { position: relative; }
+.card.foldable > h2 { padding-right: 40px; }
+.card.foldable > .fold-btn { position: absolute; top: 15px; right: 16px; margin: 0; }
