@@ -1586,7 +1586,7 @@
     settings.set('divmgmt.year', year);
     const main = shell('#/divmgmt', `
       <div class="page-head">
-        <div><h1>배당금 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. <b>입력</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
+        <div><h1>배당금 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
         <div class="field-row"><div class="field"><label>연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div></div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
@@ -1631,13 +1631,13 @@
           <td class="right">${it.last ? (it.last.tax == null ? dash : money(it.last.tax, c)) : dash}</td>
           <td class="right"><b>${it.ytd_count ? money(it.ytd_amount, c) : dash}</b>${it.ytd_count ? `<br/><small class="muted">${it.ytd_count}회</small>` : ''}</td>
           <td class="right">${it.ytd_count ? (it.ytd_tax == null ? `<span class="tip" data-tip="과세표준이 없는 회차가 있어 합계를 표시하지 않습니다" tabindex="0">-</span>` : money(it.ytd_tax, c)) : dash}</td>
-          <td><button class="sm" data-input>입력</button></td>
+          <td class="right icon-actions"><button class="icon-btn" data-input title="입력" aria-label="월 배당금 입력">${ICON_EDIT}</button></td>
         </tr>`;
       }).join('');
       box.innerHTML = `<div class="table-wrap"><table>
         <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(연간)</th><th>누적 과세표준액</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">월 배당액(최근)·월 과세표준액 = 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 입력에서 회차를 골라 저장하면 반영됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">월 배당액(최근)·월 과세표준액 = 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
       box.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-input]').addEventListener('click', () => openDivInput(it, year));
@@ -1661,8 +1661,8 @@
           const q = x.saved ? x.saved.quantity : r.quantity;
           return `<tr data-ri="${i}">
             <td><input type="checkbox" data-pick ${x.saved ? 'checked' : ''} aria-label="${x.year}년 ${x.seq}회 선택" /></td>
-            <td>${x.year}</td>
-            <td><span class="tip" data-tip="${esc(`배당락 ${x.ex_date}${x.pay_date ? ` · 지급 ${x.pay_date}` : ''}`)}" tabindex="0">${x.seq}회</span><br/><small class="muted">${esc(x.ex_date.slice(5).replace('-', '.'))}</small></td>
+            <td>${x.seq}회<br/><small class="muted">락 ${esc(x.ex_date.slice(5).replace('-', '.'))}</small></td>
+            <td class="right">${x.pay_date ? esc(x.pay_date) : dash}</td>
             <td class="right">${money(x.per_share, c)}</td>
             <td class="right">${x.tax_per_share == null ? dash : money(x.tax_per_share, c)}</td>
             <td class="right">${x.ref_close == null ? dash : `${money(x.ref_close, c)}<br/><small class="muted">${esc(String(x.ref_date).slice(5).replace('-', '.'))}</small>`}</td>
@@ -1673,15 +1673,16 @@
           </tr>`;
         }).join('');
         body.innerHTML = `
-          <div class="field-row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px">
+          <div class="field-row div-top" style="justify-content:space-between;align-items:flex-end;margin-bottom:6px">
             <div class="field"><label>배당 연도</label><select data-pyear>${years.map((v) => `<option value="${v}" ${v === y ? 'selected' : ''}>${v}년</option>`).join('')}</select></div>
-            <span class="small muted">현재 보유수량 ${qty(r.quantity)}주 (회차별로 수정 가능) · 금액 단위 ${c === 'USD' ? '달러' : '원'}</span>
+            <div class="field-row" style="align-items:center;gap:12px"><span class="small" data-sum></span><button type="button" class="secondary" data-close>취소</button><button type="button" data-save ${r.rounds.length ? '' : 'disabled'}>저장</button></div>
           </div>
+          <p class="small muted" style="margin:0 0 8px">현재 보유수량 ${qty(r.quantity)}주 (회차별로 수정 가능) · 금액 단위 ${c === 'USD' ? '달러' : '원'}</p>
           ${r.rounds.length ? `<div class="table-wrap"><table class="div-input-table">
-            <thead><tr><th><input type="checkbox" data-all aria-label="전체 선택" /></th><th>연도</th><th>횟수</th><th>주당 배당금</th><th>주당 과세표준</th><th>기준종가</th><th>배당수익률</th><th>보유수량</th><th>총 배당금</th><th>총 과세표준</th></tr></thead>
+            <thead><tr><th><input type="checkbox" data-all aria-label="전체 선택" /></th><th>횟수</th><th>실지급일</th><th>주당 배당금</th><th>주당 과세표준</th><th>기준종가</th><th>배당수익률</th><th>보유수량</th><th>총 배당금</th><th>총 과세표준</th></tr></thead>
             <tbody>${rowsHtml}</tbody></table></div>` : `<div class="empty">${y}년 배당 내역이 없습니다.</div>`}
-          <p class="small muted" style="margin:8px 0 0">횟수 아래 날짜 = 배당락일(누르면 실지급일) · 총 배당금 = 보유수량 × 주당 배당금 · 총 과세표준 = 보유수량 × 주당 과세표준 · 기준종가 = 배당락 전일 종가, 배당수익률 = 주당 배당금 ÷ 기준종가 · 체크한 회차만 저장되며, 이 연도에 저장했던 회차 중 체크를 푼 회차는 지워집니다.${r.taxError ? ` · 과세표준 갱신 실패: ${esc(r.taxError)}` : ''}</p>
-          <div class="carry-foot"><span class="small" data-sum></span><div class="field-row"><button type="button" class="secondary" data-close>취소</button><button type="button" data-save ${r.rounds.length ? '' : 'disabled'}>저장</button></div></div>`;
+          <p class="small muted" style="margin:8px 0 0">횟수 아래 날짜 = 배당락일 · 총 배당금 = 보유수량 × 주당 배당금 · 총 과세표준 = 보유수량 × 주당 과세표준 · 기준종가 = 배당락 전일 종가, 배당수익률 = 주당 배당금 ÷ 기준종가 · 체크한 회차만 저장되며, 이 연도에 저장했던 회차 중 체크를 푼 회차는 지워집니다.${r.taxError ? ` · 과세표준 갱신 실패: ${esc(r.taxError)}` : ''}</p>
+`;
         const trs = [...body.querySelectorAll('tr[data-ri]')];
         const all = body.querySelector('[data-all]');
         const num = (v) => Number(String(v || '').replace(/,/g, ''));

@@ -334,3 +334,4 @@ form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: n
 .div-input-table .qty-input.invalid { border-color: var(--error-text, #b91c1c); }
 .div-input-table input[type=checkbox] { width: 16px; height: 16px; }
 .div-input-table th, .div-input-table td { padding-left: 7px; padding-right: 7px; }
+td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 관리 등) */
