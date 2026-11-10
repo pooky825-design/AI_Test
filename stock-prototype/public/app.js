@@ -1189,7 +1189,7 @@
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 보라색 선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 청록색 선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card" data-divlist>${divListShell()}</div>`;
@@ -1225,7 +1225,8 @@
       scales: { y: { beginAtZero: true, suggestedMax: 1, ticks: { precision: 0, callback: (v) => (v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${nf0.format(v / 1e4)}만` : nf0.format(v)) } }, x: { grid: { display: false } } },
     };
     // 연도별 자산금액: 한 막대에 국내·해외·해외추종을 층으로 쌓는다 (v0.13.11)
-    const CAT_COLORS = { DOMESTIC: '#3f9d6a', OVERSEAS: '#2b6cb0', OVERSEAS_TRACK: '#e08e2b' };
+    // 색감은 아래 연도별 배당 증감 그래프(남색·호박색·주황갈색)와 맞춘다 (v0.15.1)
+    const CAT_COLORS = { DOMESTIC: '#1f4e79', OVERSEAS: '#e8a33d', OVERSEAS_TRACK: '#c2410c' };
     const CAT_LABELS = { DOMESTIC: '국내', OVERSEAS: '해외', OVERSEAS_TRACK: '해외추종' };
     state.charts.push(new Chart(main.querySelector('[data-c1]'), {
       type: 'bar',
@@ -1235,10 +1236,10 @@
           // 환율 꺾은선 (v0.14.1): 지난 연도는 연말 환율, 올해는 현재 환율. 막대 위쪽에 그린다
           {
             type: 'line', label: '환율(USD/KRW)', data: years.map((y) => y.fxRate), yAxisID: 'yFx', order: 0,
-            borderColor: '#7c3aed', backgroundColor: '#7c3aed', borderWidth: 2, pointRadius: 4, tension: 0.25,
+            borderColor: '#0f766e', backgroundColor: '#0f766e', borderWidth: 2, pointRadius: 4, tension: 0.25,
           },
           ...Object.keys(CAT_LABELS).map((id) => ({
-            label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], stack: 'asset', order: 1,
+            label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], borderRadius: 4, stack: 'asset', order: 1,
           })),
         ],
       },
@@ -1274,7 +1275,7 @@
           const { ctx } = chart;
           ctx.save();
           ctx.font = '600 11px sans-serif';
-          ctx.fillStyle = '#6d28d9';
+          ctx.fillStyle = '#0f766e';
           ctx.textAlign = 'center';
           meta.data.forEach((pt, i) => {
             const v = years[i].fxRate;
@@ -1345,6 +1346,7 @@
         <div class="field"><label>종료일</label><input type="date" name="to" value="${today()}" /></div>
         <div class="field" style="width:110px"><label>종목코드</label><input name="code" list="hcodes" /></div>
         <button type="submit" class="secondary">조회</button>
+        <div class="divhist-sum" data-sum></div>
       </form>
       <datalist id="hcodes"></datalist>
       <div data-list></div>`;
@@ -1362,6 +1364,11 @@
       const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
       const { rows } = await api('GET', `/divmgmt/history?${qs}`);
       const list = card.querySelector('[data-list]');
+      const sumBox = card.querySelector('[data-sum]');
+      const tot = (f2) => rows.reduce((a, r) => a + (r[f2] || 0), 0);
+      const miss = rows.some((r) => r.tax_krw == null) ? '*' : '';
+      // 조회 버튼 옆 소계 요약 (v0.15.1): 표의 합계(원화)와 같은 값
+      if (sumBox) sumBox.innerHTML = `<span class="muted">(합계)</span> <span>월배당 <b>${krw(tot('amount_krw'))}</b></span> · <span>과세표준 <b>${krw(tot('tax_krw'))}${miss}</b></span> · <span>과세 <b>${krw(tot('tax_krw') * DIV_WITHHOLD_RATE)}${miss}</b></span>`;
       if (!rows.length) {
         list.innerHTML = '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당내역 관리에서 회차를 저장하면 여기에 나옵니다.</div>';
         return;

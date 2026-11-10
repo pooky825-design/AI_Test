@@ -357,3 +357,9 @@ tr.clickable.on td { background: #eef3fa; }
 .yr-page td.center { text-align: center; }
 .divhist-table tfoot td { background: #e6edf5; font-weight: 700; border-top: 1px solid var(--border); }
 .divhist-table tfoot td:first-child { text-align: center; }
+
+/* 배당 내역 조회: 조회 버튼 옆 소계 요약 (v0.15.1) */
+.divhist-sum { align-self: flex-end; font-size: 13px; padding: 6px 10px; background: #f1f5fb; border: 1px solid #d6e2f0; border-radius: 6px; white-space: nowrap; }
+.divhist-sum b { color: #1f4e79; }
+@media (max-width: 640px) { .divhist-sum { white-space: normal; width: 100%; } }
+.divhist-sum span { white-space: nowrap; }
