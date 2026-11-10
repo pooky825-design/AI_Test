@@ -3,12 +3,14 @@
   'use strict';
 
   const $app = document.getElementById('app');
-  const state = { user: null, charts: [], settings: null };
+  const state = { user: null, charts: [], settings: null, received: undefined, actAs: null, actSettings: {} };
 
   // 회원별 화면 설정: 마지막 조회 기간·선택 연도 (서버에 저장 → PC·앱 어디서나 이어짐)
   const settings = {
-    get(key) { return (state.settings || {})[key]; },
+    // 공유받은 화면을 보는 동안에는 내 설정을 건드리지 않고 메모리에만 둔다 (v0.16)
+    get(key) { return state.actAs ? state.actSettings[key] : (state.settings || {})[key]; },
     set(key, value) {
+      if (state.actAs) { state.actSettings[key] = value; return; }
       state.settings = { ...(state.settings || {}), [key]: value };
       api('PUT', `/settings/${encodeURIComponent(key)}`, { value }).catch(() => {});
     },
@@ -25,8 +27,41 @@
   // ---------------------------------------------------------------------------
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  // ---------------------------------------------------------------------------
+  // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
+  // ---------------------------------------------------------------------------
+  const SHARE_PATH = { '#/yearly': 'yearly', '#/assets': 'assets', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
+  const NO_AS = /^\/(auth|shares|settings|backup|restore)(\/|\?|$)/;
+  const PERM_LABEL = { view: '조회', edit: '편집' };
+  function withAs(path) {
+    if (!state.actAs || NO_AS.test(path)) return path;
+    return `${path}${path.includes('?') ? '&' : '?'}as=${state.actAs.user_id}`;
+  }
+  function setActAs(share) {
+    state.actAs = share || null;
+    state.actSettings = {};
+    try {
+      if (share) sessionStorage.setItem('actAs', String(share.user_id));
+      else sessionStorage.removeItem('actAs');
+    } catch (_) { /* 저장소를 못 쓰면 이번 화면에서만 유지 */ }
+  }
+  async function loadReceived() {
+    try {
+      const r = await api('GET', '/shares');
+      state.received = r.received || [];
+      return r;
+    } catch (_) {
+      state.received = [];
+      return null;
+    }
+  }
+  function resetShareState() {
+    state.received = undefined;
+    setActAs(null);
+  }
+
   async function api(method, path, body) {
-    const res = await fetch(`/api${path}`, {
+    const res = await fetch(`/api${withAs(path)}`, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
@@ -37,7 +72,7 @@
     if (!res.ok) {
       const err = new Error(data.error || `요청 실패 (HTTP ${res.status})`);
       Object.assign(err, { status: res.status, code: data.code, fields: data.fields || {}, data });
-      if (res.status === 401 && state.user) { state.user = null; go('#/login'); }
+      if (res.status === 401 && state.user) { state.user = null; resetShareState(); go('#/login'); }
       throw err;
     }
     return data;
@@ -113,16 +148,34 @@
     ['#/stock', '종목 상세 조회', 'SC-03'],
     ['#/holdings', '보유 종목 관리', 'SC-04'],
     ['#/divmgmt', '배당내역 관리', 'SC-08'],
-    ['#/me', '나의 정보', 'SC-07'],
+    ['#/me', '환경설정', 'SC-07'],
   ];
 
+  function shareSwitch() {
+    if (!state.received || !state.received.length) return '';
+    const cur = state.actAs ? state.actAs.user_id : '';
+    return `<label class="act-switch"><span>보는 자산</span><select data-actas>
+      <option value="">내 자산</option>
+      ${state.received.map((r) => `<option value="${r.user_id}" ${r.user_id === cur ? 'selected' : ''}>${esc(r.email)} (공유)</option>`).join('')}
+    </select></label>`;
+  }
+  function shareBanner(active) {
+    if (!state.actAs) return '';
+    const sc = SHARE_PATH[active];
+    const perm = sc ? state.actAs.perms[sc] : null;
+    const mode = perm === 'edit' ? '<span class="perm edit">편집 가능</span>' : perm ? '<span class="perm view">조회 전용</span>' : '';
+    return `<div class="share-banner"><span>👥 <b>${esc(state.actAs.email)}</b>님이 공유한 화면을 보고 있습니다 ${mode}</span><button class="sm secondary" data-actexit>내 자산으로 돌아가기</button></div>`;
+  }
+
   function shell(active, inner) {
-    const links = NAV.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}<span class="sc">${sc}</span></a>`).join('');
-    const mlinks = NAV.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}</a>`).join('');
+    const nav = state.actAs ? NAV.filter(([h]) => h === '#/me' || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
+    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}<span class="sc">${sc}</span></a>`).join('');
+    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}</a>`).join('');
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
-          <div class="brand">주식 관리시스템<small>요구사항 정의서 기반 프로토타입</small></div>
+          <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div>주식 관리시스템<small>요구사항 정의서 기반 프로토타입</small></div></div>
+          ${shareSwitch()}
           ${links}
           <div class="spacer"></div>
           <div class="who">${esc(state.user.email)}</div>
@@ -130,17 +183,25 @@
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span>주식 관리시스템</span><button class="linkish" data-logout>로그아웃</button></div>
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" />주식 관리시스템</span><button class="linkish" data-logout>로그아웃</button></div>
+            ${shareSwitch()}
             <nav>${mlinks}</nav>
           </div>
-          <main class="main"><div class="content">${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
+          <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
         </div>
       </div>`;
     $app.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('click', async () => {
       await api('POST', '/auth/logout');
       state.user = null;
+      resetShareState();
       go('#/login');
     }));
+    $app.querySelectorAll('[data-actas]').forEach((sel) => sel.addEventListener('change', () => {
+      const id = Number(sel.value);
+      setActAs(id ? state.received.find((r) => r.user_id === id) : null);
+      render();
+    }));
+    $app.querySelectorAll('[data-actexit]').forEach((b) => b.addEventListener('click', () => { setActAs(null); render(); }));
     return $app.querySelector('main .content');
   }
 
@@ -717,7 +778,7 @@
         <div class="group-bar"><div class="group-tabs" data-tabs></div><button class="sm secondary" data-manage>그룹 관리</button></div>
         <div data-group-panel hidden></div>
       </div>
-      <div class="card">
+      <div class="card ro-hide">
         <h2 data-form-title></h2>
         <form class="inline edit-mode" data-add novalidate>
           <input type="hidden" name="id" />
@@ -1493,9 +1554,90 @@
     });
   }
 
+  // 화면 공유·권한 관리 카드 (v0.16)
+  function permSelect(sc, val, attrs = '') {
+    return `<select class="perm-sel ${val || 'none'}" data-sc="${sc.id}" ${attrs}>
+      <option value="" ${!val ? 'selected' : ''}>없음</option>
+      <option value="view" ${val === 'view' ? 'selected' : ''}>조회</option>
+      ${sc.edit ? `<option value="edit" ${val === 'edit' ? 'selected' : ''}>편집</option>` : ''}
+    </select>`;
+  }
+  function mountShareCard(card) {
+    const body = card.querySelector('[data-share-body]');
+    const permsOf = (scope) => Object.fromEntries([...scope.querySelectorAll('[data-sc]')].map((x) => [x.dataset.sc, x.value]).filter(([, v]) => v));
+    async function load() {
+      const r = await loadReceived();
+      if (!r) { body.innerHTML = '<div class="notice error">공유 정보를 불러오지 못했습니다.</div>'; return; }
+      const { screens, given, received } = r;
+      const head = screens.map((sc) => `<th class="center">${esc(sc.label)}</th>`).join('');
+      body.innerHTML = `
+        <form class="field-row share-add" data-add novalidate>
+          <div class="field" style="min-width:220px;flex:1"><label>공유할 회원 이메일</label><input name="email" type="email" placeholder="friend@example.com" autocomplete="off" /><span class="err" data-err="email"></span></div>
+          ${screens.map((sc) => `<div class="field"><label>${esc(sc.label)}</label>${permSelect(sc, sc.id === 'assets' || sc.id === 'yearly' ? 'view' : '')}</div>`).join('')}
+          <button type="submit">공유 추가</button>
+        </form>
+        <h3 style="margin:16px 0 8px">내가 공유한 회원 <span class="muted small">${given.length}명</span></h3>
+        ${given.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>회원</th>${head}<th class="center">해제</th></tr></thead><tbody>
+          ${given.map((g) => `<tr data-id="${g.id}">
+            <td class="left"><b>${esc(g.email)}</b><br/><small class="muted">변경 ${fmtTime(g.updated_at)}</small></td>
+            ${screens.map((sc) => `<td class="center">${permSelect(sc, g.perms[sc.id])}</td>`).join('')}
+            <td class="center"><button class="icon-btn danger" data-unshare title="공유 해제" aria-label="공유 해제">${ICON_DEL}</button></td>
+          </tr>`).join('')}</tbody></table></div>` : '<div class="empty">아직 공유한 회원이 없습니다.</div>'}
+        <h3 style="margin:16px 0 8px">나에게 공유된 화면 <span class="muted small">${received.length}명</span></h3>
+        ${received.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>공유한 회원</th><th>화면 · 권한</th><th class="center">작업</th></tr></thead><tbody>
+          ${received.map((g) => `<tr data-id="${g.id}" data-uid="${g.user_id}">
+            <td class="left"><b>${esc(g.email)}</b></td>
+            <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
+            <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
+          </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
+        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당내역 관리(회차 저장)까지 가능 · 연도별 자산·자산 현황은 조회만 공유됩니다 · 환경설정(백업·비밀번호)과 종목 상세 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
+      const add = body.querySelector('[data-add]');
+      add.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await api('POST', '/shares', { email: add.email.value, perms: permsOf(add) });
+          toast('공유했습니다.');
+          load();
+        } catch (err) {
+          showFieldErrors(add, err.fields || {});
+          if (!err.fields || !err.fields.email) toast(err.message);
+        }
+      });
+      body.querySelectorAll('.share-table tr[data-id] select[data-sc]').forEach((sel) => sel.addEventListener('change', async () => {
+        const tr = sel.closest('tr');
+        sel.className = `perm-sel ${sel.value || 'none'}`;
+        try {
+          const res = await api('PUT', `/shares/${tr.dataset.id}`, { perms: permsOf(tr) });
+          toast(res.removed ? '모든 권한을 없애 공유를 해제했습니다.' : '권한을 바꿨습니다.');
+          if (res.removed) load();
+        } catch (err) { toast(err.message); load(); }
+      }));
+      body.querySelectorAll('[data-unshare], [data-leave]').forEach((b) => b.addEventListener('click', async () => {
+        const tr = b.closest('tr');
+        const who = tr.querySelector('b').textContent;
+        if (!confirm(b.dataset.leave !== undefined ? `${who}님이 공유한 화면을 더 이상 받지 않을까요?` : `${who}님에게 준 공유를 해제할까요?`)) return;
+        try {
+          await api('DELETE', `/shares/${tr.dataset.id}`);
+          toast('공유를 해제했습니다.');
+          if (b.dataset.leave !== undefined) {
+            if (state.actAs && state.actAs.id === Number(tr.dataset.id)) setActAs(null);
+            await loadReceived();
+            render(); // 메뉴 위 ‘보는 자산’ 목록도 다시 그린다
+          } else load();
+        } catch (err) { toast(err.message); }
+      }));
+      body.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => {
+        const uid = Number(b.closest('tr').dataset.uid);
+        setActAs(state.received.find((r) => r.user_id === uid));
+        go(Object.keys(SHARE_PATH).find((h) => state.actAs.perms[SHARE_PATH[h]]));
+      }));
+    }
+    load();
+  }
+
   function viewMe() {
     const main = shell('#/me', `
-      <div class="page-head"><div><h1>나의 정보 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
       <div class="card">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
         <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당내역 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
@@ -1504,6 +1646,11 @@
           <button class="secondary" data-restore>백업 파일로 복원</button>
         </div>
         <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
+      </div>
+      <div class="card" data-share-card>
+        <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
+        <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
+        <div data-share-body><div class="empty">불러오는 중…</div></div>
       </div>
       <div class="grid c2">
         <div class="card">
@@ -1523,6 +1670,7 @@
           </form>
         </div>
       </div>`);
+    mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
     const pw = main.querySelector('[data-pw]');
@@ -1544,6 +1692,7 @@
       try {
         await api('DELETE', '/auth/account', formData(del));
         state.user = null;
+        resetShareState();
         toast('탈퇴가 완료되었습니다.');
         go('#/login');
       } catch (err) {
@@ -1557,12 +1706,12 @@
   // ---------------------------------------------------------------------------
   async function download(path) {
     if (!window.MobileApp) {
-      location.href = `/api${path}`;
+      location.href = `/api${withAs(path)}`;
       return;
     }
     try {
       toast('엑셀 파일을 만드는 중…');
-      const r = await window.MobileApp.request('GET', path);
+      const r = await window.MobileApp.request('GET', withAs(path));
       if (r.status !== 200) throw new Error((r.json && r.json.error) || '내보내기에 실패했습니다.');
       const msg = await window.MobileApp.saveFile(r.filename, r.bytes, r.contentType);
       toast(msg);
@@ -1920,6 +2069,20 @@
     }
     if (!state.user) return go('#/login');
     if (!state.settings) await loadSettings();
+    if (state.received === undefined) {
+      await loadReceived();
+      let saved = null;
+      try { saved = Number(sessionStorage.getItem('actAs')) || null; } catch (_) { /* 무시 */ }
+      setActAs(saved ? state.received.find((r) => r.user_id === saved) : null);
+    }
+    // 공유받은 화면을 보는 중이면 권한 있는 화면만 열고, 조회 권한이면 수정 버튼을 숨긴다
+    const sc = path === '/dividends' ? 'yearly' : SHARE_PATH[`#${path}`];
+    if (state.actAs && path !== '/me' && !(sc && state.actAs.perms[sc])) {
+      const first = Object.keys(SHARE_PATH).find((h) => state.actAs.perms[SHARE_PATH[h]]);
+      if (first) return go(first);
+      setActAs(null);
+    }
+    document.body.classList.toggle('ro', !!(state.actAs && sc && state.actAs.perms[sc] !== 'edit'));
     (PRIVATE[path] || (() => go('#/assets')))(query);
     window.scrollTo(0, 0);
   }

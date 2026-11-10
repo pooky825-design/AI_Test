@@ -121,6 +121,119 @@ router.post('/auth/reset', async (req, res) => {
 // 이하 로그인 필요 ------------------------------------------------------------
 router.use(auth.requireAuth);
 
+// ---------------------------------------------------------------------------
+// 화면 공유·권한 (v0.16)
+// 공유받은 사용자는 요청에 ?as=<소유자 id> 를 붙여 소유자의 데이터로 화면을 연다.
+// 요청 경로를 화면에 대응시켜, 그 화면에 권한(view: 조회, edit: 조회+수정)이 있을 때만 통과시킨다.
+// ---------------------------------------------------------------------------
+const SHARE_SCREENS = [
+  { id: 'yearly', label: '연도별 자산', edit: false },
+  { id: 'assets', label: '자산 현황', edit: false },
+  { id: 'holdings', label: '보유 종목 관리', edit: true },
+  { id: 'divmgmt', label: '배당내역 관리', edit: true },
+];
+const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
+const SHARE_RULES = [
+  { m: ['GET'], re: /^\/(assets|export\/assets\.xlsx)$/, s: ['assets'] },
+  { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
+  { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
+  { m: ['GET'], re: /^\/stocks\//, s: ALL_SCREENS },
+  { m: ['GET'], re: /^\/holdings\/carry-candidates$/, s: ['holdings'] },
+  { m: ['GET'], re: /^\/divmgmt(\/rounds)?$/, s: ['divmgmt'] },
+  { m: ['POST', 'PUT', 'DELETE'], re: /^\/holdings\/(items|carry)$/, s: ['holdings'], edit: true },
+  { m: ['POST', 'PUT', 'DELETE'], re: /^\/groups(\/\d+)?$/, s: ['holdings'], edit: true },
+  { m: ['POST'], re: /^\/divmgmt\/rounds$/, s: ['divmgmt'], edit: true },
+];
+
+function cleanPerms(input) {
+  const out = {};
+  for (const sc of SHARE_SCREENS) {
+    const v = input && input[sc.id];
+    if (v === 'view' || (v === 'edit' && sc.edit)) out[sc.id] = v;
+    else if (v === 'edit') out[sc.id] = 'view';
+  }
+  return out;
+}
+function sharePerms(ownerId, viewerId) {
+  const row = db.get('SELECT perms FROM screen_shares WHERE owner_id = ? AND viewer_id = ?', [ownerId, viewerId]);
+  if (!row) return null;
+  try { return cleanPerms(JSON.parse(row.perms)); } catch (_) { return {}; }
+}
+
+router.use((req, res, next) => {
+  const as = req.query && req.query.as;
+  if (as == null || as === '') return next();
+  const ownerId = Number(as);
+  if (ownerId === req.user.id) return next();
+  const perms = Number.isInteger(ownerId) ? sharePerms(ownerId, req.user.id) : null;
+  if (!perms) return res.status(403).json({ error: '공유받지 않은 사용자의 데이터입니다.', code: 'FORBIDDEN' });
+  const rule = SHARE_RULES.find((r) => r.m.includes(req.method) && r.re.test(req.path));
+  const ok = rule && rule.s.some((sc) => (rule.edit ? perms[sc] === 'edit' : perms[sc] === 'view' || perms[sc] === 'edit'));
+  if (!ok) {
+    return res.status(403).json({ error: rule && rule.edit ? '이 화면은 조회 권한만 공유받았습니다.' : '공유받지 않은 화면입니다.', code: 'FORBIDDEN' });
+  }
+  const owner = db.get('SELECT id, email, created_at FROM users WHERE id = ?', [ownerId]);
+  if (!owner) return res.status(403).json({ error: '공유한 사용자를 찾을 수 없습니다.', code: 'FORBIDDEN' });
+  req.viewer = req.user;
+  req.user = owner;
+  next();
+});
+
+const shareOut = (r, emailKey) => {
+  let perms = {};
+  try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ }
+  return { id: r.id, user_id: r.uid, email: r[emailKey], perms, updated_at: r.updated_at };
+};
+
+router.get('/shares', (req, res) => {
+  const given = db.all(
+    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.viewer_id
+     WHERE s.owner_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'));
+  const received = db.all(
+    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.owner_id
+     WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'))
+    .filter((r) => Object.keys(r.perms).length);
+  res.json({ screens: SHARE_SCREENS, given, received });
+});
+
+router.post('/shares', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const emailErr = validateEmail(email);
+  if (emailErr) return res.status(400).json({ error: emailErr, code: 'VALIDATION', fields: { email: emailErr } });
+  const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
+  if (!viewer) return res.status(400).json({ error: '가입하지 않은 이메일입니다. 상대방이 먼저 회원가입해야 공유할 수 있습니다.', code: 'VALIDATION', fields: { email: '가입하지 않은 이메일입니다.' } });
+  if (viewer.id === req.user.id) return res.status(400).json({ error: '본인에게는 공유할 수 없습니다.', code: 'VALIDATION', fields: { email: '본인 이메일입니다.' } });
+  const perms = cleanPerms(req.body.perms);
+  if (!Object.keys(perms).length) return res.status(400).json({ error: '공유할 화면을 하나 이상 고르세요.', code: 'VALIDATION' });
+  db.run(
+    `INSERT INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`,
+    [req.user.id, viewer.id, JSON.stringify(perms), now(), now()]
+  );
+  res.json({ ok: true });
+});
+
+router.put('/shares/:id', (req, res) => {
+  const row = db.get('SELECT id FROM screen_shares WHERE id = ? AND owner_id = ?', [Number(req.params.id), req.user.id]);
+  if (!row) return res.status(404).json({ error: '공유 정보를 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  const perms = cleanPerms(req.body.perms);
+  if (!Object.keys(perms).length) {
+    db.run('DELETE FROM screen_shares WHERE id = ?', [row.id]);
+    return res.json({ ok: true, removed: true });
+  }
+  db.run('UPDATE screen_shares SET perms = ?, updated_at = ? WHERE id = ?', [JSON.stringify(perms), now(), row.id]);
+  res.json({ ok: true });
+});
+
+// 소유자는 준 공유를, 공유받은 사람은 받은 공유를 해제할 수 있다
+router.delete('/shares/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.get('SELECT id FROM screen_shares WHERE id = ? AND (owner_id = ? OR viewer_id = ?)', [id, req.user.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: '공유 정보를 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  db.run('DELETE FROM screen_shares WHERE id = ?', [id]);
+  res.json({ ok: true });
+});
+
 router.post('/auth/change-password', async (req, res) => {
   const user = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(req.body.current || ''), user.password_hash))) {
@@ -146,6 +259,7 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM holding_groups WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM stock_categories WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM screen_shares WHERE owner_id = ? OR viewer_id = ?', [user.id, user.id]);
     db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM users WHERE id = ?', [user.id]);

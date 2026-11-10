@@ -128,6 +128,17 @@ CREATE TABLE IF NOT EXISTS user_settings (
   PRIMARY KEY (user_id, key)
 );
 
+-- 화면 공유·권한 (v0.16): owner 가 viewer 에게 화면별 권한(view/edit)을 준다
+CREATE TABLE IF NOT EXISTS screen_shares (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  viewer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  perms TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (owner_id, viewer_id)
+);
+
 -- 보유 종목을 삭제해도 배당 내역은 유지(FR-DIV-05) → holdings FK 없음
 CREATE TABLE IF NOT EXISTS dividends (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
