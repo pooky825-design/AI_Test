@@ -286,17 +286,26 @@ router.get('/search/stocks', async (req, res) => {
   const items = [];
   const add = (list) => list.forEach((it) => { if (!seen.has(it.code) && items.length < 12) { seen.add(it.code); items.push(it); } });
   let remote = 0;
-  for (const fn of providers.search || []) {
+  let failed = 0;
+  const fns = providers.search || [];
+  for (const fn of fns) {
     if (items.length >= 8) break;
-    if (fn !== providers.search[0] && /[가-힣]/.test(q)) continue; // 한글은 네이버만
-    try { const r = await fn(q); remote += r.length; add(r); } catch (_) { /* 다음 출처 */ }
+    let term = q;
+    if (fn !== fns[0] && /[가-힣]/.test(q)) {
+      // 한글은 네이버가 담당. 네이버가 안 되면 영문·숫자 부분(예: ‘BNK금융지주’ → BNK)만 야후로 찾아 본다
+      if (remote) continue;
+      term = (q.match(/[A-Za-z0-9&]{2,}/g) || []).join(' ');
+      if (!term) continue;
+    }
+    try { const r = await fn(term); remote += r.length; add(r); } catch (_) { failed += 1; }
   }
   const like = `%${q.replace(/[%_]/g, '')}%`;
   add(db.all('SELECT code, name, market, currency FROM instruments WHERE name LIKE ? OR code LIKE ? ORDER BY name LIMIT 12', [like, `${q.toUpperCase()}%`])
     .map((r) => ({ code: r.code, name: r.name, market: r.market, nation: r.currency === 'USD' ? 'US' : 'KR', source: 'local' })));
   if (remote) searchCache.set(key, { at: Date.now(), items });
   if (searchCache.size > 300) searchCache.delete(searchCache.keys().next().value);
-  res.json({ items });
+  // 외부 검색 출처에 하나도 연결되지 않았으면 알려 준다(저장된 종목에서만 찾은 결과)
+  res.json({ items, offline: fns.length > 0 && failed >= 1 && !remote });
 });
 
 router.get('/stocks/:code', async (req, res) => {

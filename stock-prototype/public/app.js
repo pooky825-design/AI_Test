@@ -724,6 +724,7 @@
     let active = -1;
     let seq = 0;
     let timer = null;
+    let offline = false;
     const hl = (text, q) => {
       const t = String(text || '');
       const i = q ? t.toLowerCase().indexOf(q.toLowerCase()) : -1;
@@ -732,7 +733,9 @@
     function close() { menu.hidden = true; active = -1; input.setAttribute('aria-expanded', 'false'); }
     function paint(q) {
       if (!items.length) {
-        menu.innerHTML = `<div class="ac-empty">‘${esc(q)}’와 비슷한 종목이 없습니다.</div>`;
+        menu.innerHTML = offline
+          ? '<div class="ac-empty">종목명 검색 서버(네이버·야후)에 연결하지 못했습니다. 인터넷 연결을 확인하거나 종목코드로 조회하세요.</div>'
+          : `<div class="ac-empty">‘${esc(q)}’와 비슷한 종목이 없습니다.</div>`;
       } else {
         menu.innerHTML = `<div class="ac-head">종목명 · 종목코드 · 시장 <span>↑↓ 이동 · Enter 선택</span></div>`
           + items.map((it, i) => `<div class="ac-opt ${i === active ? 'on' : ''}" data-i="${i}" role="option">
@@ -750,7 +753,8 @@
         const r = await api('GET', `/search/stocks?q=${encodeURIComponent(q)}`);
         if (my !== seq) return items;
         items = r.items || [];
-      } catch (_) { if (my === seq) items = []; }
+        offline = !!r.offline;
+      } catch (_) { if (my === seq) { items = []; offline = true; } }
       return items;
     }
     async function run() {
@@ -781,13 +785,13 @@
     menu.addEventListener('mousedown', (e) => e.preventDefault());
     menu.addEventListener('click', (e) => {
       const opt = e.target.closest('[data-i]');
-      if (!opt) return;
+      if (!opt) { close(); return; } // 안내 문구를 누르면 팝업을 닫아 아래 버튼을 쓸 수 있게
       const it = items[Number(opt.dataset.i)];
       input.value = it.code;
       close();
       onPick(it.code);
     });
-    return { current: () => (!menu.hidden && active >= 0 ? items[active] : null), search };
+    return { current: () => (!menu.hidden && active >= 0 ? items[active] : null), search, isOffline: () => offline };
   }
 
   async function viewStock(query) {
@@ -817,7 +821,9 @@
       if (/[가-힣\s&]/.test(raw) || raw.length > 10) {
         const items = await ac.search(raw);
         if (items.length) return go(`#/stock?code=${encodeURIComponent(items[0].code)}`);
-        showFieldErrors(form, { code: '일치하는 종목을 찾지 못했습니다. 종목명을 다시 확인하거나 종목코드를 입력하세요.' });
+        showFieldErrors(form, { code: ac.isOffline()
+          ? '종목명 검색 서버에 연결하지 못했습니다. 인터넷 연결을 확인하거나 종목코드로 조회하세요.'
+          : '일치하는 종목을 찾지 못했습니다. 종목명을 다시 확인하거나 종목코드를 입력하세요.' });
         return;
       }
       go(`#/stock?code=${encodeURIComponent(raw.toUpperCase())}`);
