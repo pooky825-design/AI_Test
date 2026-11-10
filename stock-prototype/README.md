@@ -1,6 +1,6 @@
 # K-Stock (주식 관리시스템 프로토타입)
 
-「주식 관리시스템 요구사항 정의서」를 정확히 이해했는지 확인받기 위한 동작 프로토타입입니다. 프로토타입 검토 결과를 반영한 **최종본은 `docs/requirements/주식관리시스템_요구사항정의서_v1.2_최종.pdf`**(원본 HTML: `docs/requirements/source/requirements_v1.2.html`, 이전 판 v1.0·v1.1도 함께 보관)입니다.
+「주식 관리시스템 요구사항 정의서」를 정확히 이해했는지 확인받기 위한 동작 프로토타입입니다. 프로토타입 검토 결과를 반영한 **최종본은 `docs/requirements/주식관리시스템_요구사항정의서_v1.3_최종.pdf`**(원본 HTML: `docs/requirements/source/requirements_v1.3.html`, 이전 판 v1.0~v1.2도 함께 보관)입니다.
 Front(HTML/JS + Chart.js), Back(Node.js + Express), DB(SQLite)로 구성했고, 실제 시세(야후 파이낸스, 네이버 증권)를 가져옵니다.
 PC(Windows)에서 실행하는 웹 버전과, 휴대폰에 설치하는 **안드로이드 앱(APK)** 두 가지로 제공합니다.
 
