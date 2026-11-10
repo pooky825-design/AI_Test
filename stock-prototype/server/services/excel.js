@@ -29,6 +29,14 @@ function info(ws, pairs) {
   ws.addRow([]);
 }
 
+// 그룹별·분류별 합계 행: 올해 손익·전체기간 손익 (v0.10)
+function totalsRow(ws, name, x, ongoing) {
+  const r = ws.addRow([name, x.count, x.valueKrw, x.costKrw, x.pnlKrw, x.returnPct, x.origCostKrw, x.totalPnlKrw, x.totalPct, ...(ongoing ? [x.todayPnlKrw, x.todayPct] : [])]);
+  [3, 4, 5, 7, 8, 10].forEach((i) => (r.getCell(i).numFmt = KRW));
+  [6, 9, 11].forEach((i) => (r.getCell(i).numFmt = PCT));
+  return r;
+}
+
 async function assetsWorkbook(data) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('자산 현황');
@@ -41,10 +49,12 @@ async function assetsWorkbook(data) {
     ['적용 환율 (USD/KRW)', data.basis.fxRate],
     ['환율 기준 시각', fmtTime(data.basis.fxTime)],
     ['매입 기준', `평균 매입단가·매입금액은 ${data.year}년 1월 1일 기준: 전년 말까지 보유한 수량은 1월 1일 평가액(전년 마지막 종가), 그 해 매수분은 매수 단가`],
-    ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 수익률 = (현재가 − 평균 매입단가) ÷ 평균 매입단가. 미국 종목 손익은 매입·평가 모두 현재 환율 적용(환차손익 미반영).'],
+    ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영).'],
+    ['올해 손익', `원화 평가금액 − 1월 1일 기준 매입금액 + ${data.year}년 실현손익 − 이월분 매도 시 전년까지 오른 몫(전년도 손익에 반영). 올해 수익률 = 올해 손익 ÷ 1월 1일 기준 매입금액`],
+    ['전체기간 손익', '원화 평가금액 − 원래 매입금액(실제 평균 매입단가 × 수량) + 누적 실현손익. 전체 수익률 = 전체기간 손익 ÷ 원래 매입금액'],
     ['안내', '시세는 지연되거나 부정확할 수 있으며, 투자 권유가 아닌 참고용입니다.'],
   ]);
-  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가(1/1 기준)', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '원화 평가손익', '수익률', '시세 기준 시각', '분류', '원화 매입금액(1/1 기준)', '실제 평균 매입단가']);
+  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가(1/1 기준)', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '올해 손익(원화)', '올해 수익률', '시세 기준 시각', '분류', '원화 매입금액(1/1 기준)', '실제 평균 매입단가', '원래 매입금액(원화)', '전체 손익(원화)', '전체 수익률', '올해 실현손익(원화)']);
   for (const r of data.rows) {
     if (r.error) {
       ws.addRow([r.groupName, r.code, `조회 실패: ${r.error}`, '', '', '', r.quantity, r.avgPrice]);
@@ -54,7 +64,10 @@ async function assetsWorkbook(data) {
     const row = ws.addRow([
       r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, r.quantity, r.avgPrice, r.price,
       r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime), r.categoryLabel, r.costKrw, r.origAvgPrice,
+      r.origCostKrw, r.totalPnlKrw, r.totalPct, r.realizedYearKrw || null,
     ]);
+    [19, 20, 22].forEach((i) => (row.getCell(i).numFmt = KRW));
+    row.getCell(21).numFmt = PCT;
     row.getCell(17).numFmt = KRW;
     row.getCell(18).numFmt = cur;
     row.getCell(7).numFmt = QTY;
@@ -63,29 +76,29 @@ async function assetsWorkbook(data) {
     [12, 13].forEach((i) => (row.getCell(i).numFmt = KRW));
     row.getCell(14).numFmt = PCT;
   }
-  const t = ws.addRow(['합계', '', '', '', '', '', '', '', '', '', '', data.total.valueKrw, data.total.pnlKrw, data.total.returnPct]);
+  // 그 해 전량 매도 종목: 손익만
+  for (const r of data.soldRows || []) {
+    const row = ws.addRow([r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, 0, '', '', '', r.fxRate, 0, r.pnlKrw, null,
+      `${data.year}년 전량 매도${r.hasRealized ? '' : ' (실현손익 미입력)'}`, r.categoryLabel, null, null, null, r.totalPnlKrw, null, r.realizedYearKrw || null]);
+    [12, 13, 20, 22].forEach((i) => (row.getCell(i).numFmt = KRW));
+    row.getCell(11).numFmt = USD;
+  }
+  const T = data.total;
+  const t = ws.addRow(['합계', '', '', '', '', '', '', '', '', '', '', T.valueKrw, T.pnlKrw, T.returnPct, '', '', T.costKrw, '', T.origCostKrw, T.totalPnlKrw, T.totalPct]);
   t.font = { bold: true };
-  [12, 13].forEach((i) => (t.getCell(i).numFmt = KRW));
-  t.getCell(14).numFmt = PCT;
+  [12, 13, 17, 19, 20].forEach((i) => (t.getCell(i).numFmt = KRW));
+  [14, 21].forEach((i) => (t.getCell(i).numFmt = PCT));
   // 그룹별 합계
   if ((data.groupTotals || []).length > 1) {
     ws.addRow([]);
-    header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
-    for (const g of data.groupTotals) {
-      const r = ws.addRow([g.name, g.count, g.valueKrw, g.costKrw, g.pnlKrw, g.returnPct, ...(data.ongoing ? [g.todayPnlKrw, g.todayPct] : [])]);
-      [3, 4, 5, 7].forEach((i) => (r.getCell(i).numFmt = KRW));
-      [6, 8].forEach((i) => (r.getCell(i).numFmt = PCT));
-    }
+    header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액(1/1 기준)', '올해 손익', '올해 수익률', '원래 매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
+    for (const g of data.groupTotals) totalsRow(ws, g.name, g, data.ongoing);
   }
   // 분류별 합계
   if ((data.categoryTotals || []).length) {
     ws.addRow([]);
-    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액', '원화 평가손익', '수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
-    for (const c of data.categoryTotals) {
-      const r = ws.addRow([c.label, c.count, c.valueKrw, c.costKrw, c.pnlKrw, c.returnPct, ...(data.ongoing ? [c.todayPnlKrw, c.todayPct] : [])]);
-      [3, 4, 5, 7].forEach((i) => (r.getCell(i).numFmt = KRW));
-      [6, 8].forEach((i) => (r.getCell(i).numFmt = PCT));
-    }
+    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액(1/1 기준)', '올해 손익', '올해 수익률', '원래 매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
+    for (const c of data.categoryTotals) totalsRow(ws, c.label, c, data.ongoing);
   }
   ws.columns.forEach((c, i) => (c.width = [10, 10, 30, 8, 12, 7, 12, 14, 12, 18, 10, 16, 16, 9, 22][i] || 12));
   return wb.xlsx.writeBuffer();

@@ -63,18 +63,39 @@ async function getAssets(userId, year, groupId, merged) {
     p.carriedQty = b.startQty;
     p.basisFallback = b.fallback;
     p.startClose = b.startQty > 0 && sc ? sc : null;
+    // 올해 손익·전체기간 손익 보조값 (v0.10)
+    const pp = positions.pnlParts(allTrades, p.groupId, p.code, y, sc ? sc.close : null);
+    Object.assign(p, { realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldAdj: pp.soldAdj, soldQty: pp.soldQty, yearExtra: pp.realizedYear - pp.soldAdj });
   }
+  // 그 해 전량 매도한 종목: 수량 0 항목 (전년 말 보유했거나 실현손익을 입력한 경우)
+  const prevState = positions.stateAt(allTrades, y - 1);
+  const curState = positions.stateAt(allTrades, y);
+  const soldOut = [];
+  for (const c of curState.values()) {
+    if (c.itemYear !== y || c.quantity > 1e-9 || (gid && c.groupId !== gid)) continue;
+    const pv = prevState.get(`${c.groupId}|${c.code}`);
+    const pp0 = positions.pnlParts(allTrades, c.groupId, c.code, y, null);
+    if (!(pv && pv.quantity > 1e-9) && !pp0.hasRealized) continue;
+    await market.ensureInstrument(c.code).catch(() => null);
+    const sc = market.yearEndClose(c.code, y - 1);
+    const pp = positions.pnlParts(allTrades, c.groupId, c.code, y, sc ? sc.close : null);
+    soldOut.push({ code: c.code, groupId: c.groupId, realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldAdj: pp.soldAdj, soldQty: pp.soldQty, yearExtra: pp.realizedYear - pp.soldAdj });
+  }
+  soldOut.sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+  let soldList = soldOut;
   let list = perGroup;
   if (isMerged) {
     const byCode = new Map();
     for (const p of perGroup) {
       const m = byCode.get(p.code) || {
         code: p.code, groupId: null, quantity: 0, cost: 0, origCost: 0, carriedQty: 0, basisFallback: false, startClose: null,
-        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [],
+        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [], realizedYear: 0, realizedCum: 0, hasRealized: false, soldAdj: 0, soldQty: 0, yearExtra: 0,
       };
       m.quantity += p.quantity;
       m.cost += p.cost;
       m.origCost += p.origCost;
+      for (const f of ['realizedYear', 'realizedCum', 'soldAdj', 'soldQty', 'yearExtra']) m[f] += p[f];
+      m.hasRealized = m.hasRealized || p.hasRealized;
       m.carriedQty += p.carriedQty;
       m.basisFallback = m.basisFallback || p.basisFallback;
       m.startClose = m.startClose || p.startClose;
@@ -84,6 +105,16 @@ async function getAssets(userId, year, groupId, merged) {
       byCode.set(p.code, m);
     }
     list = [...byCode.values()].map((m) => ({ ...m, avgPrice: m.cost / m.quantity, origAvgPrice: m.origCost / m.quantity }));
+    // 통합: 다른 그룹에서 계속 보유 중인 종목의 전량 매도분은 그 종목 행에 합친다
+    const soldByCode = new Map();
+    for (const so of soldOut) {
+      const held = list.find((m) => m.code === so.code);
+      const tgt = held || soldByCode.get(so.code) || { ...so, groupId: null, realizedYear: 0, realizedCum: 0, soldAdj: 0, soldQty: 0, yearExtra: 0, hasRealized: false, mergedGroups: [] };
+      for (const f of ['realizedYear', 'realizedCum', 'soldAdj', 'soldQty', 'yearExtra']) tgt[f] += so[f];
+      tgt.hasRealized = tgt.hasRealized || so.hasRealized;
+      if (!held) { tgt.mergedGroups.push(groupName.get(so.groupId) || '-'); soldByCode.set(so.code, tgt); }
+    }
+    soldList = [...soldByCode.values()];
   }
 
   let fx = null;
@@ -108,6 +139,7 @@ async function getAssets(userId, year, groupId, merged) {
       code: h.code, groupId: h.groupId, groupName: isMerged ? '통합' : groupName.get(h.groupId) || '-',
       mergedGroups: h.mergedGroups || null, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
       origAvgPrice: h.origAvgPrice, carriedQty: h.carriedQty, basisFallback: h.basisFallback, startClose: h.startClose,
+      realizedYear: h.realizedYear, realizedCum: h.realizedCum, hasRealized: h.hasRealized, soldAdj: h.soldAdj, soldQty: h.soldQty,
     };
     try {
       let price;
@@ -133,7 +165,11 @@ async function getAssets(userId, year, groupId, merged) {
       const usd = inst.currency === 'USD';
       const rate = usd ? (fx ? fx.rate : null) : 1;
       const value = price * h.quantity; // 거래 통화 기준
-      const cost = h.avgPrice * h.quantity;
+      const cost = h.avgPrice * h.quantity; // 1월 1일 기준 매입금액
+      const origCost = h.origAvgPrice * h.quantity; // 원래 매입금액
+      const yearPnl = value - cost + h.yearExtra; // 올해 손익 (실현손익 포함)
+      const totalPnl = value - origCost + h.realizedCum; // 전체기간 손익 (누적 실현손익 포함)
+      const k = (x) => (rate == null ? null : x * rate);
       return {
         ...base,
         ...extra,
@@ -145,10 +181,18 @@ async function getAssets(userId, year, groupId, merged) {
         fxRate: rate,
         valueKrw: rate == null ? null : value * rate,
         costKrw: rate == null ? null : cost * rate,
-        pnlKrw: rate == null ? null : (value - cost) * rate,
+        origCost,
+        origCostKrw: k(origCost),
+        realizedYearKrw: k(h.realizedYear),
+        realizedCumKrw: k(h.realizedCum),
+        soldAdjKrw: k(h.soldAdj),
+        unrealizedKrw: k(value - cost),
+        pnlKrw: k(yearPnl), // 올해 손익
+        totalPnlKrw: k(totalPnl), // 전체기간 손익
+        totalPct: origCost ? totalPnl / origCost : null,
         // 오늘 손익 = 전일 대비 × 보유 수량 × 현재 환율 (올해만, 환율 변동 미반영)
         todayPnlKrw: ongoing && rate != null && extra.change != null ? extra.change * h.quantity * rate : null,
-        returnPct: (price - h.avgPrice) / h.avgPrice,
+        returnPct: cost ? yearPnl / cost : null, // 올해 수익률 = 올해 손익 ÷ 1월 1일 기준 매입금액
         splitNotice: ongoing ? splitNotice(h) : null,
       };
     } catch (e) {
@@ -164,8 +208,30 @@ async function getAssets(userId, year, groupId, merged) {
     r.categoryLabel = c.label;
   });
   const ok = rows.filter((r) => r.valueKrw != null);
-  const totalValue = ok.reduce((s, r) => s + r.valueKrw, 0);
-  const totalCost = ok.reduce((s, r) => s + r.costKrw, 0);
+  // 그 해 전량 매도 종목 행: 올해 손익 = 실현손익 − 전년까지 오른 몫, 전체기간 손익 = 누적 실현손익
+  const soldRows = [];
+  for (const so of soldList) {
+    let inst = null;
+    try { inst = market.publicInstrument(await market.ensureInstrument(so.code)); } catch (_) { continue; }
+    const rate = inst.currency === 'USD' ? (fx ? fx.rate : null) : 1;
+    if (rate == null) continue;
+    const c = categories.categoryOf(userId, so.code, inst, categories.savedMap(userId));
+    soldRows.push({
+      code: so.code, groupId: so.groupId, groupName: isMerged ? '통합' : groupName.get(so.groupId) || '-', mergedGroups: so.mergedGroups || null,
+      instrument: inst, fxRate: rate, soldQty: so.soldQty, hasRealized: so.hasRealized, category: c.id, categoryLabel: c.label,
+      realizedYear: so.realizedYear, realizedYearKrw: so.realizedYear * rate, soldAdjKrw: so.soldAdj * rate,
+      pnlKrw: so.yearExtra * rate, totalPnlKrw: so.realizedCum * rate,
+    });
+  }
+  // 합계 행: 보유 종목 + 전량 매도 종목의 올해 손익·전체기간 손익
+  const sumOf = (rs, ss) => {
+    const v = rs.reduce((a, r) => a + r.valueKrw, 0);
+    const c = rs.reduce((a, r) => a + r.costKrw, 0);
+    const oc = rs.reduce((a, r) => a + r.origCostKrw, 0);
+    const pnl = rs.reduce((a, r) => a + r.pnlKrw, 0) + ss.reduce((a, r) => a + r.pnlKrw, 0);
+    const tp = rs.reduce((a, r) => a + r.totalPnlKrw, 0) + ss.reduce((a, r) => a + r.totalPnlKrw, 0);
+    return { valueKrw: v, costKrw: c, origCostKrw: oc, pnlKrw: pnl, returnPct: c ? pnl / c : null, totalPnlKrw: tp, totalPct: oc ? tp / oc : null };
+  };
   const priceTimes = ok.map((r) => r.priceTime).sort();
   const range = positions.tradeYearRange(userId);
   // 그룹별 합계
@@ -179,10 +245,9 @@ async function getAssets(userId, year, groupId, merged) {
   };
   const groupTotals = groups.map((g) => {
     const rs = ok.filter((r) => r.groupId === g.id);
-    const v = rs.reduce((a, r) => a + r.valueKrw, 0);
-    const c = rs.reduce((a, r) => a + r.costKrw, 0);
-    return { groupId: g.id, name: g.name, count: rs.length, valueKrw: v, costKrw: c, pnlKrw: v - c, returnPct: c ? (v - c) / c : null, ...todayOf(rs) };
-  }).filter((g) => g.count && (!gid || g.groupId === gid));
+    const ss = soldRows.filter((r) => r.groupId === g.id);
+    return { groupId: g.id, name: g.name, count: rs.length, soldCount: ss.length, ...sumOf(rs, ss), ...todayOf(rs) };
+  }).filter((g) => (g.count || g.soldCount) && (!gid || g.groupId === gid));
   return {
     year: y,
     ongoing,
@@ -194,17 +259,14 @@ async function getAssets(userId, year, groupId, merged) {
     // 분류별 합계 (선택한 그룹 범위 안에서)
     categoryTotals: categories.CATEGORIES.map((c) => {
       const rs = ok.filter((r) => r.category === c.id);
-      const v = rs.reduce((a, r) => a + r.valueKrw, 0);
-      const cst = rs.reduce((a, r) => a + r.costKrw, 0);
-      return { id: c.id, label: c.label, count: new Set(rs.map((r) => r.code)).size, valueKrw: v, costKrw: cst, pnlKrw: v - cst, returnPct: cst ? (v - cst) / cst : null, ...todayOf(rs) };
+      const ss = soldRows.filter((r) => r.category === c.id);
+      return { id: c.id, label: c.label, count: new Set(rs.map((r) => r.code)).size, soldCount: ss.length, ...sumOf(rs, ss), ...todayOf(rs) };
     }),
     yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty },
     rows,
+    soldRows,
     total: {
-      valueKrw: totalValue,
-      costKrw: totalCost,
-      pnlKrw: totalValue - totalCost,
-      returnPct: totalCost ? (totalValue - totalCost) / totalCost : null,
+      ...sumOf(ok, soldRows),
       ...todayOf(ok),
       excluded: rows.length - ok.length,
     },

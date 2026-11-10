@@ -33,6 +33,7 @@ function stateAt(items, upToYear) {
       createdAt: it.created_at, // 입력일
       firstYear: prev ? prev.firstYear : it.year,
       tradesInYear: it.year === upToYear ? 1 : 0,
+      realized: it.year === upToYear && it.realized_pnl != null ? it.realized_pnl : null, // 그 해 실현손익 (v0.10)
     });
   }
   return map;
@@ -107,6 +108,34 @@ function yearBasis(items, groupId, code, year, startPrice) {
   return { cost, quantity: N, startQty: carried, fallback: carried > EPS && startPrice == null };
 }
 
+/**
+ * 올해 손익·전체기간 손익 보조값 (v0.10, 거래 통화)
+ * - realizedYear: 그 해 항목에 입력한 실현손익 (매도금액 − 원래 매입금액)
+ * - realizedCum: 그 해까지 입력한 실현손익 합계 (전체기간 손익에 더함)
+ * - soldAdj: 전년 말 이월분에서 판 수량의 전년까지 오른 몫 = (1월 1일 가격 − 전년 말 평균 매입단가) × 판 수량.
+ *   이 몫은 전년도 손익에 이미 들어갔으므로 올해 손익에서 뺀다 (이월 여부가 ‘신규’면 0)
+ * 올해 손익 = 평가금액 − 1월 1일 기준 매입금액 + realizedYear − soldAdj
+ * 전체기간 손익 = 평가금액 − 원래 매입금액 + realizedCum
+ */
+function pnlParts(items, groupId, code, year, startPrice) {
+  const k = `${groupId || 0}|${code}`;
+  let realizedYear = 0;
+  let realizedCum = 0;
+  let hasRealized = false;
+  for (const it of items) {
+    if (keyOf(it) !== k || it.year > year || it.realized_pnl == null) continue;
+    realizedCum += it.realized_pnl;
+    if (it.year === year) { realizedYear += it.realized_pnl; hasRealized = true; }
+  }
+  const prev = stateAt(items, year - 1).get(k);
+  const cur = stateAt(items, year).get(k);
+  const Q = prev && prev.quantity > EPS ? prev.quantity : 0;
+  const N = cur && cur.quantity > EPS ? cur.quantity : 0;
+  const sold = Math.max(0, Q - N);
+  const soldAdj = sold > EPS && startPrice != null && !(cur && cur.carryMode === 'NEW') ? (startPrice - prev.avgPrice) * sold : 0;
+  return { realizedYear, realizedCum, hasRealized, soldAdj, soldQty: sold, prevQty: Q, prevAvg: prev ? prev.avgPrice : null };
+}
+
 function tradeYearRange(userId) {
   const r = db.get('SELECT MIN(year) AS minY, MAX(year) AS maxY FROM holding_items WHERE user_id = ?', [userId]);
   return { min: r && r.minY, max: r && r.maxY };
@@ -130,5 +159,5 @@ function groupsOf(userId) {
 }
 
 module.exports = {
-  itemsOf, tradesOf: itemsOf, stateAt, accumulate, accumulateByCode, positionsAt, totalsAt, yearBasis, tradeYearRange, codesUpTo, groupsOf,
+  itemsOf, tradesOf: itemsOf, stateAt, accumulate, accumulateByCode, positionsAt, totalsAt, yearBasis, tradeYearRange, codesUpTo, groupsOf, pnlParts,
 };

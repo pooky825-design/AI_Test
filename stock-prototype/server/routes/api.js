@@ -16,6 +16,14 @@ const today = () => market.dateInTz(new Date(), 'Asia/Seoul');
 // ---------------------------------------------------------------------------
 // 입력 검증 (4.2)
 // ---------------------------------------------------------------------------
+// 실현손익 (선택): 비우면 null, 음수·0 허용, 소수 둘째 자리까지 (v0.10)
+function signedAmount(v) {
+  const s = String(v ?? '').trim().replace(/,/g, '').replace(/^\+/, '');
+  if (!s) return { value: null };
+  if (!/^-?\d+(\.\d{1,2})?$/.test(s)) return { error: '숫자만 입력할 수 있습니다(손실은 - 부호, 소수 둘째 자리까지).' };
+  return { value: Number(s) };
+}
+
 function positiveNumber(v, { maxDecimals } = {}) {
   const s = String(v ?? '').trim().replace(/,/g, '');
   if (!s) return { error: '필수 입력 항목입니다.' };
@@ -192,11 +200,18 @@ router.get('/holdings', async (req, res) => {
     .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
 
   // 종목 정보(이름·구분)를 적재한 뒤 표시. 매입금액 = 수량 × 평균 매입단가 (거래 통화)
+  const allItems = positions.itemsOf(req.user.id);
   const items = await portfolio.mapLimit(pos, 5, async (p) => {
     let inst = instInfo(p.code);
     try { inst = market.publicInstrument(await market.ensureInstrument(p.code)); } catch (_) { /* 저장된 정보로 표시 */ }
     const c = categories.categoryOf(req.user.id, p.code, inst, saved);
+    // 1월 1일 기준 매입금액(이월분은 전년 마지막 종가) · 올해 실현손익 (v0.10)
+    const sc = market.yearEndClose(p.code, year - 1);
+    const b = positions.yearBasis(allItems, p.groupId, p.code, year, sc ? sc.close : null);
+    const pp = positions.pnlParts(allItems, p.groupId, p.code, year, sc ? sc.close : null);
     return {
+      basis_amount: b.cost, basis_carried_qty: b.startQty, basis_start_close: b.startQty > 0 && sc ? sc.close : null, basis_start_date: sc ? sc.date : null,
+      realized_pnl: p.itemYear === year ? p.realized : null, realized_cum: pp.realizedCum,
       group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
       name: inst.name, market: inst.market, type: inst.type, currency: inst.currency,
       quantity: p.quantity, avg_price: p.avgPrice, purchase_amount: p.quantity * p.avgPrice,
@@ -228,6 +243,7 @@ async function validateItem(body, userId) {
   const amt = hasAmount ? positiveNumber(body.purchaseAmount) : { value: null };
   const p = hasAmount ? { value: amt.value && q.value ? amt.value / q.value : null } : positiveNumber(body.avgPrice);
   const carryMode = body.carryMode === 'CARRIED' || body.carryMode === 'NEW' ? body.carryMode : null;
+  const realized = signedAmount(body.realizedPnl);
   const memo = String(body.memo || '');
   fieldErrors({
     groupId: group ? null : '그룹을 선택해 주세요.',
@@ -238,19 +254,20 @@ async function validateItem(body, userId) {
     purchaseAmount: hasAmount ? amt.error : null,
     avgPrice: hasAmount ? null : p.error,
     carryMode: carryMode ? null : '이월 또는 신규를 선택해 주세요.',
+    realizedPnl: realized.error || null,
     memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
   });
   const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
-  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null };
+  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null, realizedPnl: realized.value };
 }
 
 function upsertItem(userId, v) {
   db.run(
-    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = excluded.quantity, avg_price = excluded.avg_price,
-       memo = excluded.memo, carry_mode = excluded.carry_mode, updated_at = excluded.updated_at`,
-    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, now(), now()]
+       memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, updated_at = excluded.updated_at`,
+    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, v.realizedPnl ?? null, now(), now()]
   );
   categories.setCategory(userId, v.code, v.category); // 종목 분류는 회원·종목별로 하나
 }
@@ -283,14 +300,17 @@ router.delete('/holdings/items', (req, res) => {
   const code = market.normalizeCode(req.query.code);
   const cur = positions.positionsAt(req.user.id, year, { groupId }).find((p) => p.code === code);
   if (!cur) return res.status(404).json({ error: '주식 항목을 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  // 전량 매도의 실현손익 (선택, v0.10): 입력하면 수량 0 항목에 남겨 올해·전체기간 손익에 반영
+  const realized = signedAmount(req.query.realizedPnl);
+  fieldErrors({ realizedPnl: realized.error || null });
   // 이월 표시와 관계없이, 실제로 전년 말 보유 항목이 있으면 수량 0 항목을 남겨야 그 해부터 보유하지 않게 된다
   const prevHeld = positions.stateAt(positions.itemsOf(req.user.id), year - 1).get(`${groupId}|${code}`);
-  if (prevHeld && prevHeld.quantity > 0) {
+  if ((prevHeld && prevHeld.quantity > 0) || realized.value != null) {
     db.run(
-      `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, NULL, '전량 매도', ?, ?)
-       ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = 0, avg_price = NULL, memo = '전량 매도', updated_at = excluded.updated_at`,
-      [req.user.id, groupId, code, year, now(), now()]
+      `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, realized_pnl, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, NULL, '전량 매도', ?, ?, ?)
+       ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = 0, avg_price = NULL, memo = '전량 매도', realized_pnl = excluded.realized_pnl, updated_at = excluded.updated_at`,
+      [req.user.id, groupId, code, year, realized.value, now(), now()]
     );
   } else {
     db.run('DELETE FROM holding_items WHERE user_id = ? AND group_id = ? AND code = ? AND year = ?', [req.user.id, groupId, code, year]);

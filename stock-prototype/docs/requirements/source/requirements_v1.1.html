@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>주식 관리시스템 요구사항 정의서 v1.1</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  :root { --navy: #1F4E79; --ink: #1F2933; --muted: #5B6875; --line: #D3D9E2; --head: #EDF1F6; --soft: #F5F7FA; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: "NanumBarunGothic", "NanumGothic", sans-serif; color: var(--ink); font-size: 9.6pt; line-height: 1.5; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 20pt; color: var(--navy); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1.6px solid var(--navy); }
+  h2 { font-size: 12pt; margin: 14px 0 6px; break-after: avoid; page-break-after: avoid; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  .newpage { break-before: page; page-break-before: always; margin-top: 0; }
+  h3 { font-size: 11pt; margin: 14px 0 6px; }
+  p { margin: 4px 0 8px; }
+  ul { margin: 4px 0 8px; padding-left: 18px; }
+  li { margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 5px 0 5px; font-size: 8.9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th { background: var(--head); text-align: left; font-weight: 700; padding: 5px 7px; border-bottom: 1.4px solid #8A97A6; }
+  td { padding: 4.5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.id { color: var(--muted); font-size: 8.4pt; white-space: nowrap; width: 82px; }
+  td.name { font-weight: 700; width: 118px; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.total td { font-weight: 700; background: var(--soft); }
+  table.tight { font-size: 8.1pt; } table.tight th, table.tight td { white-space: nowrap; padding-left: 5px; padding-right: 5px; }
+  .new { display: inline-block; font-size: 7.4pt; font-weight: 700; color: #fff; background: #C2410C; border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+  .chg { display: inline-block; font-size: 7.4pt; font-weight: 700; color: #fff; background: var(--navy); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+  .note { color: var(--muted); font-size: 8.8pt; margin: 4px 0 10px; }
+  .formula { background: var(--soft); border-left: 4px solid var(--navy); padding: 9px 14px; margin: 8px 0; font-size: 9.6pt; }
+  .warn { background: #FFF8E6; border-left: 4px solid #B7791F; padding: 9px 14px; margin: 10px 0; font-size: 9.4pt; }
+  .flow { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; }
+  .flow .box { flex: 1; border: 1.2px solid var(--navy); background: #E8EEF6; border-radius: 6px; text-align: center; padding: 8px 4px; font-weight: 700; font-size: 9.2pt; line-height: 1.35; }
+  .flow .arrow { color: var(--ink); font-weight: 700; }
+  .steps { display: flex; gap: 6px; margin: 8px 0; }
+  .steps div { flex: 1; background: #EDF1F6; border-top: 3px solid var(--navy); padding: 8px 10px; font-size: 9.2pt; }
+  .steps b { display: block; color: var(--navy); }
+  /* cover */
+  .cover { position: relative; height: 248mm; overflow: hidden; }
+  .cover .bar { position: absolute; top: 0; left: 0; right: 0; height: 7mm; background: var(--navy); }
+  .cover .kicker { margin-top: 62mm; color: var(--navy); font-weight: 700; font-size: 12pt; }
+  .cover .title { font-size: 34pt; font-weight: 800; line-height: 1.25; margin: 12mm 0 8mm; }
+  .cover .desc { font-size: 12pt; color: var(--muted); max-width: 120mm; }
+  .cover table { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10pt; border-top: 1.6px solid var(--ink); }
+  .cover td { padding: 9px 8px; }
+  .cover td:first-child { width: 42mm; color: var(--muted); }
+  /* toc */
+  .toc { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 6px; }
+  .toc td { padding: 10px 6px; border-bottom: 1px solid var(--line); }
+  .toc td.n { width: 24px; color: var(--navy); font-weight: 700; }
+  .toc td.p { text-align: right; color: var(--muted); width: 40px; }
+</style>
+</head>
+<body>
+
+<!-- 표지 -->
+<section class="page cover">
+  <div class="bar"></div>
+  <div class="kicker">요구사항 정의서</div>
+  <div class="title">주식<br />관리시스템</div>
+  <div class="desc">종목코드로 주식·ETF 시세를 조회하고, 보유 수량을 그룹·연도별로 입력해 현재 자산과 연도별 자산금액을 비교하는 다중 사용자 서비스의 요구사항을 정의합니다.</div>
+  <table>
+    <tr><td>문서명</td><td>주식 관리시스템 요구사항 정의서</td></tr>
+    <tr><td>버전</td><td>v1.1 (최종본 개정)</td></tr>
+    <tr><td>상태</td><td>최종 — 프로토타입(v0.10.0) 검토 결과 반영. 데이터 출처 등 개발 단계 확정 사항은 7장 참고</td></tr>
+    <tr><td>작성일</td><td>2026년 11월 10일</td></tr>
+  </table>
+</section>
+
+<!-- 목차 -->
+<section class="page">
+  <h1 style="border:none;padding:0">목차</h1>
+  <table class="toc">
+    <tr><td class="n">1</td><td>개요</td><td class="p">{{P1}}</td></tr>
+    <tr><td class="n">2</td><td>업무 흐름 및 계산 기준</td><td class="p">{{P2}}</td></tr>
+    <tr><td class="n">3</td><td>기능 요구사항</td><td class="p">{{P3}}</td></tr>
+    <tr><td class="n">4</td><td>데이터 항목</td><td class="p">{{P4}}</td></tr>
+    <tr><td class="n">5</td><td>비기능 요구사항</td><td class="p">{{P5}}</td></tr>
+    <tr><td class="n">6</td><td>화면 목록</td><td class="p">{{P6}}</td></tr>
+    <tr><td class="n">7</td><td>미결 사항</td><td class="p">{{P7}}</td></tr>
+  </table>
+
+  <h2 style="margin-top:28px">문서 이력</h2>
+  <table>
+    <tr><th style="width:60px">버전</th><th style="width:90px">일자</th><th>내용</th></tr>
+    <tr><td>v0.1</td><td>2026-11-04</td><td>최초 작성</td></tr>
+    <tr><td>v0.2</td><td>2026-11-09</td><td>조회 대상에 ETF·ETN 추가, 미국 거래소 범위에 NYSE Arca·NYSE American·Cboe 추가, 구분 표시·종가 예비 출처 요구사항 추가</td></tr>
+    <tr><td>v0.3</td><td>2026-11-09</td><td>종목 조회에 기간 수익률(FR-STK-07)과 배당금 지급내역 팝업(FR-STK-08) 추가, 배당 지급내역 저장(FR-DATA-09)·데이터 항목·화면 목록·미결 사항 반영</td></tr>
+    <tr><td>v0.4</td><td>2026-11-09</td><td>배당금 지급내역에 주당과세표준액·실지급일 추가(FR-STK-08·09), 국내 ETF 주당과세표준액의 운용사별 출처와 회차 대응 규칙(FR-DATA-10), 기간 수익률·배당 계산 기준(2.5), 안드로이드 앱 사용 환경(NFR-UX-02)</td></tr>
+    <tr><td>v1.0</td><td>2026-11-10</td><td>최종본. 프로토타입 검토 결과 반영:<br />· 보유 종목을 <b>그룹(ISA·연금·일반 등)·연도별</b>로 관리하고 연말 보유 수량·매입금액을 입력, 이월 규칙과 전년도 일괄이월(2.6, FR-HLD-05~09)<br />· 종목 분류 국내·해외·해외추종(FR-HLD-07)<br />· 자산 현황의 기준 연도 선택, 그룹별 보기·통합, 그룹별·분류별 합계, 1월 1일 기준 매입단가, 전일 대비(오늘 손익), 종목 조회 팝업, 접기·펴기(2.3, FR-AST-05~10)<br />· 연도별 자산금액을 그 해 말 보유 수량으로 계산(2.4)<br />· 보유 종목 바로가기(FR-STK-10), 조회 조건 기억 등 화면 공통 기능(3.10)<br />· 데이터 항목·입력 규칙·표시 형식·화면 목록·미결 사항 갱신</td></tr>
+    <tr><td><b>v1.1</b></td><td>2026-11-10</td><td><b>손익 구분 관리.</b> 이월 기준금액(1월 1일 평가액)과 원래 매입금액을 나눠 <b>올해 손익</b>과 <b>전체기간 손익</b>을 따로 계산(2.7), 그 해 실현손익 선택 입력과 전량 매도 시 입력(FR-HLD-10), 전체기간 손익·전량 매도 종목 표시(FR-AST-11·12), 자산 현황 합계·엑셀·보유 종목 목록 열 갱신</td></tr>
+  </table>
+  <p class="note">v1.0 이후 새로 추가한 항목은 , 내용을 바꾼 항목은 으로 표시했습니다.</p>
+</section>
+
+<!-- 1. 개요 -->
+<section class="page" id="ch1">
+  <h1>1. 개요</h1>
+  <h2>1.1 목적</h2>
+  <p>회원이 주식·ETF의 종목코드를 입력해 종목명, 현재가, 날짜별 종가, 배당 내역을 조회하고, 보유 수량을 계좌 성격별 그룹(ISA·연금·일반 등)과 연도별로 입력해 현재 자산금액을 확인합니다. 연도별 조회 화면에서 연도마다 그 해 말 보유 수량을 기준으로 자산금액을 비교합니다.</p>
+
+  <h2>1.2 범위</h2>
+  <ul>
+    <li>회원가입·로그인과 회원별 데이터 분리</li>
+    <li>국내(KOSPI·KOSDAQ) 주식·ETF·ETN과 미국(NYSE·NASDAQ·NYSE Arca·NYSE American·Cboe) 주식·ETF의 종목명, 현재가, 날짜별 종가, 기간 수익률, 배당금 지급내역(주당과세표준액·실지급일 포함) 조회</li>
+    <li>보유 종목을 <b>그룹·연도별</b>로 관리: 그 해 말 보유 수량·매입금액 입력, 전년도 보유분 이월, 종목 분류(국내·해외·해외추종) </li>
+    <li>현재 자산금액·평가손익·수익률·오늘 손익 계산과 그룹별·분류별 합계 </li>
+    <li>미국 종목의 원화 환산과 원화 기준 자산 합산</li>
+    <li>연도별 자산금액 조회·비교</li>
+    <li>배당금 수령 내역 관리, 차트 시각화, 엑셀 내보내기</li>
+    <li>회원별 조회 조건 기억(마지막 조회 기간·연도·그룹 등) </li>
+    <li>PC 웹 브라우저와 안드로이드 앱에서 이용</li>
+  </ul>
+
+  <h2>1.3 범위 제외</h2>
+  <ul>
+    <li>개별 매수·매도 거래 이력 관리: 연도별로 그 해 말 보유 수량과 매입금액만 입력하며, 연도 중 거래 일자·가격·실현 손익은 관리하지 않습니다. </li>
+    <li>증권사 계좌 연동, 매매 주문, 투자 자문·종목 추천</li>
+    <li>국내·미국 외 해외 시장, 펀드·채권 등 거래소에 상장되지 않은 상품, 실시간 스트리밍 시세</li>
+    <li>세금 계산·신고: 주당과세표준액은 참고 정보로만 표시하며, 계좌 유형(일반·ISA·연금 등)에 따른 실제 세액은 계산하지 않습니다. 보유 그룹은 회원이 보기 편하게 묶는 단위이며 세제 계산에 쓰지 않습니다.</li>
+  </ul>
+
+  <h2>1.4 사용자 역할</h2>
+  <table>
+    <tr><th style="width:90px">역할</th><th>주요 기능</th></tr>
+    <tr><td class="name">비회원</td><td>회원가입, 로그인, 비밀번호 재설정</td></tr>
+    <tr><td class="name">회원</td><td>종목 조회, 본인의 보유 그룹·보유 종목·배당 내역 관리, 자산 현황·연도별 조회, 엑셀 내보내기, 회원 탈퇴</td></tr>
+  </table>
+
+  <h2 class="newpage">1.5 용어</h2>
+  <table>
+    <tr><th style="width:118px">용어</th><th>정의</th></tr>
+    <tr><td class="name">종목</td><td>거래소에 상장되어 종목코드로 거래되는 주식, ETF, ETN을 함께 이르는 말</td></tr>
+    <tr><td class="name">ETF·ETN</td><td>ETF는 지수 등을 따라가도록 운용되는 상장지수펀드, ETN은 증권사가 발행하는 상장지수증권. 배당금 관리에서는 ETF 분배금도 배당과 같이 다룸</td></tr>
+    <tr><td class="name">보유 그룹</td><td>회원이 만든 보유 종목 묶음(예: 일반, ISA, 연금). 같은 종목을 여러 그룹에 따로 보유할 수 있음</td></tr>
+    <tr><td class="name">종목 분류</td><td>국내(국내 자산), 해외(미국 상장 종목), 해외추종(국내 상장이지만 해외 자산을 따라가는 ETF 등) 중 하나. 회원이 종목마다 하나를 정함</td></tr>
+    <tr><td class="name">주식 항목</td><td>한 연도·그룹·종목의 보유 기록. 그 해 말 보유 수량, 평균 매입단가(매입금액 ÷ 수량), 이월 여부, 메모로 구성</td></tr>
+    <tr><td class="name">이월</td><td>전년도 말부터 이어서 보유한 종목. 주식 항목을 입력하지 않은 연도는 직전 연도 항목을 그대로 이어받으며 이월로 표시(2.6)</td></tr>
+    <tr><td class="name">평가금액</td><td>현재가(지난 연도는 연말 종가) × 보유 수량. 미국 종목의 원화 평가금액은 여기에 환율을 곱한 금액</td></tr>
+    <tr><td class="name">1월 1일 기준 매입금액</td><td>자산 현황에서 손익 계산에 쓰는 매입금액. 이월 수량은 1월 1일 평가액(전년 마지막 종가), 그 해 매수분은 매입금액으로 계산(2.3)</td></tr>
+    <tr><td class="name">원래 매입금액 <span class="new">신규</span></td><td>지금 가진 수량을 실제로 산 금액(실제 평균 매입단가 × 보유 수량). 전체기간 손익의 기준</td></tr>
+    <tr><td class="name">실현손익 <span class="new">신규</span></td><td>그 해 매도한 수량의 매도금액 − 원래 매입금액. 증권사에서 보여 주는 실현손익과 같은 값을 회원이 입력</td></tr>
+    <tr><td class="name">올해 손익 <span class="new">신규</span></td><td>1월 1일 기준 매입금액 대비 그 해에 생긴 손익. 그 해 실현손익 포함(2.7)</td></tr>
+    <tr><td class="name">전체기간 손익 <span class="new">신규</span></td><td>원래 매입금액 대비 처음 산 때부터 지금까지의 손익. 누적 실현손익 포함(2.7)</td></tr>
+    <tr><td class="name">오늘 손익</td><td>전일 종가 대비 현재가 변동 × 보유 수량 × 현재 환율. 화면의 ‘전일 대비’ 금액</td></tr>
+    <tr><td class="name">배당락일</td><td>이날부터 산 주식은 해당 회차 배당을 받지 못하는 기준일. 국내는 지급기준일 전 1거래일</td></tr>
+    <tr><td class="name">지급기준일</td><td>배당(분배금)을 받을 주주를 정하는 기준일. 국내 ETF 운용사는 이 날짜로 분배 내역을 공시함</td></tr>
+    <tr><td class="name">실지급일</td><td>배당(분배금)이 실제로 계좌에 지급되는 날</td></tr>
+    <tr><td class="name">주당과세표준액</td><td>주당 배당금(분배금) 중 배당소득세 과세 대상이 되는 금액. 국내 ETF는 국내 주식 매매차익 등 비과세 이익을 빼고 운용사가 회차별로 공시</td></tr>
+    <tr><td class="name">과표기준가</td><td>ETF의 과세 대상 이익을 계산하는 기준 가격. 주당과세표준액과는 다른 값</td></tr>
+    <tr><td class="name">연말 종가</td><td>해당 연도 마지막 거래일의 종가</td></tr>
+    <tr><td class="name">수정 종가</td><td>액면분할·병합을 반영해 현재 주식 수 기준으로 환산한 과거 종가. 배당은 반영하지 않음</td></tr>
+    <tr><td class="name">연도별 자산금액</td><td>그 해 말 보유 수량을 연말 종가와 연말 환율로 평가한 금액</td></tr>
+  </table>
+</section>
+
+<!-- 2. 업무 흐름 및 계산 기준 -->
+<section class="page" id="ch2">
+  <h1>2. 업무 흐름 및 계산 기준</h1>
+  <h2>2.1 사용 흐름</h2>
+  <div class="flow">
+    <div class="box">회원가입<br />로그인</div><span class="arrow">→</span>
+    <div class="box">종목코드<br />입력·조회</div><span class="arrow">→</span>
+    <div class="box">그룹·연도별<br />종목 등록</div><span class="arrow">→</span>
+    <div class="box">자산 현황<br />확인</div><span class="arrow">→</span>
+    <div class="box">연도별<br />자산 비교</div>
+  </div>
+  <p class="note">새해에는 보유 종목 관리에서 ‘전년도 일괄이월’로 전년 말 보유 종목을 가져온 뒤 수량을 고칩니다. 가져오지 않아도 전년 보유분은 자동으로 이어집니다(2.6).</p>
+
+  <h2>2.2 시세 데이터 흐름</h2>
+  <div class="steps">
+    <div><b>1. 수집</b>외부 출처에서 현재가, 일별 종가, 환율, 배당 지급내역을 가져옴</div>
+    <div><b>2. 저장</b>종목·종가·환율·배당 지급내역은 전 회원 공통 데이터로 저장</div>
+    <div><b>3. 계산</b>회원별 보유 수량과 결합해 조회 시점에 자산 계산</div>
+  </div>
+
+  <h2>2.3 자산 현황 계산 <span class="chg">변경</span></h2>
+  <div class="formula">
+    원화 평가금액 = 현재가 × 보유 수량 × 현재 환율 (국내 종목은 환율 1)<br />
+    매입금액(1월 1일 기준) = 이월 수량 × 전년 마지막 종가 + 그 해 매수분 매입금액<br />평균 매입단가(1월 1일 기준) = 매입금액 ÷ 보유 수량<br />
+    올해 손익·전체기간 손익과 수익률은 2.7 기준<br />
+    전일 대비(오늘 손익) = 1주당 전일 대비 변동 × 보유 수량 × 현재 환율<br />오늘 손익률 = 오늘 손익 ÷ (평가금액 − 오늘 손익)
+  </div>
+  <table class="tight">
+    <tr><th>종목</th><th>이월</th><th class="num">수량</th><th class="num">평균 매입단가</th><th class="num">매입금액</th><th class="num">현재가</th><th class="num">전일 대비</th><th class="num">원화 평가금액</th><th class="num">올해 손익</th><th class="num">올해 수익률</th></tr>
+    <tr><td>국내 종목 A</td><td>이월</td><td class="num">100</td><td class="num">60,000원</td><td class="num">6,000,000원</td><td class="num">72,000원</td><td class="num">+100,000원</td><td class="num">7,200,000원</td><td class="num">+1,200,000원</td><td class="num">+20.0%</td></tr>
+    <tr><td>미국 종목 B</td><td>신규</td><td class="num">10</td><td class="num">$150</td><td class="num">2,100,000원</td><td class="num">$210</td><td class="num">+28,000원</td><td class="num">2,940,000원</td><td class="num">+840,000원</td><td class="num">+40.0%</td></tr>
+    <tr class="total"><td>합계</td><td></td><td></td><td></td><td class="num">8,100,000원</td><td></td><td class="num">+128,000원</td><td class="num">10,140,000원</td><td class="num">+2,040,000원</td><td class="num">+25.2%</td></tr>
+  </table>
+  <p class="note">가상의 값이며 현재 환율은 1,400원으로 가정했습니다. A는 전년 말부터 보유해 평균 매입단가가 전년 마지막 종가(60,000원)이고, B는 올해 $150에 산 종목입니다. 전일 대비는 A가 1주당 +1,000원, B가 1주당 +$2로 가정했습니다. 실제 평균 매입단가는 툴팁으로 함께 보여 줍니다. 매입 시점 환율은 입력받지 않으므로 미국 종목은 매입금액과 평가금액 모두 현재 환율을 적용하며 환차손익은 반영하지 않습니다.</p>
+  <ul>
+    <li><b>이월 여부 지정:</b> 주식 항목의 이월 여부가 ‘이월’이면 보유 수량 전부를 1월 1일 평가액으로, ‘신규’면 입력한 매입금액으로 계산합니다. 지정이 없으면 전년 말 수량까지는 1월 1일 평가액, 늘어난 수량은 그 해 매입금액 증가분으로 계산합니다.</li>
+    <li><b>지난 연도 선택:</b> 현재가 대신 연말 종가, 현재 환율 대신 연말 환율, 그 해 말 보유 수량으로 계산하며 전일 대비는 표시하지 않습니다.</li>
+    <li><b>전년 종가가 없는 경우</b>(그 해 상장 등): 이월 수량도 실제 평균 매입단가로 계산합니다.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">2.4 연도별 자산 계산</h2>
+  <div class="formula">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) &nbsp;·&nbsp; 올해는 현재가·현재 환율(진행 중)</div>
+  <table>
+    <tr><th>연도</th><th class="num">A 수량</th><th class="num">A 연말 종가</th><th class="num">B 수량</th><th class="num">B 연말 종가</th><th class="num">연말 환율</th><th class="num">자산금액</th><th class="num">전년 대비</th></tr>
+    <tr><td>2023</td><td class="num">80</td><td class="num">60,000원</td><td class="num">-</td><td class="num">$150</td><td class="num">1,300원</td><td class="num">4,800,000원</td><td class="num">-</td></tr>
+    <tr><td>2024</td><td class="num">100</td><td class="num">55,000원</td><td class="num">10</td><td class="num">$180</td><td class="num">1,450원</td><td class="num">8,110,000원</td><td class="num">+3,310,000원 (+69.0%)</td></tr>
+    <tr><td>2025</td><td class="num">100 (이월)</td><td class="num">70,000원</td><td class="num">10 (이월)</td><td class="num">$200</td><td class="num">1,400원</td><td class="num">9,800,000원</td><td class="num">+1,690,000원 (+20.8%)</td></tr>
+  </table>
+  <p class="note">가상의 값입니다. 2025년에는 주식 항목을 입력하지 않아 2024년 수량이 그대로 이어졌습니다. 여러 그룹에 같은 종목이 있으면 수량을 합쳐 계산합니다.</p>
+  <div class="warn"><b>해석 주의:</b> 연도별 금액은 그 해 말 보유 수량을 연말 종가로 평가한 금액입니다. 연도 중 매매 시점의 가격 변동과 실현 손익은 반영하지 않습니다.</div>
+
+  <h2>2.5 기간 수익률·배당 계산</h2>
+  <div class="formula">
+    기간 수익률 = (기간 마지막 종가 − 기준 종가) ÷ 기준 종가 &nbsp;·&nbsp; 기준 종가 = 시작일 직전 거래일 종가 (없으면 기간 첫 종가)<br />
+    연간 배당수익률 = 연간 주당 배당금 합계 ÷ 연말 종가 (올해는 현재가 기준, ‘진행 중’)<br />
+    세전 추정액 = 주당 배당금 × 현재 보유 수량 (미국 종목의 원화 금액은 배당락일 환율 적용)
+  </div>
+  <p>기간 수익률에는 배당과 환율 변동을 포함하지 않습니다. 세전 추정액은 현재 보유 수량(모든 그룹 합계)을 모든 회차에 적용한 참고 금액이며, 실제 수령액은 배당금 관리(3.6)에 회원이 기록합니다.</p>
+
+  <h3>주당과세표준액 기준</h3>
+  <table>
+    <tr><th style="width:120px">구분</th><th>주당과세표준액</th><th style="width:150px">출처</th></tr>
+    <tr><td class="name">국내 주식</td><td>주당 배당금과 같음 (배당금 전액이 배당소득 과세 대상)</td><td>계산 (주당 배당금)</td></tr>
+    <tr><td class="name">미국 주식·ETF</td><td>주당 배당금과 같음</td><td>계산 (주당 배당금)</td></tr>
+    <tr><td class="name">국내 ETF</td><td>운용사가 회차별로 공시한 값. 분배금 중 비과세 이익을 뺀 금액이므로 분배금보다 작거나 0일 수 있음</td><td>운용사 공시 (FR-DATA-10)</td></tr>
+    <tr><td class="name">ETN</td><td>분배금이 없어 표시하지 않음</td><td>-</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>배당락일</th><th>실지급일</th><th class="num">주당 분배금</th><th class="num">주당과세표준액</th><th class="num">보유 수량</th><th class="num">세전 추정액</th></tr>
+    <tr><td>2026-10-29</td><td>2026-11-03</td><td class="num">325원</td><td class="num">115원</td><td class="num">100</td><td class="num">32,500원</td></tr>
+    <tr><td>2026-09-29</td><td>2026-10-02</td><td class="num">170원</td><td class="num">0원</td><td class="num">100</td><td class="num">17,000원</td></tr>
+  </table>
+  <p class="note">가상의 국내 ETF 예시입니다. 세전 추정액은 분배금 기준이며, 배당소득세는 주당과세표준액에 대해 부과됩니다.</p>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">2.6 연도별 보유 수량과 이월 규칙</h2>
+  <p>보유 종목은 <b>연도 × 그룹 × 종목</b>마다 주식 항목 하나로 기록합니다. 매수·매도를 구분해 입력하지 않고, 그 해 말 보유 수량과 매입금액을 바로 입력·수정합니다.</p>
+  <table>
+    <tr><th style="width:130px">상황</th><th>처리</th></tr>
+    <tr><td class="name">항목이 없는 연도</td><td>직전 연도 중 가장 최근 항목(수량·평균 매입단가·메모)을 그대로 이어받습니다. 화면에는 이월로 표시하고 원래 항목의 연도(예: ‘2025년 항목’)를 함께 표시합니다.</td></tr>
+    <tr><td class="name">그 해 항목의 이월 여부</td><td>등록·수정 때 회원이 이월 또는 신규를 고릅니다. 이월은 전년도부터 보유한 종목, 신규는 그 해에 산 종목입니다. 자산 현황의 1월 1일 기준 매입금액 계산에 씁니다(2.3).</td></tr>
+    <tr><td class="name">수량 변경</td><td>그 해 항목을 수정해 연말 수량·매입금액을 바꿉니다. 이후 연도에 항목이 없으면 바뀐 값이 이어집니다.</td></tr>
+    <tr><td class="name">삭제</td><td>그 해부터 보유하지 않는 것으로 처리합니다. 전년 말에 보유한 종목이면 수량 0 항목을 남기고, 그 해에 처음 등록한 종목이면 항목을 지웁니다. 배당 내역은 유지합니다.</td></tr>
+    <tr><td class="name">전년도 일괄이월</td><td>전년 말 보유 종목 중 회원이 고른 종목을 전년 말 수량·평균 매입단가·메모 그대로 그 해 이월 항목으로 등록합니다. 이미 그 해 항목이 있는 종목은 고를 수 없습니다.</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>그룹·종목</th><th>2024년</th><th>2025년</th><th>2026년</th><th>2026년 화면 표시</th></tr>
+    <tr><td>일반 · 종목 A</td><td>100주 등록</td><td>(항목 없음)</td><td>(항목 없음)</td><td>100주 · 이월 · ‘2024년 항목’</td></tr>
+    <tr><td>ISA · 종목 B</td><td>50주 등록</td><td>(항목 없음)</td><td>일괄이월로 등록 후 70주로 수정</td><td>70주 · 이월</td></tr>
+    <tr><td>연금 · 종목 C</td><td>30주 등록</td><td>삭제(수량 0)</td><td>(항목 없음)</td><td>표시 안 함</td></tr>
+  </table>
+  <p class="note">일괄이월로 등록한 항목은 전년도 값을 복사해 둔 것이므로, 나중에 전년도 수량을 고쳐도 자동으로 따라 바뀌지 않습니다. 항목이 없는 연도만 자동으로 따라 바뀝니다.</p>
+
+  <h2 class="newpage">2.7 올해 손익과 전체기간 손익 <span class="new">신규</span></h2>
+  <p>이월된 금액(1월 1일 평가액)과 원래 매입금액을 나눠, 그 해 성과와 처음 산 때부터의 성과를 따로 봅니다. 이월 기준금액은 입력받지 않고 전년 마지막 종가로 자동 계산합니다.</p>
+  <div class="formula">
+    올해 손익 = 원화 평가금액 − 1월 1일 기준 매입금액 + 그 해 실현손익 − 이월분 매도 조정<br />
+    &nbsp;&nbsp;· 이월분 매도 조정 = (1월 1일 가격 − 전년 말 평균 매입단가) × 이월분에서 판 수량 &nbsp;(전년도 손익에 이미 들어간 몫)<br />
+    전체기간 손익 = 원화 평가금액 − 원래 매입금액 + 누적 실현손익(그 해까지)<br />
+    올해 수익률 = 올해 손익 ÷ 1월 1일 기준 매입금액 &nbsp;·&nbsp; 전체 수익률 = 전체기간 손익 ÷ 원래 매입금액
+  </div>
+  <table>
+    <tr><th>연도</th><th>내용</th><th class="num">기준 금액</th><th class="num">평가금액</th><th class="num">실현손익</th><th class="num">조정</th><th class="num">손익</th></tr>
+    <tr><td>2024~2025</td><td>2024년 100주 × 50,000원 매수, 2025년 말 종가 60,000원</td><td class="num">5,000,000원</td><td class="num">6,000,000원</td><td class="num">-</td><td class="num">-</td><td class="num">+1,000,000원</td></tr>
+    <tr><td>2026 올해</td><td>30주를 65,000원에 매도(실현손익 +450,000원), 70주 보유, 현재가 72,000원</td><td class="num">4,200,000원</td><td class="num">5,040,000원</td><td class="num">+450,000원</td><td class="num">−300,000원</td><td class="num">+990,000원</td></tr>
+    <tr class="total"><td>전체기간</td><td>원래 매입금액 = 70주 × 50,000원</td><td class="num">3,500,000원</td><td class="num">5,040,000원</td><td class="num">+450,000원</td><td class="num">-</td><td class="num">+1,990,000원</td></tr>
+  </table>
+  <p class="note">가상의 국내 종목 예시입니다. 연도별 올해 손익의 합(1,000,000 + 990,000)은 전체기간 손익(1,990,000)과 같습니다. 조정 −300,000원 = (60,000 − 50,000) × 30주로, 2025년 손익에 이미 들어간 상승분입니다.</p>
+  <ul>
+    <li><b>실현손익 입력:</b> 매도가 있는 해의 주식 항목에 선택 입력합니다. 전량 매도는 종목 삭제 때 입력합니다. 입력하지 않으면 판 수량의 손익이 빠집니다.</li>
+    <li><b>판 수량:</b> 수량이 줄어든 만큼을 전년 말 이월분에서 판 것으로 봅니다(그 해에 사서 그 해에 판 거래는 구분하지 않음). 이월 여부가 ‘신규’면 조정하지 않습니다.</li>
+    <li><b>전량 매도 종목:</b> 그 해 자산 현황에 ‘전량 매도’ 행으로 올해 손익과 전체기간 손익(누적 실현손익)을 보여 주고 합계에 포함합니다. 그 전 해에 전량 매도한 종목은 포함하지 않습니다.</li>
+    <li>미국 종목의 실현손익은 달러로 입력하고, 그 해 보기의 환율(올해는 현재 환율, 지난 연도는 연말 환율)로 원화 환산합니다.</li>
+  </ul>
+</section>
+
+<!-- 3. 기능 요구사항 -->
+<section class="page" id="ch3">
+  <h1>3. 기능 요구사항</h1>
+  <h2>3.1 회원·인증</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-AUTH-01</td><td class="name">회원가입</td><td>이메일과 비밀번호로 가입하며, 이메일 인증을 거쳐 계정을 활성화한다.</td></tr>
+    <tr><td class="id">FR-AUTH-02</td><td class="name">로그인·로그아웃</td><td>이메일과 비밀번호로 로그인하고 로그아웃할 수 있다.</td></tr>
+    <tr><td class="id">FR-AUTH-03</td><td class="name">비밀번호 재설정·변경</td><td>가입 이메일로 비밀번호를 재설정하고, 로그인 후 비밀번호를 변경할 수 있다.</td></tr>
+    <tr><td class="id">FR-AUTH-04</td><td class="name">회원 탈퇴</td><td>회원이 탈퇴하면 계정, 보유 그룹, 주식 항목, 종목 분류, 배당 내역, 사용자 설정을 삭제한다.</td></tr>
+    <tr><td class="id">FR-AUTH-05</td><td class="name">회원별 데이터 분리</td><td>회원은 본인의 보유 그룹·주식 항목·배당 내역만 조회·수정할 수 있다.</td></tr>
+  </table>
+
+  <h2>3.2 종목 정보 조회</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-STK-01</td><td class="name">종목코드 조회</td><td>주식·ETF·ETN의 종목코드를 입력하면 종목명, 시장, 구분, 통화, 현재가를 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-02</td><td class="name">시장 자동 판별</td><td>코드 형식으로 국내 종목(예: 005930, ETF 069500·0080G0)과 미국 종목(예: AAPL, ETF SPY)을 판별한다.</td></tr>
+    <tr><td class="id">FR-STK-03</td><td class="name">현재가 표시</td><td>현재가, 전일 대비 금액, 등락률, 시세 기준 시각을 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-04</td><td class="name">날짜별 종가 조회</td><td>1개월, 3개월, 1년, 5년 또는 직접 지정한 기간의 날짜별 종가를 표로 표시한다. 마지막으로 고른 기간을 기억해 다음 조회에 사용한다(FR-COM-01).</td></tr>
+    <tr><td class="id">FR-STK-05</td><td class="name">조회 실패 처리</td><td>없는 코드는 오류 메시지로, 시세를 가져오지 못한 경우는 원인 안내와 재시도 버튼으로 구분해 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-06</td><td class="name">구분 표시</td><td>ETF·ETN은 종목 조회, 자산 현황, 보유 종목 화면과 엑셀 파일에 일반 주식과 구분해 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-07</td><td class="name">기간 수익률</td><td>시작일 직전 거래일 종가 대비 기간 마지막 종가의 수익률을 2.5 기준으로 표시한다(직전 종가가 없으면 기간 첫 종가 기준). 배당과 환율 변동은 포함하지 않는다.</td></tr>
+    <tr><td class="id">FR-STK-08</td><td class="name">배당금 지급내역</td><td>종목 정보의 버튼으로 팝업을 열면 최근 10년 배당 내역을 자동으로 불러와 표시한다.<br />· 연도별: 횟수, 주당 배당 합계, 주당과세표준액 합계, 기준 종가, 배당수익률<br />· 배당락일별: 배당락일, 실지급일(제공되는 경우), 주당 배당금, 주당과세표준액<br />· 보유 중이면 세전 추정액도 표시하고, 미국 종목은 원화 환산액을 함께 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-09</td><td class="name">주당과세표준액 표시</td><td>2.5 기준에 따라 회차별 주당과세표준액을 표시한다. 값을 확인할 수 없는 회차는 ‘-’로 표시하고, 그 이유(출처 미연동, 제공 범위 밖, 갱신 실패 등)와 출처, 값이 있는 회차 수를 팝업에 안내한다. 연도 합계는 한 회차라도 값이 없으면 ‘-’로 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-10</td><td class="name">보유 종목 바로가기</td><td>종목 조회 화면에 회원이 올해 보유한 모든 종목을 ‘종목명(종목코드)’ 링크로 나열하고, 누르면 바로 조회한다. 여러 그룹에 있는 종목은 한 번만 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-11</td><td class="name">보유 종목 등록 연결</td><td>조회한 종목을 올해 보유 종목으로 등록하는 화면으로 바로 이동할 수 있다(종목코드 자동 입력).</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.3 보유 종목 관리</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-HLD-01</td><td class="name">종목 등록</td><td>관리 연도와 그룹을 고르고 종목코드, 분류, 이월 여부, 보유 수량(그 해 말), 매입금액, 메모를 입력해 등록한다. 평균 매입단가는 매입금액 ÷ 보유 수량으로 자동 계산해 보여 주며 직접 입력하지 않는다. 종목코드를 입력하면 종목명과 거래 통화를 바로 확인해 보여 준다.</td></tr>
+    <tr><td class="id">FR-HLD-02</td><td class="name">종목 수정·삭제</td><td>매수·매도 구분 없이 목록의 수정에서 그 해 보유 수량·매입금액·이월 여부·분류·메모를 바로 바꾼다(그룹·종목코드는 바꾸지 않음). 삭제하면 2.6 규칙에 따라 그 해부터 보유하지 않는 것으로 처리하며, 삭제 전에 확인을 받는다.</td></tr>
+    <tr><td class="id">FR-HLD-03</td><td class="name">중복 등록 방지</td><td>같은 연도·그룹에 이미 보유 중(그 해 등록 또는 이월)인 종목을 다시 등록하면 저장하지 않고 목록에서 수정하도록 안내한다. 다른 그룹에는 같은 종목을 등록할 수 있다.</td></tr>
+    <tr><td class="id">FR-HLD-04</td><td class="name">입력값 검증</td><td>4.2의 입력 규칙을 벗어난 값은 저장하지 않고 항목별로 오류를 표시한다.</td></tr>
+    <tr><td class="id">FR-HLD-05</td><td class="name">전년도 일괄이월</td><td>등록 버튼 옆의 ‘전년도 일괄이월’ 버튼을 누르면 전년 말 보유 종목(선택한 그룹, 전체면 모든 그룹)을 팝업에 표시한다.<br />· 표시: 종목, 수량, 평균 매입단가, 매입금액, 메모, 올해 상태(자동 이어짐·이미 등록됨·올해 삭제됨)<br />· 체크박스와 전체 선택으로 고르며, 이미 등록된 종목은 고를 수 없다. 선택 개수를 표시한다.<br />· 선택한 종목만 2.6 규칙에 따라 그 해 이월 종목으로 한 번에 등록하고 결과(등록·건너뜀 수)를 알린다.</td></tr>
+    <tr><td class="id">FR-HLD-06</td><td class="name">보유 그룹 관리</td><td>그룹을 추가·이름 변경·삭제할 수 있다. 처음에는 ‘일반’ 그룹을 만든다. 주식 항목이 있는 그룹은 삭제할 수 없고, 그룹은 하나 이상 있어야 한다. 화면 위의 그룹 탭(전체·그룹별)으로 목록을 거른다.</td></tr>
+    <tr><td class="id">FR-HLD-07</td><td class="name">종목 분류</td><td>종목 등록 시 국내·해외·해외추종 중 하나를 반드시 고른다. 분류는 회원·종목별로 하나이며(그룹이 달라도 같음), 종목 정보로 추천값을 미리 골라 둔다(미국 종목은 해외, 해외 지수를 따라가는 국내 ETF는 해외추종, 그 밖에는 국내).</td></tr>
+    <tr><td class="id">FR-HLD-08</td><td class="name">주식 항목 목록 <span class="chg">변경</span></td><td>선택한 연도·그룹의 주식 항목을 표로 보여 준다. 열: 종목(종목명, 코드, 분류, 주식·ETF 구분), 이월, 수량, 평균 매입단가, 원래 매입금액(수량 × 평균 매입단가, 거래 통화), 1월 1일 기준 매입금액(누르면 이월 수량 × 전년 종가 근거), 실현손익(누적이 다르면 함께 표시), 메모, 입력일, 수정·삭제. 전체 탭에서는 그룹별로 나눠 표시한다. 이전 연도에서 이어진 항목은 이월로 표시하고 원래 항목의 연도를 함께 표시한다.</td></tr>
+    <tr><td class="id">FR-HLD-09</td><td class="name">관리 연도 선택</td><td>최근 10년(입력한 가장 이른 연도가 더 이르면 그 연도)부터 올해까지 관리 연도를 고른다. 미래 연도는 고를 수 없다.</td></tr>
+    <tr><td class="id">FR-HLD-10</td><td class="name">실현손익 입력 <span class="new">신규</span></td><td>종목 등록·수정 때 그 해 실현손익(매도금액 − 원래 매입금액, 거래 통화, 손실은 −)을 선택 입력한다. 종목을 삭제(전량 매도)할 때도 팝업에서 실현손익을 선택 입력할 수 있으며, 입력하면 수량 0 항목에 남겨 2.7 손익에 반영한다.</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.4 자산 현황</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-AST-01</td><td class="name">종목별 평가금액</td><td>보유 종목별로 표시한다. 열: 종목(종목명, 코드, 시장, 분류, 주식·ETF 구분), 보유 수량, 평균 매입단가, 매입금액(원화), 현재가, 전일 대비, 원화 평가금액, 원화 평가손익, 수익률. 미국 종목의 달러 금액은 원화 금액을 누르면 툴팁(달러 금액 × 환율)으로 보여 준다. 종목 열은 왼쪽, 숫자 열은 오른쪽으로 정렬한다.</td></tr>
+    <tr><td class="id">FR-AST-02</td><td class="name">총자산 표시</td><td>전체 보유 종목의 평가금액을 원화로 합산해 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-03</td><td class="name">올해 손익·수익률 <span class="chg">변경</span></td><td>2.7 기준에 따라 선택 연도 1월 1일 기준 매입금액 대비 올해 손익(그 해 실현손익 포함)과 올해 수익률을 종목별·그룹별·분류별·전체로 표시한다. 금액을 누르면 평가손익·실현손익·이월분 매도 조정 내역을 툴팁으로 보여 준다. 평균 매입단가를 누르면 실제 평균 매입단가와 계산 근거(이월 수량의 기준 종가 등)를 툴팁으로 보여 준다.</td></tr>
+    <tr><td class="id">FR-AST-04</td><td class="name">기준 정보 표시</td><td>적용한 환율과 시세·환율 기준 시각, 계산 기준을 함께 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-05</td><td class="name">기준 연도 선택</td><td>기준 연도를 고를 수 있다. 올해는 현재가·현재 환율, 지난 연도는 연말 종가·연말 환율과 그 해 말 보유 수량으로 계산하고 기준을 화면에 안내한다.</td></tr>
+    <tr><td class="id">FR-AST-06</td><td class="name">그룹별 보기·통합</td><td>그룹 탭(전체·그룹별)으로 볼 그룹을 고른다. 전체에서는 그룹별로 나누고 그룹마다 소계 행을 표시한다. 전체에서 ‘통합’을 체크하면 그룹 구분 없이 같은 종목의 수량·매입금액을 합쳐 한 줄로 표시하고 합산한 그룹을 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-07</td><td class="name">그룹별·분류별 합계 <span class="chg">변경</span></td><td>그룹별 합계와 분류별(국내·해외·해외추종) 합계 표를 보여 준다. 열: 종목 수, 원화 평가금액, 비중, 올해 손익, 올해 수익률, 전체 손익, 전체 수익률, 오늘 손익, 오늘 손익률. 각 표 아래에 소계 행을 둔다.</td></tr>
+    <tr><td class="id">FR-AST-08</td><td class="name">전일 대비(오늘 손익)</td><td>올해를 볼 때 종목별 전일 대비를 1주당 변동이 아닌 보유 수량 전체의 원화 증감 금액과 등락률로 표시한다. 금액을 누르면 1주당 변동(미국 종목은 달러 금액과 환율)을 툴팁으로 보여 준다. 그룹 소계와 합계 행에는 오늘 손익 합계와 오늘 손익률을 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-09</td><td class="name">종목 조회 팝업</td><td>종목명을 누르면 화면을 벗어나지 않고 종목 조회(SC-03) 내용을 팝업으로 보여 준다. 팝업 안에서 배당금 지급내역 팝업을 겹쳐 열 수 있다.</td></tr>
+    <tr><td class="id">FR-AST-10</td><td class="name">영역 접기·펴기</td><td>요약, 그룹별 합계, 분류별 합계, 종목별 평가금액 영역마다 오른쪽의 −/+ 버튼으로 접고 펼 수 있으며, 접은 상태를 기억한다.</td></tr>
+    <tr><td class="id">FR-AST-11</td><td class="name">전체기간 손익 <span class="new">신규</span></td><td>2.7 기준에 따라 원래 매입금액 대비 전체기간 손익(누적 실현손익 포함)과 전체 수익률을 요약·합계 표·종목별 표에 올해 손익과 나란히 표시한다. 금액을 누르면 원래 매입금액·평균 단가·누적 실현손익을 툴팁으로 보여 준다.</td></tr>
+    <tr><td class="id">FR-AST-12</td><td class="name">전량 매도 종목 <span class="new">신규</span></td><td>선택 연도에 전량 매도한 종목은 종목별 표에 ‘전량 매도’ 행(보유 수량 0)으로 올해 손익·전체기간 손익만 표시하고, 그룹·분류·전체 합계에 포함한다. 실현손익을 입력하지 않았으면 툴팁으로 알린다.</td></tr>
+  </table>
+
+  <h2 class="newpage">3.5 연도별 조회</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-YR-01</td><td class="name">연도별 자산금액</td><td>2.4 기준에 따라 연도별 자산금액을 그 해 말 보유 수량(모든 그룹 합계)으로 계산해 원화로 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-02</td><td class="name">연도 간 비교</td><td>연도별 전년 대비 증감액과 증감률을 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-03</td><td class="name">종목별 내역</td><td>연도별로 종목별 그 해 말 보유 수량, 연말 종가, 적용 환율, 원화 금액을 펼쳐 볼 수 있다.</td></tr>
+    <tr><td class="id">FR-YR-04</td><td class="name">조회 기간 선택</td><td>기본값은 최근 5년이며, 시작·종료 연도를 최대 10년 범위에서 선택할 수 있다. 마지막으로 고른 범위를 기억한다.</td></tr>
+    <tr><td class="id">FR-YR-05</td><td class="name">진행 중인 연도</td><td>올해는 최신 시세와 환율로 계산하고 ‘진행 중’으로 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-06</td><td class="name">상장 전 연도 처리</td><td>해당 연도 말에 상장 전인 종목은 ‘-’로 표시해 합계에서 제외하고, 해당 연도에 제외 종목이 있음을 안내한다.</td></tr>
+    <tr><td class="id">FR-YR-07</td><td class="name">계산 기준 안내</td><td>화면에 ‘연도별로 입력한 연말 보유 수량 기준 금액이며, 연도 중 매매 시점의 가격 변동은 반영하지 않음’을 항상 표시한다.</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.6 배당금 관리</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-DIV-01</td><td class="name">배당 내역 등록</td><td>종목, 지급일, 실제 수령 금액, 통화를 직접 입력해 등록·수정·삭제할 수 있다.</td></tr>
+    <tr><td class="id">FR-DIV-02</td><td class="name">배당 내역 조회</td><td>기간과 종목으로 배당 내역을 검색할 수 있다. 마지막 검색 조건을 기억한다.</td></tr>
+    <tr><td class="id">FR-DIV-03</td><td class="name">연도별 배당 합계</td><td>연도별 수령액을 지급일 환율로 환산해 원화로 합산한다.</td></tr>
+    <tr><td class="id">FR-DIV-04</td><td class="name">연도별 조회 연계</td><td>연도별 조회 화면에 실제 수령 배당액을 자산금액과 구분해 표시한다. 자산금액에는 합산하지 않는다.</td></tr>
+    <tr><td class="id">FR-DIV-05</td><td class="name">삭제 종목의 내역 유지</td><td>보유 종목을 삭제해도 해당 종목의 배당 내역은 유지한다.</td></tr>
+  </table>
+
+  <h2>3.7 차트 시각화</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-CHT-01</td><td class="name">종가 추이 차트</td><td>종목 조회 화면에서 선택한 기간의 종가를 선 차트로 표시한다.</td></tr>
+    <tr><td class="id">FR-CHT-02</td><td class="name">연도별 자산 차트</td><td>연도별 자산금액을 막대 차트로 비교한다.</td></tr>
+    <tr><td class="id">FR-CHT-03</td><td class="name">연도별 배당 차트</td><td>연도별 배당 합계를 막대 차트로 표시한다.</td></tr>
+  </table>
+
+  <h2>3.8 엑셀 내보내기</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-XLS-01</td><td class="name">자산 현황 내보내기 <span class="chg">변경</span></td><td>자산 현황을 화면에서 고른 연도·그룹·통합 조건 그대로 엑셀 파일로 저장한다. 종목별 행에 그룹, 분류, 1월 1일 기준 매입금액, 실제 평균 매입단가, 원래 매입금액, 올해 손익·수익률, 전체 손익·수익률, 올해 실현손익을 포함하고, 전량 매도 종목 행과 그룹별·분류별 합계 표(올해는 오늘 손익 포함)를 함께 넣는다.</td></tr>
+    <tr><td class="id">FR-XLS-02</td><td class="name">연도별 조회 내보내기</td><td>연도별 조회 결과와 종목별 내역(그 해 말 보유 수량 포함)을 엑셀 파일로 저장할 수 있다.</td></tr>
+    <tr><td class="id">FR-XLS-03</td><td class="name">기준 정보 포함</td><td>파일에 내보낸 일시, 시세·환율 기준 시각, 매입 기준과 계산 기준을 포함한다.</td></tr>
+  </table>
+
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.9 시세·환율 데이터 수집</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-DATA-01</td><td class="name">일별 종가 수집</td><td>시스템에 저장된 종목의 종가를 각 시장의 장 마감 후 자동으로 저장한다.</td></tr>
+    <tr><td class="id">FR-DATA-02</td><td class="name">과거 종가 적재</td><td>어느 회원이든 처음 조회하거나 등록한 종목은 최근 10년(상장 후 10년 미만이면 상장일부터)의 종가를 적재한다.</td></tr>
+    <tr><td class="id">FR-DATA-03</td><td class="name">수정 종가 사용</td><td>수정 종가를 저장하고, 액면분할·병합이 발생하면 해당 종목의 과거 종가를 다시 수집한다. 회원의 보유 수량은 자동으로 변경하지 않고 자산 현황에서 수량 수정을 안내한다.</td></tr>
+    <tr><td class="id">FR-DATA-04</td><td class="name">환율 수집</td><td>원/달러 환율을 일별로 저장한다. 날짜의 환율이 없으면(주말·공휴일) 직전 영업일 환율을 적용한다.</td></tr>
+    <tr><td class="id">FR-DATA-05</td><td class="name">현재가 캐시</td><td>현재가는 조회 시 가져오되, 같은 종목은 5분 동안 저장값을 재사용해 외부 호출을 줄인다.</td></tr>
+    <tr><td class="id">FR-DATA-06</td><td class="name">수집 실패 처리</td><td>외부 출처 실패 시 마지막 저장값과 그 기준 시각을 표시하고, 최신 시세가 아님을 안내한다.</td></tr>
+    <tr><td class="id">FR-DATA-07</td><td class="name">출처 교체 가능 구조</td><td>데이터 출처 연동부를 분리해, 출처 변경이나 장애 시 다른 기능을 고치지 않고 교체할 수 있어야 한다. 국내 ETF 과세표준 출처는 운용사별로 분리한다.</td></tr>
+    <tr><td class="id">FR-DATA-08</td><td class="name">종가 예비 출처</td><td>주 출처에서 과거 종가를 거의 받지 못하는 종목(일부 ETN 등)은 예비 출처의 종가로 대체하고, 사용한 출처를 기록한다. 국내 종목명은 예비 출처의 한글 이름을 우선 사용한다.</td></tr>
+    <tr><td class="id">FR-DATA-09</td><td class="name">배당 지급내역 저장</td><td>종목별 배당 지급내역(배당락일, 주당 배당금, 주당과세표준액, 실지급일)을 공통 데이터로 저장해 1일 동안 재사용한다. 갱신에 실패하면 마지막 저장값을 표시하고 최신 값이 아님을 안내한다. 과세표준 출처만 실패한 경우에도 배당 내역은 갱신하고, 이전에 저장한 과세표준은 지우지 않는다.</td></tr>
+    <tr><td class="id">FR-DATA-10</td><td class="name">국내 ETF 과세표준 수집</td><td>국내 ETF의 주당과세표준액·실지급일은 운용사 공시에서 가져와 회차별로 배당 지급내역에 합친다.<br />· 출처가 지급기준일만 주면, 지급기준일 전 7일 안의 가장 가까운 배당락일 회차와 대응한다.<br />· 대응하는 회차가 주 출처에 없으면 운용사 공시의 회차를 추가하고, 배당락일은 지급기준일 직전 거래일로 한다.<br />· 운용사 출처에 접속하지 못하면 사유를 기록해 화면에 안내한다.</td></tr>
+  </table>
+  <p class="note">날짜는 각 거래소의 현지 거래일 기준으로 저장합니다. 5분, 10년, 1일, 7일은 제안값이며 7장에서 확정합니다.</p>
+
+  <h2>3.10 화면 공통 기능</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-COM-01</td><td class="name">조회 조건 기억</td><td>회원이 마지막으로 고른 조회 조건을 서버에 저장해 다음 접속(다른 기기 포함) 때도 사용한다: 종목 조회 기간, 연도별 조회 범위, 배당 검색 조건, 자산 현황의 연도·그룹·통합·접힘 상태, 보유 종목 관리의 연도·그룹.</td></tr>
+    <tr><td class="id">FR-COM-02</td><td class="name">팝업</td><td>팝업은 겹쳐 열 수 있고, 닫기 버튼·바깥 영역·Esc 키로 맨 위 팝업부터 닫는다. 팝업 안의 화면 이동 링크를 누르면 모든 팝업을 닫고 이동한다.</td></tr>
+    <tr><td class="id">FR-COM-03</td><td class="name">툴팁</td><td>점선 밑줄이 있는 값을 누르면 보충 정보를 말풍선으로 보여 주고, 다시 누르거나 다른 곳을 누르면 닫는다.</td></tr>
+  </table>
+</section>
+
+<!-- 4. 데이터 항목 -->
+<section class="page" id="ch4">
+  <h1>4. 데이터 항목</h1>
+  <h2>4.1 주요 데이터</h2>
+  <table>
+    <tr><th style="width:110px">데이터</th><th style="width:60px">구분</th><th>주요 항목</th></tr>
+    <tr><td class="name">회원</td><td>회원별</td><td>이메일, 비밀번호(해시), 이메일 인증 여부, 가입일</td></tr>
+    <tr><td class="name">보유 그룹</td><td>회원별</td><td>회원, 그룹 이름, 표시 순서, 생성일</td></tr>
+    <tr><td class="name">주식 항목 <span class="chg">변경</span></td><td>회원별</td><td>회원, 그룹, 종목코드, 연도, 그 해 말 보유 수량(0이면 그 해부터 미보유), 평균 매입단가, 이월 여부(이월·신규), 그 해 실현손익(선택), 메모, 입력일, 수정일. 회원·그룹·종목·연도마다 하나 (v0.4의 ‘보유 종목’을 대체)</td></tr>
+    <tr><td class="name">종목 분류</td><td>회원별</td><td>회원, 종목코드, 분류(국내·해외·해외추종)</td></tr>
+    <tr><td class="name">사용자 설정</td><td>회원별</td><td>회원, 설정 키, 값, 수정일 (FR-COM-01의 조회 조건)</td></tr>
+    <tr><td class="name">배당 내역</td><td>회원별</td><td>회원, 종목코드, 지급일, 수령 금액, 통화, 메모</td></tr>
+    <tr><td class="name">종목</td><td>공통</td><td>종목코드, 종목명, 시장, 구분(주식·ETF·ETN), 통화, 상장일, 배당 수집 일시·출처, 과세표준 갱신 실패 사유</td></tr>
+    <tr><td class="name">일별 종가</td><td>공통</td><td>종목코드, 거래일, 수정 종가, 수집 출처, 수집 일시</td></tr>
+    <tr><td class="name">액면분할·병합</td><td>공통</td><td>종목코드, 발생일, 비율</td></tr>
+    <tr><td class="name">배당 지급내역</td><td>공통</td><td>종목코드, 배당락일, 주당 배당금, 주당과세표준액, 실지급일, 배당 수집 출처, 과세표준 수집 출처, 수집 일시</td></tr>
+    <tr><td class="name">환율</td><td>공통</td><td>기준일, 통화(USD/KRW), 환율, 수집 출처</td></tr>
+  </table>
+
+  <h2>4.2 입력 규칙 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:110px">항목</th><th style="width:48px">필수</th><th>규칙</th></tr>
+    <tr><td class="name">종목코드</td><td>필수</td><td>국내는 6자리 단축코드(주식·ETF·ETN 공통, 0080G0 같은 영문 포함 코드 허용), 미국은 영문 티커. 영문은 대소문자를 구분하지 않음. 시스템에서 확인되지 않는 코드는 저장하지 않음</td></tr>
+    <tr><td class="name">그룹</td><td>필수</td><td>회원의 그룹 중 하나. 그룹 이름은 20자 이내, 같은 회원 안에서 중복 불가</td></tr>
+    <tr><td class="name">관리 연도</td><td>필수</td><td>올해 또는 과거 연도(최근 10년 기본)</td></tr>
+    <tr><td class="name">분류</td><td>필수</td><td>국내·해외·해외추종 중 하나</td></tr>
+    <tr><td class="name">이월 여부</td><td>필수</td><td>이월 또는 신규. 기본값은 신규(일괄이월은 이월)</td></tr>
+    <tr><td class="name">보유 수량</td><td>필수</td><td>그 해 말 보유 수량. 0보다 큰 숫자, 소수 6자리까지 허용</td></tr>
+    <tr><td class="name">매입금액</td><td>필수</td><td>0보다 큰 숫자. 보유 수량 전체의 총 매입금액, 해당 종목의 거래 통화 기준(국내 원, 미국 달러)</td></tr>
+    <tr><td class="name">평균 매입단가</td><td>자동</td><td>매입금액 ÷ 보유 수량으로 자동 계산(직접 입력하지 않음)</td></tr>
+    <tr><td class="name">실현손익 <span class="new">신규</span></td><td>선택</td><td>그 해 매도한 수량의 매도금액 − 원래 매입금액. 거래 통화 기준, 손실은 − 부호, 0 허용, 소수 둘째 자리까지</td></tr>
+    <tr><td class="name">종목 메모</td><td>선택</td><td>200자 이내</td></tr>
+    <tr><td class="name">배당 지급일</td><td>필수</td><td>오늘 또는 과거 날짜</td></tr>
+    <tr><td class="name">배당 수령 금액</td><td>필수</td><td>0보다 큰 숫자. 세금을 뺀 실제 수령액</td></tr>
+    <tr><td class="name">배당 메모</td><td>선택</td><td>200자 이내</td></tr>
+  </table>
+
+  <h2>4.3 표시 형식</h2>
+  <ul>
+    <li>원화는 원 단위 정수, 달러는 소수 둘째 자리까지 표시합니다. 비율은 소수 첫째 자리까지 표시하고 0은 ‘0.0%’로 표시합니다(‘-0.0%’ 없음).</li>
+    <li>금액은 내부적으로 반올림하지 않고 계산하며, 화면에 표시할 때만 반올림합니다.</li>
+    <li>상승·이익은 빨간색, 하락·손실은 파란색으로 표시하고 부호(+/−)를 붙입니다.</li>
+    <li>표 제목은 가운데 정렬합니다. 자산 현황의 종목별 평가금액과 보유 종목 관리의 주식 항목 표는 종목 열을 왼쪽, 수량·금액 열을 오른쪽으로 정렬합니다. 합계·소계 행은 일반 행과 같은 높이로 하고 배경색으로 구분합니다.</li>
+    <li>확인할 수 없는 값(상장 전 연도의 종가, 출처가 없는 주당과세표준액·실지급일 등)은 ‘-’로 표시합니다.</li>
+  </ul>
+</section>
+
+<!-- 5. 비기능 요구사항 / 6. 화면 목록 -->
+<section class="page" id="ch5">
+  <h1>5. 비기능 요구사항</h1>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:76px">구분</th><th>요구사항</th></tr>
+    <tr><td class="id">NFR-SEC-01</td><td class="name">보안</td><td>비밀번호는 단방향 해시로 저장하고, 모든 통신은 HTTPS로 암호화한다.</td></tr>
+    <tr><td class="id">NFR-SEC-02</td><td class="name">접근 제어</td><td>서버에서 요청마다 데이터 소유자를 확인해 다른 회원의 데이터(그룹·주식 항목·설정 포함) 접근을 차단한다.</td></tr>
+    <tr><td class="id">NFR-PRI-01</td><td class="name">개인정보</td><td>필요한 최소 정보만 수집하고, 개인정보 처리방침을 제공하며, 탈퇴 시 회원 데이터를 파기한다.</td></tr>
+    <tr><td class="id">NFR-PER-01</td><td class="name">성능</td><td>보유 종목 50개 기준으로 자산 현황과 연도별 조회 화면을 3초 이내에 표시한다.</td></tr>
+    <tr><td class="id">NFR-REL-01</td><td class="name">안정성</td><td>외부 출처 장애가 나도 저장된 데이터로 조회 화면을 계속 제공한다.</td></tr>
+    <tr><td class="id">NFR-UX-01</td><td class="name">사용 환경</td><td>최신 Chrome, Edge, Safari를 지원하며 PC와 모바일 화면 크기에 맞게 표시한다. 휴대폰 너비에서 넓은 표와 팝업 안의 표는 가로로 밀어서 보며, 화면 전체가 가로로 넘치지 않아야 한다.</td></tr>
+    <tr><td class="id">NFR-UX-02</td><td class="name">안드로이드 앱</td><td>Android 6.0 이상에 설치하는 앱으로 웹과 같은 기능을 제공한다. 엑셀 파일은 기기의 다운로드 폴더에 저장한다. 앱 업데이트는 같은 서명 키로 배포해 기존 데이터를 유지한 채 설치되어야 한다.</td></tr>
+    <tr><td class="id">NFR-MIG-01</td><td class="name">데이터 이전</td><td>데이터 구조가 바뀌어도(예: 보유 종목 → 연도별 주식 항목) 기존 회원 데이터를 자동으로 옮겨, 옮기기 전후의 자산 금액이 같아야 한다.</td></tr>
+    <tr><td class="id">NFR-EXT-01</td><td class="name">외부 출처 이용</td><td>외부 출처는 이용약관을 지키고, 1일 재사용 등으로 호출을 줄이며 짧은 시간에 몰아서 요청하지 않는다. 출처가 자동 접근을 차단하면 우회하지 않고 다른 출처나 데이터 제공 계약으로 해결한다.</td></tr>
+    <tr><td class="id">NFR-LGL-01</td><td class="name">고지</td><td>시세는 지연되거나 부정확할 수 있으며, 정보는 투자 권유가 아닌 참고용임을 안내한다. 주당과세표준액도 참고용이며 실제 세액은 계좌 유형에 따라 다를 수 있음을 안내한다.</td></tr>
+  </table>
+  <p class="note">3초, 50개는 제안값입니다.</p>
+
+  <h1 id="ch6" class="newpage">6. 화면 목록</h1>
+  <table>
+    <tr><th style="width:44px">ID</th><th style="width:100px">화면</th><th>주요 내용</th><th style="width:112px">관련 요구사항</th></tr>
+    <tr><td class="id">SC-01</td><td class="name">로그인·회원가입</td><td>로그인, 가입, 이메일 인증, 비밀번호 재설정</td><td>FR-AUTH</td></tr>
+    <tr><td class="id">SC-02</td><td class="name">자산 현황 <span class="chg">변경</span></td><td>기준 연도·그룹 탭·통합, 총자산, 그룹별·분류별 합계(올해·전체 손익, 오늘 손익), 종목별 평가금액(1월 1일 기준 매입금액, 전일 대비, 올해 손익·전체기간 손익, 전량 매도 행, 그룹 소계), 종목 조회 팝업, 영역 접기·펴기, 엑셀 내보내기. 로그인 후 첫 화면</td><td>FR-AST, FR-XLS-01, FR-COM</td></tr>
+    <tr><td class="id">SC-03</td><td class="name">종목 조회</td><td>코드 입력, 보유 종목 바로가기, 종목명·구분·현재가, 날짜별 종가 표·차트·기간 수익률, 배당금 지급내역 팝업, 보유 종목 등록으로 이동</td><td>FR-STK, FR-CHT-01, FR-DATA-09·10</td></tr>
+    <tr><td class="id">SC-04</td><td class="name">보유 종목 관리 <span class="chg">변경</span></td><td>관리 연도, 그룹 탭·그룹 관리, 종목 등록·수정(분류·이월 여부·수량·매입금액, 평균 매입단가 자동 계산), 전년도 일괄이월 팝업, 실현손익 입력, 주식 항목 목록·삭제(전량 매도 실현손익 입력)</td><td>FR-HLD, FR-COM</td></tr>
+    <tr><td class="id">SC-05</td><td class="name">연도별 조회</td><td>연도별 자산금액·전년 대비, 종목별 내역, 차트, 실제 배당액, 엑셀 내보내기</td><td>FR-YR, FR-CHT-02, FR-DIV-04, FR-XLS-02</td></tr>
+    <tr><td class="id">SC-06</td><td class="name">배당금 관리</td><td>배당 내역 등록·수정·삭제·검색, 연도별 합계·차트</td><td>FR-DIV, FR-CHT-03</td></tr>
+    <tr><td class="id">SC-07</td><td class="name">내 정보</td><td>비밀번호 변경, 회원 탈퇴</td><td>FR-AUTH</td></tr>
+  </table>
+  <p class="note">모든 화면은 PC 웹 브라우저와 안드로이드 앱(NFR-UX-02)에서 같은 구성으로 제공합니다.</p>
+</section>
+
+<!-- 7. 미결 사항 -->
+<section class="page" id="ch7">
+  <h1>7. 미결 사항</h1>
+  <p class="note" style="margin-top:-6px">기능 요구사항은 이 문서로 확정합니다. 아래 항목은 운영 조건에 따라 개발 착수 전에 정해야 하는 사항입니다.</p>
+  <h2>7.1 확정이 필요한 항목</h2>
+  <table>
+    <tr><th style="width:118px">항목</th><th>내용</th></tr>
+    <tr><td class="name">시세 데이터 출처</td><td>다중 사용자 서비스는 개인 조회와 달리 데이터 사용·재제공 조건을 지켜야 합니다. 프로토타입은 비공식 경로(야후 파이낸스, 네이버 증권, FunETF, 운용사 홈페이지)를 사용했으며 이용약관은 확인하지 않았습니다. 개발 전에 7.2의 후보별 이용약관을 확인해 주 출처와 예비 출처를 정해야 합니다.</td></tr>
+    <tr><td class="name">서비스 공개 범위</td><td>지인 대상 비공개 운영인지, 불특정 다수 공개인지에 따라 데이터 출처의 조건, 개인정보 처리 절차, 서버 규모가 달라집니다.</td></tr>
+    <tr><td class="name">운영자 기능</td><td>회원 관리와 수집 상태 모니터링 화면의 필요 여부를 정해야 합니다. 이 문서에는 포함하지 않았습니다.</td></tr>
+    <tr><td class="name">ETN 과거 종가 범위</td><td>예비 출처로 대체하는 ETN은 출처에 따라 최근 약 1년치만 받을 수 있어, 그 이전 연도는 연도별 조회에서 제외됩니다. 출처 확정 시 제공 범위를 확인해야 합니다.</td></tr>
+    <tr><td class="name">국내 ETF 과세표준 범위</td><td>프로토타입에서 확인한 운용사별 제공 범위는 다음과 같습니다.<br />· KODEX: FunETF에서 제공, 2022년 이후 회차만 있음<br />· SOL: 신한자산운용 홈페이지에서 제공<br />· TIGER: 미래에셋자산운용 홈페이지에서 제공. 다만 클라우드 서버에서 오는 요청은 차단하므로, 서버에서 수집하는 구조로 운영하면 사용하지 못할 수 있음<br />· ACE·PLUS·RISE 등 그 밖의 운용사: 연동하지 않음<br />· 예탁결제원(SEIBro)은 과표기준가만 제공해 주당과세표준액 출처로 쓸 수 없음<br />정식 서비스는 운용사 데이터 제공 계약이나 유료 데이터로 출처를 확정해야 하며, 확정 전까지 회원이 직접 입력하는 방식도 검토할 수 있습니다.</td></tr>
+    <tr><td class="name">배당 실제 지급일</td><td>국내 ETF는 운용사·FunETF 공시로 실지급일을 표시할 수 있습니다. 국내 주식과 미국 종목은 프로토타입 출처가 배당락일만 제공해 실지급일을 표시하지 못합니다. 필요하면 이를 제공하는 출처를 함께 확정해야 합니다.</td></tr>
+    <tr><td class="name">미국 종목 환차손익</td><td>매입 시점 환율을 입력받지 않아, 미국 종목 손익은 매입·평가 모두 현재 환율로 계산합니다(2.3). 환차손익까지 보려면 주식 항목에 매입 환율(또는 원화 매입금액) 입력을 추가해야 합니다.</td></tr>
+    <tr><td class="name">손익 계산 범위 <span class="new">신규</span></td><td>올해·전체기간 손익에 수령 배당금과 매매 수수료·세금을 포함할지 정해야 합니다. 현재는 배당을 포함하지 않으며, 수수료·세금은 회원이 입력하는 실현손익에 들어간 만큼만 반영됩니다. 같은 해에 사고판 거래를 정확히 나누려면 매매 단위 입력이 필요합니다(1.3 범위 제외).</td></tr>
+    <tr><td class="name">앱의 데이터 구조</td><td>프로토타입 앱은 서버 없이 기기 안에 회원 데이터를 저장하므로, 회원 데이터가 기기마다 따로 있고 기기를 바꾸면 이어지지 않습니다(조회 조건 기억도 기기 안에서만 동작). 다중 사용자 서비스로 운영하려면 앱이 서버(웹과 같은 API)에 접속하는 구조로 할지 정해야 합니다. 앱 배포 방식(스토어 등록 또는 직접 설치)과 서명 키 보관 방법도 정해야 합니다.</td></tr>
+    <tr><td class="name">제안값 확인</td><td>현재가 캐시 5분, 배당 지급내역 재사용 1일, 과세표준 회차 대응 범위 7일, 과거 데이터 10년, 연도별 조회 기본 5년·최대 10년, 관리 연도 최근 10년, 응답 3초·보유 종목 50개 기준을 확인해야 합니다. 과거 데이터 범위는 선택한 출처의 제공 범위에도 맞춰야 합니다.</td></tr>
+  </table>
+
+  <h2 class="newpage">7.2 데이터 출처 후보</h2>
+  <table>
+    <tr><th style="width:150px">출처</th><th style="width:170px">제공 데이터</th><th>확인 사항</th></tr>
+    <tr><td class="name">네이버 증권</td><td>국내·해외 시세, 일별 종가, 국내 종목 한글 이름</td><td>공개 API 제공 여부, 수집·재제공 약관</td></tr>
+    <tr><td class="name">야후 파이낸스</td><td>국내·미국 시세, 과거 종가, 액면분할, 배당락일·주당 배당금, 환율</td><td>공개 API 제공 여부, 수집·재제공 약관. 일부 회차 누락 사례 있음</td></tr>
+    <tr><td class="name">Investing.com</td><td>국내·해외 시세, 과거 종가</td><td>공개 API 제공 여부, 수집·재제공 약관</td></tr>
+    <tr><td class="name">공공데이터포털 주식시세정보(금융위원회)</td><td>국내 일별 시세</td><td>공식 API. 장중 현재가 제공 여부, 반영 지연</td></tr>
+    <tr><td class="name">증권사·유료 시세 API</td><td>국내·미국 시세</td><td>비용, 계약 조건, 서비스 재제공 허용 범위</td></tr>
+    <tr><td class="name">한국수출입은행 환율 API</td><td>원/달러 고시 환율</td><td>공식 API. 과거 환율 조회 범위, 호출 한도</td></tr>
+    <tr><td class="name">FunETF</td><td>국내 ETF 분배금, 실지급일, 주당과세표준액(KODEX만)</td><td>비공식 경로, 수집·재제공 약관. 짧은 시간에 많이 호출하면 일시 차단됨</td></tr>
+    <tr><td class="name">운용사 홈페이지 (SOL·TIGER 등)</td><td>국내 ETF 분배금, 실지급일, 주당과세표준액</td><td>비공식 경로, 수집·재제공 약관, 운용사별 연동 필요. 일부는 서버 접속 차단(TIGER)</td></tr>
+    <tr><td class="name">한국예탁결제원 SEIBro</td><td>국내 ETF 분배금, 과표기준가</td><td>공식 API 아님. 주당과세표준액은 제공하지 않음</td></tr>
+  </table>
+  <p class="note">후보별 제공 범위와 약관은 이 문서 작성 시점에 검증하지 않았으며, 출처 확정 단계에서 확인해야 합니다.</p>
+</section>
+
+</body>
+</html>
