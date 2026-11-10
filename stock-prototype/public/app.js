@@ -1230,23 +1230,9 @@
     // 검색 조건이 없으면 마지막으로 검색한 조건으로 시작
     if (!query.from && !query.to && !query.code) query = { ...query, ...(settings.get('dividends.filter') || {}) };
     const main = shell('#/dividends', `
-      <div class="page-head"><div><h1>배당금 조회(요약) ${req('SC-06 · FR-DIV · FR-CHT-03')}</h1><p>실제 수령한 배당금(세후)과 ETF 분배금을 기록합니다. 보유 종목을 삭제해도 내역은 유지됩니다.</p></div></div>
-      <div class="card">
-        <h2 data-form-title>배당 내역 등록 ${req('FR-DIV-01')}</h2>
-        <form class="inline" data-form novalidate>
-          <input type="hidden" name="id" />
-          <div class="field" style="width:150px"><label>종목코드</label><input name="code" placeholder="005930 / AAPL" autocomplete="off" list="hcodes" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
-          <div class="field" style="width:160px"><label>지급일</label><input name="payDate" type="date" max="${today()}" /><span class="err" data-err="payDate"></span></div>
-          <div class="field" style="width:150px"><label>실제 수령 금액</label><input name="amount" inputmode="decimal" placeholder="세후 금액" /><span class="err" data-err="amount"></span></div>
-          <div class="field" style="width:100px"><label>통화</label><select name="currency"><option value="KRW">KRW</option><option value="USD">USD</option></select><span class="err" data-err="currency"></span></div>
-          <div class="field" style="flex:1;min-width:180px"><label>메모 (선택, 200자)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
-          <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
-        </form>
-        <datalist id="hcodes"></datalist>
-        <div data-form-msg></div>
-      </div>
+      <div class="page-head"><div><h1>배당금 조회(요약) ${req('SC-06 · FR-DIV · FR-CHT-03')}</h1><p>연도별 배당 합계와 배당 내역을 조회합니다. 배당 회차 입력은 <a href="#/divmgmt">배당금 관리</a>에서 합니다. 보유 종목을 삭제해도 내역은 유지됩니다.</p></div></div>
       <div class="card"><h2>연도별 배당 합계 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
-        <div class="grid c2"><div class="chart-box" style="height:220px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>
+        <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>
       </div>
       <div>
         <div class="card">
@@ -1257,59 +1243,13 @@
             <div class="field" style="width:110px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" list="hcodes" /></div>
             <button type="submit" class="secondary">검색</button>
           </form>
+          <datalist id="hcodes"></datalist>
           <div data-list></div>
         </div>
       </div>`);
 
-    const form = main.querySelector('[data-form]');
-    const hint = form.querySelector('[data-hint]');
-    form.payDate.value = today();
-
     api('GET', '/holdings').then(({ holdings }) => {
       main.querySelector('#hcodes').innerHTML = holdings.map((h) => `<option value="${esc(h.code)}">${esc(h.name || '')}</option>`).join('');
-    });
-
-    form.code.addEventListener('change', async () => {
-      const code = form.code.value.trim();
-      hint.textContent = '';
-      if (!code) return;
-      try {
-        const q = await api('GET', `/stocks/${encodeURIComponent(code)}`);
-        hint.innerHTML = `${esc(q.instrument.name)} ${badge(q.instrument.type)}`;
-        form.currency.value = q.instrument.currency;
-        showFieldErrors(form, {});
-      } catch (err) {
-        showFieldErrors(form, { code: err.message });
-      }
-    });
-
-    const resetForm = () => {
-      form.reset();
-      form.id.value = '';
-      form.payDate.value = today();
-      hint.textContent = '';
-      showFieldErrors(form, {});
-      main.querySelector('[data-form-title]').innerHTML = `배당 내역 등록 ${req('FR-DIV-01')}`;
-      form.querySelector('[data-submit]').textContent = '등록';
-      form.querySelector('[data-cancel]').hidden = true;
-    };
-    form.querySelector('[data-cancel]').addEventListener('click', resetForm);
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const d = formData(form);
-      const msg = main.querySelector('[data-form-msg]');
-      msg.innerHTML = '';
-      try {
-        if (d.id) await api('PUT', `/dividends/${d.id}`, d);
-        else await api('POST', '/dividends', d);
-        toast(d.id ? '수정했습니다.' : '등록했습니다.');
-        resetForm();
-        refresh();
-      } catch (err) {
-        showFieldErrors(form, err.fields);
-        if (!Object.keys(err.fields).length) msg.innerHTML = `<div class="notice error" style="margin:10px 0 0">${esc(err.message)}</div>`;
-      }
     });
 
     const filter = main.querySelector('[data-filter]');
@@ -1335,7 +1275,7 @@
             <td class="num">${money(d.amount, d.currency)}</td>
             <td class="num">${krw(d.krw)}${d.currency === 'USD' ? `<br/><small class="muted">× ${rate(d.fxRate)}</small>` : ''}</td>
             <td class="small">${esc(d.memo || '')}</td>
-            <td class="num"><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
+            <td class="num"><button class="sm danger" data-del>삭제</button></td>
           </tr>`).join('')}</tbody></table></div>
           <div class="small muted" style="margin-top:6px">${dividends.length}건 · 원화 합계 ${krw(dividends.reduce((s, d) => s + (d.krw || 0), 0))} (지급일 환율 적용)</div>`
         : '<div class="empty">조건에 맞는 배당 내역이 없습니다.</div>';
@@ -1347,27 +1287,27 @@
           toast('삭제했습니다.');
           refresh();
         });
-        tr.querySelector('[data-edit]').addEventListener('click', () => {
-          form.id.value = d.id;
-          form.code.value = d.code;
-          form.payDate.value = d.pay_date;
-          form.amount.value = d.amount;
-          form.currency.value = d.currency;
-          form.memo.value = d.memo || '';
-          main.querySelector('[data-form-title]').innerHTML = `배당 내역 수정 ${req('FR-DIV-01')}`;
-          form.querySelector('[data-submit]').textContent = '저장';
-          form.querySelector('[data-cancel]').hidden = false;
-          form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
       });
 
-      const shown = years.filter((y, i) => y.count || i >= years.length - 5);
-      main.querySelector('[data-yearly]').innerHTML = `<table><thead><tr><th>연도</th><th class="num">건수</th><th class="num">원화 합계</th></tr></thead><tbody>${shown.slice().reverse().map((y) => `<tr><td>${y.year}</td><td class="num">${y.count}</td><td class="num">${krw(y.krw)}</td></tr>`).join('')}</tbody></table>`;
+      // 연도별 배당 합계 (v0.13.7): 수령액(기존 기록) + 배당·과세표준액(배당금 관리에 저장한 회차)
+      const shown = years.filter((y, i) => y.count || y.divCount || i >= years.length - 5);
+      main.querySelector('[data-yearly]').innerHTML = `<table><thead><tr><th>연도</th><th class="num">배당</th><th class="num">과세표준액</th><th class="num">수령액</th></tr></thead><tbody>${shown.slice().reverse().map((y) => `<tr><td>${y.year}</td>
+        <td class="num">${y.divCount ? `<b>${krw(y.divKrw)}</b><br/><small class="muted">${y.divCount}회</small>` : '<span class="muted">-</span>'}</td>
+        <td class="num">${y.divCount ? (y.taxMissing ? `<span class="tip" data-tip="과세표준이 없는 회차 ${y.taxMissing}개 제외" tabindex="0">${krw(y.taxKrw)}*</span>` : krw(y.taxKrw)) : '<span class="muted">-</span>'}</td>
+        <td class="num">${y.count ? `${krw(y.krw)}<br/><small class="muted">${y.count}건</small>` : '<span class="muted">-</span>'}</td></tr>`).join('')}</tbody></table>
+        <p class="small muted" style="margin:6px 0 0">배당·과세표준액 = 배당금 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 수령액 = 아래 배당 내역(실제 수령 기록) 합계</p>`;
       destroyCharts();
       state.charts.push(new Chart(main.querySelector('canvas'), {
         type: 'bar',
-        data: { labels: shown.map((y) => String(y.year)), datasets: [{ data: shown.map((y) => y.krw), backgroundColor: '#2e9e5b', borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => krw(c.parsed.y) } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
+        data: {
+          labels: shown.map((y) => String(y.year)),
+          datasets: [
+            { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: '#1f4e79', borderRadius: 4 },
+            { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: '#e8a33d', borderRadius: 4 },
+            { label: '수령액', data: shown.map((y) => y.krw), backgroundColor: '#2e9e5b', borderRadius: 4 },
+          ],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
       }));
     }
     refresh();
@@ -1683,7 +1623,7 @@
         <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(${d.fromMonth}~${d.toMonth}월)</th><th>누적 과세표준액(${d.fromMonth}~${d.toMonth}월)</th><th></th></tr></thead>
         <tbody>${rows}${lastSub}</tbody>
         <tfoot>${sumRow('합계 (원화)', sumOf(d.items), 'tr')}</tfoot></table></div>
-        <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = ${d.toMonth}월까지 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년 ${d.fromMonth}~${d.toMonth}월에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = ${d.fromMonth}~${d.toMonth}월에 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년 ${d.fromMonth}~${d.toMonth}월에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
       box.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-input]').addEventListener('click', () => openDivInput(it, year));

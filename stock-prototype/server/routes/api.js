@@ -272,8 +272,8 @@ router.get('/divmgmt', async (req, res) => {
       }
     } catch (_) { /* 시세 없으면 '-' */ }
     const last = db.get(
-      'SELECT ex_date, amount, tax_amount, quantity FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date <= ? ORDER BY ex_date DESC LIMIT 1',
-      [req.user.id, p.groupId, p.code, dTo]
+      'SELECT ex_date, amount, tax_amount, quantity FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ? ORDER BY ex_date DESC LIMIT 1',
+      [req.user.id, p.groupId, p.code, dFrom, dTo]
     );
     const ytd = db.get(
       'SELECT COUNT(*) AS n, SUM(amount) AS amount, SUM(tax_amount) AS tax, SUM(CASE WHEN tax_amount IS NULL THEN 1 ELSE 0 END) AS taxMissing FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ?',

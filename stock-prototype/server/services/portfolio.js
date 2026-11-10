@@ -319,13 +319,27 @@ function dividendsByYear(userId, fromYear, toYear) {
     userId, `${fromYear}-01-01`, `${toYear}-12-31`,
   ]);
   const map = {};
-  for (let y = fromYear; y <= toYear; y++) map[y] = { year: y, krw: 0, count: 0, missingFx: 0 };
+  for (let y = fromYear; y <= toYear; y++) map[y] = { year: y, krw: 0, count: 0, missingFx: 0, divKrw: 0, taxKrw: 0, divCount: 0, taxMissing: 0 };
   for (const d of list) {
     const y = Number(d.pay_date.slice(0, 4));
     const { krw } = dividendKrw(d);
     if (krw == null) map[y].missingFx++;
     else map[y].krw += krw;
     map[y].count++;
+  }
+  // 배당금 관리에 저장한 회차 (v0.13.7): 배당·과세표준액 (배당락일 연도, 미국 종목은 실지급일(없으면 배당락일) 환율로 원화 환산)
+  const saved = db.all('SELECT h.*, i.currency FROM holding_dividends h LEFT JOIN instruments i ON i.code = h.code WHERE h.user_id = ? AND h.ex_date BETWEEN ? AND ?', [
+    userId, `${fromYear}-01-01`, `${toYear}-12-31`,
+  ]);
+  for (const r of saved) {
+    const y = Number(r.ex_date.slice(0, 4));
+    let rate = 1;
+    if (r.currency === 'USD') { const fx = market.fxOn(r.pay_date || r.ex_date); rate = fx ? fx.rate : null; }
+    if (rate == null) { map[y].missingFx++; continue; }
+    map[y].divKrw += r.amount * rate;
+    if (r.tax_amount == null) map[y].taxMissing++;
+    else map[y].taxKrw += r.tax_amount * rate;
+    map[y].divCount++;
   }
   return Object.values(map);
 }
