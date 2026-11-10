@@ -50,7 +50,7 @@ h3 { font-size: 15px; }
 .boot { padding: 40px; text-align: center; color: var(--muted); }
 
 /* ---------- layout ---------- */
-.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
 .side {
   background: linear-gradient(170deg, var(--side-a) 0%, var(--side-b) 55%, var(--side-c) 100%);
   color: #fff;
@@ -465,3 +465,12 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .ac-mk.us::before { background: var(--down); }
 .ac-menu mark { background: var(--t-100); color: inherit; border-radius: 2px; padding: 0 1px; }
 .ac-empty { padding: 12px; color: var(--muted); font-size: 13px; }
+
+/* 메뉴 아이콘 (v0.22) */
+.nav-ico { width: 20px; height: 20px; flex: none; opacity: .92; }
+.side a { gap: 10px; }
+.side a.active .nav-ico { opacity: 1; }
+.mobile-top nav a { display: inline-flex; align-items: center; gap: 6px; }
+.mobile-top nav a .nav-ico { width: 17px; height: 17px; }
+.side .nav-label { white-space: nowrap; }
+.side .sc { white-space: nowrap; }

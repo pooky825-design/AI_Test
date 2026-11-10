@@ -219,6 +219,16 @@
     ['#/divmgmt', '배당 내역 관리', 'SC-08'],
     ['#/me', '환경설정', 'SC-07'],
   ];
+  // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
+  const NAV_ICON_PATHS = {
+    '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
+    '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
+    '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
+    '#/holdings': '<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 12.5h8M8 16h5"/>',
+    '#/divmgmt': '<ellipse cx="10" cy="7" rx="6" ry="2.6"/><path d="M4 7v4c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6V7"/><path d="M8 16.3c.6.2 1.3.3 2 .3"/><path d="M4 11v4c0 1.4 2.7 2.6 6 2.6"/><circle cx="17" cy="16.5" r="3.5"/>',
+    '#/me': '<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>',
+  };
+  const navIcon = (h) => `<svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${NAV_ICON_PATHS[h] || ''}</svg>`;
 
   function shareSwitch() {
     if (!state.received || !state.received.length) return '';
@@ -238,8 +248,8 @@
 
   function shell(active, inner) {
     const nav = state.actAs ? NAV.filter(([h]) => h === '#/me' || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
-    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}<span class="sc">${sc}</span></a>`).join('');
-    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${label}</a>`).join('');
+    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIcon(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
+    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIcon(h)}<span class="nav-label">${label}</span></a>`).join('');
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
