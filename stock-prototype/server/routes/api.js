@@ -141,6 +141,7 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM holdings WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_trades WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_items WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM holding_dividends WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM user_settings WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_groups WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM stock_categories WHERE user_id = ?', [user.id]);
@@ -223,6 +224,118 @@ router.get('/holdings', async (req, res) => {
   });
   const range = positions.tradeYearRange(req.user.id);
   res.json({ year, groupId: gid, groups, yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty }, holdings: list, items });
+});
+
+// ---------------------------------------------------------------------------
+// 배당금 관리 (v0.13, SC-08): 그룹별 보유 종목의 배당 회차를 선택해 저장하고 연간 누적
+// ---------------------------------------------------------------------------
+function divYear(q) {
+  const ty = thisYear();
+  const y = Number(q);
+  return Number.isInteger(y) && y >= MIN_YEAR && y <= ty ? y : ty;
+}
+
+router.get('/divmgmt', async (req, res) => {
+  const ty = thisYear();
+  const year = divYear(req.query.year);
+  const groups = positions.groupsOf(req.user.id);
+  const gid = groups.some((g) => g.id === Number(req.query.group)) ? Number(req.query.group) : null;
+  const gname = new Map(groups.map((g) => [g.id, g.name]));
+  const order = new Map(groups.map((g, i) => [g.id, i]));
+  const pos = positions.positionsAt(req.user.id, year, { groupId: gid })
+    .sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
+  const items = await portfolio.mapLimit(pos, 5, async (p) => {
+    let inst = instInfo(p.code);
+    let price = null;
+    let priceTime = null;
+    try {
+      if (year >= ty) {
+        const q = await market.getQuote(p.code);
+        inst = q.instrument; price = q.price; priceTime = q.priceTime;
+      } else {
+        inst = market.publicInstrument(await market.ensureInstrument(p.code));
+        const c = market.yearEndClose(p.code, year);
+        if (c) { price = c.close; priceTime = c.date; }
+      }
+    } catch (_) { /* 시세 없으면 '-' */ }
+    const last = db.get(
+      'SELECT ex_date, amount, tax_amount, quantity FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date <= ? ORDER BY ex_date DESC LIMIT 1',
+      [req.user.id, p.groupId, p.code, `${year}-12-31`]
+    );
+    const ytd = db.get(
+      'SELECT COUNT(*) AS n, SUM(amount) AS amount, SUM(tax_amount) AS tax, SUM(CASE WHEN tax_amount IS NULL THEN 1 ELSE 0 END) AS taxMissing FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ?',
+      [req.user.id, p.groupId, p.code, `${year}-01-01`, `${year}-12-31`]
+    );
+    return {
+      group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
+      name: inst.name, type: inst.type, currency: inst.currency, market: inst.market,
+      quantity: p.quantity, price, price_time: priceTime, value: price == null ? null : price * p.quantity,
+      last: last ? { ex_date: last.ex_date, amount: last.amount, tax: last.tax_amount, quantity: last.quantity } : null,
+      ytd_count: ytd.n, ytd_amount: ytd.n ? ytd.amount : 0, ytd_tax: ytd.n ? (ytd.taxMissing ? null : ytd.tax) : 0,
+    };
+  });
+  res.json({ year, ongoing: year >= ty, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, items });
+});
+
+// 배당 회차 목록: 종목 배당 내역(최근 10년)을 불러와 선택 연도의 회차를 보여 주고, 저장한 회차는 표시
+router.get('/divmgmt/rounds', async (req, res) => {
+  const year = divYear(req.query.year);
+  const groupId = Number(req.query.group);
+  const code = market.normalizeCode(req.query.code);
+  const d = await portfolio.getStockDividends(req.user.id, code, {});
+  const held = positions.positionsAt(req.user.id, year, { groupId }).find((p) => p.code === code);
+  const saved = new Map(db.all('SELECT * FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ?', [req.user.id, groupId, code]).map((r) => [r.ex_date, r]));
+  const evs = d.events.slice().sort((a, b) => (a.exDate < b.exDate ? -1 : 1));
+  const seq = {};
+  const rounds = evs.map((e) => {
+    const y = Number(e.exDate.slice(0, 4));
+    seq[y] = (seq[y] || 0) + 1;
+    const ref = market.closeBefore(d.instrument.code, e.exDate);
+    const s0 = saved.get(e.exDate);
+    return {
+      year: y, seq: seq[y], ex_date: e.exDate, pay_date: e.payDate || null, per_share: e.amount, tax_per_share: e.taxBase ?? null,
+      ref_close: ref ? ref.close : null, ref_date: ref ? ref.date : null, yield_pct: ref && ref.close ? e.amount / ref.close : null,
+      saved: s0 ? { quantity: s0.quantity, amount: s0.amount, tax: s0.tax_amount } : null,
+    };
+  });
+  const years = [...new Set(rounds.map((r) => r.year))].sort((a, b) => b - a);
+  res.json({
+    instrument: d.instrument, year, groupId, quantity: held ? held.quantity : 0, years,
+    rounds: rounds.filter((r) => r.year === year).reverse(), taxBaseNote: d.taxBaseNote, taxError: d.taxError,
+    source: d.source, loadedAt: d.loadedAt, stale: d.stale, staleReason: d.staleReason,
+  });
+});
+
+// 선택 회차 저장: 그 연도의 저장 내역을 선택한 회차로 바꾼다 (주당 금액은 서버의 배당 내역 값 사용)
+router.post('/divmgmt/rounds', async (req, res) => {
+  const year = divYear(req.body.year);
+  const groupId = Number(req.body.groupId);
+  const code = market.normalizeCode(req.body.code);
+  if (!db.get('SELECT id FROM holding_groups WHERE id = ? AND user_id = ?', [groupId, req.user.id])) {
+    return res.status(400).json({ error: '그룹을 확인해 주세요.', code: 'VALIDATION' });
+  }
+  const list = Array.isArray(req.body.rounds) ? req.body.rounds : [];
+  const d = await portfolio.getStockDividends(req.user.id, code, {});
+  const byDate = new Map(d.events.map((e) => [e.exDate, e]));
+  const rows = [];
+  const fields = {};
+  for (const r of list) {
+    const e = byDate.get(String(r.exDate));
+    if (!e || Number(e.exDate.slice(0, 4)) !== year) continue;
+    const q = positiveNumber(r.quantity, { maxDecimals: 6 });
+    if (q.error) { fields[`qty_${e.exDate}`] = q.error; continue; }
+    const tax = e.taxBase ?? null;
+    rows.push([req.user.id, groupId, d.instrument.code, e.exDate, e.payDate || null, e.amount, tax, q.value, q.value * e.amount, tax == null ? null : q.value * tax, now(), now()]);
+  }
+  if (Object.keys(fields).length) return res.status(400).json({ error: '보유수량을 확인해 주세요.', code: 'VALIDATION', fields });
+  db.tx(() => {
+    db.run('DELETE FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ?', [req.user.id, groupId, d.instrument.code, `${year}-01-01`, `${year}-12-31`]);
+    for (const r of rows) {
+      db.run(`INSERT INTO holding_dividends (user_id, group_id, code, ex_date, pay_date, per_share, tax_per_share, quantity, amount, tax_amount, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r);
+    }
+  });
+  res.json({ ok: true, saved: rows.length, amount: rows.reduce((a, r) => a + r[8], 0) });
 });
 
 // 주식 항목 등록·수정 (v0.8): 매수·매도 구분 없이 그 해 말 보유 수량·평균 매입단가를 바로 저장
@@ -468,6 +581,7 @@ router.delete('/groups/:id', (req, res) => {
   if (db.get('SELECT COUNT(*) AS n FROM holding_groups WHERE user_id = ?', [req.user.id]).n <= 1) {
     return res.status(400).json({ error: '그룹은 하나 이상 있어야 합니다.', code: 'VALIDATION' });
   }
+  db.run('DELETE FROM holding_dividends WHERE user_id = ? AND group_id = ?', [req.user.id, g.id]);
   db.run('DELETE FROM holding_groups WHERE id = ? AND user_id = ?', [g.id, req.user.id]);
   res.json({ ok: true });
 });
@@ -475,7 +589,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed'];
+const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
 
 router.get('/settings', (req, res) => {
   const out = {};

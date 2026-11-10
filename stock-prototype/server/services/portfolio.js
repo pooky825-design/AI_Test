@@ -285,6 +285,14 @@ async function getAssets(userId, year, groupId, merged) {
     },
     basis: {
       fxRate: fx ? fx.rate : null,
+      // 전일 대비 환율 증감 (v0.13): 적용 환율 기준일 전날까지의 마지막 환율과 비교
+      ...(() => {
+        if (!fx || !fx.time) return { fxPrev: null, fxChangePct: null };
+        const d0 = new Date(`${String(fx.time).slice(0, 10)}T00:00:00Z`);
+        d0.setUTCDate(d0.getUTCDate() - 1);
+        const prev = market.fxOn(d0.toISOString().slice(0, 10));
+        return { fxPrev: prev ? prev.rate : null, fxPrevDate: prev ? prev.date : null, fxChangePct: prev && prev.rate ? (fx.rate - prev.rate) / prev.rate : null };
+      })(),
       fxTime: fx ? fx.time : null,
       fxSource: fx ? fx.source : null,
       fxStale: fx ? fx.stale : true,

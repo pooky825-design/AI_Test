@@ -328,3 +328,9 @@ form.edit-mode [data-f="buttons"] { grid-row: 1; grid-column: 6 / span 2; } /* �
   form.edit-mode [data-f="amount"] { order: 7; } form.edit-mode [data-f="memo"] { order: 8; } form.edit-mode [data-f="buttons"] { order: 9; }
 }
 form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: nowrap; }
+/* 요약 환율 전일 대비 · 배당금 입력 팝업 (v0.13) */
+.kpi-chg { font-size: 14px; font-weight: 600; margin-left: 4px; }
+.div-input-table .qty-input { width: 90px; text-align: right; padding: 5px 8px; }
+.div-input-table .qty-input.invalid { border-color: var(--error-text, #b91c1c); }
+.div-input-table input[type=checkbox] { width: 16px; height: 16px; }
+.div-input-table th, .div-input-table td { padding-left: 7px; padding-right: 7px; }

@@ -416,6 +416,11 @@ async function getDividendEvents(rawCode, { force = false } = {}) {
   };
 }
 
+/** 그 날짜 전 마지막 거래일 종가 (배당 기준종가: 배당락 전일 종가) */
+function closeBefore(code, date) {
+  return db.get('SELECT trade_date AS date, close FROM daily_prices WHERE code = ? AND trade_date < ? ORDER BY trade_date DESC LIMIT 1', [code, date]);
+}
+
 function yearEndClose(code, year) {
   return db.get(
     'SELECT trade_date AS date, close FROM daily_prices WHERE code = ? AND trade_date BETWEEN ? AND ? ORDER BY trade_date DESC LIMIT 1',
@@ -514,6 +519,7 @@ module.exports = {
   getPeriod,
   getDividendEvents,
   yearEndClose,
+  closeBefore,
   getCurrentFx,
   fxOn,
   collectDaily,

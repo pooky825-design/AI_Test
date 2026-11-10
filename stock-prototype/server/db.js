@@ -101,6 +101,24 @@ CREATE TABLE IF NOT EXISTS stock_categories (
   PRIMARY KEY (user_id, code)
 );
 
+-- 배당금 관리 (v0.13): 그룹·종목별로 선택해 저장한 배당 회차 (배당락일 기준)
+CREATE TABLE IF NOT EXISTS holding_dividends (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL,
+  code TEXT NOT NULL,
+  ex_date TEXT NOT NULL,            -- 배당락일 (회차)
+  pay_date TEXT,                    -- 실지급일 (제공되는 경우)
+  per_share REAL NOT NULL,          -- 주당 배당금 (거래 통화)
+  tax_per_share REAL,               -- 주당 과세표준 (없으면 NULL)
+  quantity REAL NOT NULL,           -- 배당 받은 수량 (기본: 보유 수량, 수정 가능)
+  amount REAL NOT NULL,             -- 총 배당금 = 수량 × 주당 배당금
+  tax_amount REAL,                  -- 총 과세표준 = 수량 × 주당 과세표준
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (user_id, group_id, code, ex_date)
+);
+
 -- 회원별 화면 설정 (마지막 조회 기간·선택 연도)
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
