@@ -1,4 +1,4 @@
-/* 주식 관리시스템 프로토타입 — 화면 SC-01 ~ SC-07 */
+/* K-Stock (주식 관리시스템) 프로토타입 — 화면 SC-01 ~ SC-07 */
 (() => {
   'use strict';
 
@@ -23,13 +23,12 @@
   // ---------------------------------------------------------------------------
   // 화면 테마 (v0.17): 기준 색 하나로 메뉴·버튼·탭·강조 행·배경 색을 모두 계산한다
   // ---------------------------------------------------------------------------
-  const THEME_DEFAULT = '#dc5a2c';
+  const THEME_DEFAULT = '#eb6c07'; // 앱 아이콘 바탕색 (v0.19)
   const THEME_PRESETS = [
-    ['#dc5a2c', '주황(기본)'], ['#e11d48', '빨강'], ['#db2777', '핑크'], ['#7c3aed', '보라'],
+    ['#eb6c07', '주황(기본)'], ['#e11d48', '빨강'], ['#db2777', '핑크'], ['#7c3aed', '보라'],
     ['#1f4e79', '남색'], ['#2563eb', '파랑'], ['#0f766e', '청록'], ['#2f855a', '초록'],
     ['#a16207', '황토'], ['#475569', '회색'],
   ];
-  const THEME_KEYS = ['--primary', '--primary-2', '--primary-soft', '--bg', '--border', '--surface-2', '--t-50', '--t-100', '--t-200', '--t-300', '--t-700', '--t-900', '--side-a', '--side-b', '--side-c'];
   const isHex = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
   function hexToHsl(hex) {
     const n = parseInt(hex.slice(1), 16);
@@ -61,23 +60,23 @@
   function applyTheme(hex) {
     const root = document.documentElement;
     const custom = isHex(hex) && hex.toLowerCase() !== THEME_DEFAULT;
-    if (custom) Object.entries(themeVars(hex)).forEach(([k, v]) => root.style.setProperty(k, v));
-    else THEME_KEYS.forEach((k) => root.style.removeProperty(k));
+    Object.entries(themeVars(custom ? hex : THEME_DEFAULT)).forEach(([k, v]) => root.style.setProperty(k, v));
     const meta = document.querySelector('meta[name=theme-color]');
-    if (meta) meta.setAttribute('content', custom ? getComputedStyle(root).getPropertyValue('--side-b').trim() : '#ee6a3c');
+    if (meta) meta.setAttribute('content', getComputedStyle(root).getPropertyValue('--side-b').trim());
     try { if (custom) localStorage.setItem('ui.theme', hex); else localStorage.removeItem('ui.theme'); } catch (_) { /* 무시 */ }
   }
-  // 그래프 색 (v0.18): 테마 기준 색에서 진한 색·이웃 색상·옅은 색과 보색(환율 선)을 만든다
+  // 그래프 색 (v0.19): 테마 기준 색 한 가지 계열에서 진하게·기본·연하게 3단계를 만들고,
+  // 환율 선은 같은 계열의 아주 진한 색으로 그려 색 컨셉이 흐트러지지 않게 한다
   function chartPalette() {
     const cur = (state.settings || {})['ui.theme'];
-    const [h, s0] = hexToHsl(isHex(cur) ? cur : THEME_DEFAULT);
-    const sat = Math.min(s0, 85);
-    const gray = sat < 8;
+    const [h, s0, l0] = hexToHsl(isHex(cur) ? cur : THEME_DEFAULT);
+    const sat = Math.min(s0, 90);
+    const l = Math.max(36, Math.min(l0, 52));
     return {
-      c1: hsl(h, sat, 30),
-      c2: hsl(h + 28, gray ? sat : Math.max(sat, 55), 54),
-      c3: hsl(h - 12, sat, 73),
-      line: gray ? hsl(200, 60, 35) : hsl(h + 180, 55, 35),
+      c1: hsl(h, sat, l - 13), // 조금 진하게
+      c2: hsl(h, sat, l + 5), // 기본에 가깝게
+      c3: hsl(h, sat * 0.85, l + 25), // 조금 연하게
+      line: hsl(h, Math.min(sat, 70), 22), // 환율 선: 아주 진하게
     };
   }
   function saveTheme(hex) {
@@ -244,7 +243,7 @@
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
-          <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div>주식 관리시스템<small>요구사항 정의서 기반 프로토타입</small></div></div>
+          <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div></div>
           ${shareSwitch()}
           ${links}
           <div class="spacer"></div>
@@ -253,7 +252,7 @@
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" />주식 관리시스템</span><button class="linkish" data-logout>로그아웃</button></div>
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span></span><button class="linkish" data-logout>로그아웃</button></div>
             ${shareSwitch()}
             <nav>${mlinks}</nav>
           </div>
@@ -305,7 +304,7 @@
   };
 
   function viewLogin() {
-    const form = authPage('주식 관리시스템', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
+    const form = authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
       <form class="stack" novalidate>
         <div class="field id-field"><label>이메일(아이디)</label><input name="email" type="email" autocomplete="off" required /><div class="id-menu" data-idmenu hidden></div><span class="err" data-err="email"></span></div>
         <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="current-password" required /><span class="err" data-err="password"></span></div>
@@ -1650,7 +1649,7 @@
       toast(err instanceof SyntaxError ? '백업 파일을 읽을 수 없습니다(JSON 형식 아님).' : err.message);
       return;
     }
-    if (!backup || backup.format !== 'stock-manager-backup') { toast('주식 관리시스템 백업 파일이 아닙니다.'); return; }
+    if (!backup || backup.format !== 'stock-manager-backup') { toast('K-Stock 백업 파일이 아닙니다.'); return; }
     const c = backup.counts || {};
     const body = openModal('백업 파일로 복원');
     body.innerHTML = `<p style="margin:0 0 10px">아래 백업 파일로 복원합니다. 지금 계정(<b>${esc(state.user.email)}</b>)의 데이터는 <b>모두 지워지고</b> 백업 내용으로 바뀝니다.</p>
@@ -1812,7 +1811,7 @@
         <div class="theme-custom">
           <label class="small muted" for="themeColor">직접 지정</label>
           <input type="color" id="themeColor" data-color />
-          <input data-hex maxlength="7" style="width:100px" placeholder="#dc5a2c" />
+          <input data-hex maxlength="7" style="width:100px" placeholder="#eb6c07" />
           <button class="sm" data-apply>적용</button>
           <button class="sm secondary" data-reset>기본값(주황)으로</button>
         </div>
@@ -1824,7 +1823,7 @@
             <div class="pv-row pv-chart" data-pv-chart></div>
           </div>
         </div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산·배당 그래프도 테마 색에 맞춰 바뀝니다(진한 색·이웃 색·옅은 색, 환율 선은 보색). 상승 빨강·하락 파랑(종목 시세 그래프 포함)과 분류 배지 색은 의미가 있는 색이라 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산·배당 그래프도 테마 색 한 계열로 바뀝니다(조금 진하게·기본·조금 연하게, 환율 선은 아주 진하게). 상승 빨강·하락 파랑(종목 시세 그래프 포함)과 분류 배지 색은 의미가 있는 색이라 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
       </div>
       <div class="card" data-share-card>
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>

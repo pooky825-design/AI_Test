@@ -1,23 +1,23 @@
 :root {
-  --bg: #fbf5f1;
+  --bg: hsl(27, 45%, 97%);
   --surface: #ffffff;
   --surface-2: #f8fafc;
-  --border: #efe3dc;
+  --border: hsl(27, 35%, 89%);
   --text: #1e293b;
   --muted: #64748b;
-  --primary: #dc5a2c;
-  --primary-2: #c2410c;
-  --primary-soft: #fff0e8;
+  --primary: hsl(27, 90%, 47%);
+  --primary-2: hsl(27, 90%, 38%);
+  --primary-soft: hsl(27, 90%, 95%);
   /* 테마 색 단계 (v0.17): 환경설정 → 화면 테마에서 기준 색을 고르면 JS가 아래 값을 다시 계산한다 */
-  --t-50: #fff4ee;
-  --t-100: #fde8dc;
-  --t-200: #fbcdb6;
-  --t-300: #f0a07c;
-  --t-700: #b23c0e;
-  --t-900: #5a2410;
-  --side-a: #f5844f;
-  --side-b: #e3622f;
-  --side-c: #cf4f22;
+  --t-50: hsl(27, 90%, 96%);
+  --t-100: hsl(27, 90%, 91%);
+  --t-200: hsl(27, 90%, 83%);
+  --t-300: hsl(27, 81%, 68%);
+  --t-700: hsl(27, 90%, 36%);
+  --t-900: hsl(27, 60%, 20%);
+  --side-a: hsl(27, 90%, 56%);
+  --side-b: hsl(27, 90%, 49%);
+  --side-c: hsl(27, 90%, 41%);
   --up: #d63031;      /* 한국 관례: 상승 빨강 */
   --down: #1e63c7;    /* 하락 파랑 */
   --warn-bg: #fff7e6;
@@ -351,7 +351,7 @@ form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: n
 td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 관리 등) */
 /* 월 배당금 입력 팝업: 보유수량 입력칸 강조 */
 .div-input-table td.qty-col .qty-input { background: #fff; border-color: var(--t-300); } /* 입력칸 테두리: 선택 줄(var(--t-100))과 어울리는 파란 계열 (v0.13.4) */
-.div-input-table td.qty-col .qty-input:focus { border-color: #dc5a2c; box-shadow: 0 0 0 3px var(--t-100); outline: none; }
+.div-input-table td.qty-col .qty-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--t-100); outline: none; }
 /* 체크한 회차 줄 전체 선택 표시 */
 .div-input-table tr.picked td { background: var(--t-100); }
 .div-input-table tr[data-ri] { cursor: default; }
@@ -435,3 +435,9 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .id-opt:hover { background: var(--t-50); }
 .id-opt + .id-opt { border-top: 1px solid var(--border); }
 .id-opt button.linkish { color: var(--muted); font-size: 13px; padding: 0 4px; }
+
+/* 앱 제목 K-Stock (v0.19): 메뉴 글자(15px)보다 크게 */
+.brand-name { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.3px; line-height: 1.15; }
+.brand small { margin-top: 2px; }
+.mbrand .brand-name { display: inline; font-size: 20px; }
+.auth-ico { width: 40px; height: 40px; border-radius: 10px; vertical-align: -9px; margin-right: 10px; }

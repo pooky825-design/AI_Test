@@ -47,7 +47,7 @@ async function main() {
   const server = app.listen(PORT, () => {
     const url = `http://localhost:${PORT}`;
     console.log('==============================================');
-    console.log(` 주식 관리시스템 프로토타입 실행 중: ${url}`);
+    console.log(` K-Stock 실행 중: ${url}`);
     console.log(` 데이터 출처: ${providers.mode === 'sample' ? '샘플(가상) 데이터' : '야후 파이낸스(주) / 네이버 증권(예비)'}`);
     console.log(' 종료하려면 이 창에서 Ctrl+C 를 누르세요.');
     console.log('==============================================');
