@@ -326,6 +326,33 @@ router.get('/divmgmt/rounds', async (req, res) => {
   });
 });
 
+// 배당 내역 조회 (v0.14): 배당금 관리에서 저장한 회차를 지급일(없으면 배당락일) 기간으로 조회
+router.get('/divmgmt/history', (req, res) => {
+  const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  const ty = thisYear();
+  const from = isDate(req.query.from) ? req.query.from : `${ty}-01-01`;
+  const to = isDate(req.query.to) ? req.query.to : new Date().toISOString().slice(0, 10);
+  const code = req.query.code ? market.normalizeCode(req.query.code) : null;
+  const groups = new Map(positions.groupsOf(req.user.id).map((g) => [g.id, g.name]));
+  const rows = db.all(
+    `SELECT h.*, COALESCE(h.pay_date, h.ex_date) AS paid, i.name, i.type, i.currency FROM holding_dividends h
+     LEFT JOIN instruments i ON i.code = h.code
+     WHERE h.user_id = ? AND COALESCE(h.pay_date, h.ex_date) BETWEEN ? AND ? ${code ? 'AND h.code = ?' : ''}
+     ORDER BY paid DESC, h.code`,
+    [req.user.id, from, to, ...(code ? [code] : [])]
+  ).map((r) => {
+    const fx = r.currency === 'USD' ? market.fxOn(r.paid) : null;
+    const rate = r.currency === 'USD' ? (fx ? fx.rate : null) : 1;
+    const k = (v) => (v == null || rate == null ? null : v * rate);
+    return {
+      id: r.id, paid: r.paid, pay_date: r.pay_date, ex_date: r.ex_date, code: r.code, name: r.name || r.code, type: r.type, currency: r.currency || 'KRW',
+      group_name: groups.get(r.group_id) || '-', quantity: r.quantity, per_share: r.per_share, amount: r.amount, tax_amount: r.tax_amount,
+      fx_rate: rate, amount_krw: k(r.amount), tax_krw: k(r.tax_amount),
+    };
+  });
+  res.json({ from, to, code, rows });
+});
+
 // 선택 회차 저장: 그 연도의 저장 내역을 선택한 회차로 바꾼다 (주당 금액은 서버의 배당 내역 값 사용)
 router.post('/divmgmt/rounds', async (req, res) => {
   const year = divYear(req.body.year);

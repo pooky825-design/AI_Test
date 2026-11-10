@@ -350,3 +350,10 @@ tr.clickable.on td { background: #eef3fa; }
 .grid.c2.yr-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
 .yr-table th, .yr-table td { padding-left: 6px; padding-right: 6px; }
 @media (max-width: 900px) { .grid.c2.yr-grid { grid-template-columns: 1fr; } }
+/* 연도별 자산 화면 표 데이터 정렬 (v0.14): 종목·메모 왼쪽, 지급일 가운데, 나머지 오른쪽 (열 제목은 가운데 그대로) */
+.yr-page td { text-align: right; }
+.yr-page td.left { text-align: left; }
+.yr-page td.left .name-cell { align-items: flex-start; }
+.yr-page td.center { text-align: center; }
+.divhist-table tfoot td { background: #e6edf5; font-weight: 700; border-top: 1px solid var(--border); }
+.divhist-table tfoot td:first-child { text-align: center; }
