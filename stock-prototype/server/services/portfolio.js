@@ -61,7 +61,9 @@ async function getAssets(userId, year, groupId, merged) {
     p.origAvgPrice = p.avgPrice;
     p.carry = yb.carry;
     p.newBuys = yb.newBuys;
-    p.cost = yb.carry + yb.newBuys; // 올해 손익의 기준 금액
+    p.cost = yb.carry + yb.newBuys; // (참고) 이월액 + 올해 매수금액
+    // 손익 기준액(금년) (v0.12.5): 이월 금액이 있으면 이월 금액, 없으면 총 매입금액
+    p.base = yb.carry > 1e-9 ? yb.carry : p.origCost;
     p.avgPrice = p.cost / p.quantity;
     p.carriedQty = yb.carriedQty;
     p.carryFixed = yb.fixed;
@@ -93,12 +95,12 @@ async function getAssets(userId, year, groupId, merged) {
     for (const p of perGroup) {
       const m = byCode.get(p.code) || {
         code: p.code, groupId: null, quantity: 0, cost: 0, origCost: 0, carriedQty: 0, basisFallback: false, startClose: null,
-        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [], realizedYear: 0, realizedCum: 0, hasRealized: false, soldQty: 0, soldCost: 0, carry: 0, newBuys: 0, yearExtra: 0, carryFixed: false,
+        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [], realizedYear: 0, realizedCum: 0, hasRealized: false, soldQty: 0, soldCost: 0, carry: 0, newBuys: 0, yearExtra: 0, carryFixed: false, base: 0,
       };
       m.quantity += p.quantity;
       m.cost += p.cost;
       m.origCost += p.origCost;
-      for (const f of ['realizedYear', 'realizedCum', 'soldQty', 'soldCost', 'carry', 'newBuys', 'yearExtra']) m[f] += p[f];
+      for (const f of ['realizedYear', 'realizedCum', 'soldQty', 'soldCost', 'carry', 'newBuys', 'yearExtra', 'base']) m[f] += p[f];
       m.hasRealized = m.hasRealized || p.hasRealized;
       m.carryFixed = m.carryFixed || p.carryFixed;
       m.carriedQty += p.carriedQty;
@@ -116,7 +118,6 @@ async function getAssets(userId, year, groupId, merged) {
       const held = list.find((m) => m.code === so.code);
       const tgt = held || soldByCode.get(so.code) || { ...so, groupId: null, realizedYear: 0, realizedCum: 0, soldQty: 0, soldCost: 0, carry: 0, newBuys: 0, yearExtra: 0, hasRealized: false, mergedGroups: [] };
       for (const f of ['realizedYear', 'realizedCum', 'soldQty', 'soldCost', 'carry', 'yearExtra']) tgt[f] += so[f];
-      if (held) tgt.cost += so.carry; // 통합 행: 다른 그룹 전량 매도분의 이월액도 기준 금액에 포함
       tgt.hasRealized = tgt.hasRealized || so.hasRealized;
       if (!held) { tgt.mergedGroups.push(groupName.get(so.groupId) || '-'); soldByCode.set(so.code, tgt); }
     }
@@ -146,7 +147,7 @@ async function getAssets(userId, year, groupId, merged) {
       mergedGroups: h.mergedGroups || null, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
       origAvgPrice: h.origAvgPrice, carriedQty: h.carriedQty, basisFallback: h.basisFallback, startClose: h.startClose,
       realizedYear: h.realizedYear, realizedCum: h.realizedCum, hasRealized: h.hasRealized, soldQty: h.soldQty,
-      carry: h.carry, newBuys: h.newBuys, soldCost: h.soldCost, carryFixed: h.carryFixed,
+      carry: h.carry, newBuys: h.newBuys, soldCost: h.soldCost, carryFixed: h.carryFixed, base: h.base,
     };
     try {
       let price;
@@ -172,9 +173,9 @@ async function getAssets(userId, year, groupId, merged) {
       const usd = inst.currency === 'USD';
       const rate = usd ? (fx ? fx.rate : null) : 1;
       const value = price * h.quantity; // 거래 통화 기준
-      const cost = h.cost; // 올해 손익의 기준 = 이월액 + 올해 매수금액
+      const cost = h.base; // 손익 기준액(금년) = 이월 금액이 있으면 이월 금액, 없으면 총 매입금액
       const origCost = h.origAvgPrice * h.quantity; // 원래 매입금액
-      const yearPnl = value - cost + h.yearExtra; // 올해 손익 (실현손익 포함)
+      const yearPnl = value - cost; // 금년 손익 = 평가금액 − 손익 기준액(금년) (v0.12.5)
       const totalPnl = value - origCost + h.realizedCum; // 전체기간 손익 (누적 실현손익 포함)
       const k = (x) => (rate == null ? null : x * rate);
       return {
@@ -201,7 +202,7 @@ async function getAssets(userId, year, groupId, merged) {
         totalPct: origCost ? totalPnl / origCost : null,
         // 오늘 손익 = 전일 대비 × 보유 수량 × 현재 환율 (올해만, 환율 변동 미반영)
         todayPnlKrw: ongoing && rate != null && extra.change != null ? extra.change * h.quantity * rate : null,
-        returnPct: cost ? yearPnl / cost : null, // 올해 수익률 = 올해 손익 ÷ 1월 1일 기준 매입금액
+        returnPct: cost ? yearPnl / cost : null, // 금년 수익률 = 금년 손익 ÷ 손익 기준액(금년)
         splitNotice: ongoing ? splitNotice(h) : null,
       };
     } catch (e) {
@@ -229,8 +230,9 @@ async function getAssets(userId, year, groupId, merged) {
       code: so.code, groupId: so.groupId, groupName: isMerged ? '통합' : groupName.get(so.groupId) || '-', mergedGroups: so.mergedGroups || null,
       instrument: inst, fxRate: rate, soldQty: so.soldQty, hasRealized: so.hasRealized, category: c.id, categoryLabel: c.label,
       realizedYear: so.realizedYear, realizedYearKrw: so.realizedYear * rate, soldCostKrw: so.soldCost * rate,
-      carryKrw: so.carry * rate, costKrw: so.carry * rate, newBuysKrw: 0, carryFixed: so.carryFixed,
-      pnlKrw: (so.yearExtra - so.carry) * rate, totalPnlKrw: so.realizedCum * rate, returnPct: so.carry ? (so.yearExtra - so.carry) / so.carry : null,
+      carryKrw: so.carry * rate, costKrw: 0, newBuysKrw: 0, carryFixed: so.carryFixed,
+      // 전량 매도 종목은 평가금액이 없어 금년 손익(평가금액 − 손익 기준액)을 계산하지 않고, 전체기간 손익(누적 실현손익)만 표시
+      pnlKrw: null, totalPnlKrw: so.realizedCum * rate, returnPct: null,
     });
   }
   // 합계 행: 보유 종목 + 전량 매도 종목의 올해 손익·전체기간 손익
@@ -239,7 +241,7 @@ async function getAssets(userId, year, groupId, merged) {
     const c = rs.reduce((a, r) => a + r.costKrw, 0) + ss.reduce((a, r) => a + r.costKrw, 0);
     const carry = rs.reduce((a, r) => a + r.carryKrw, 0) + ss.reduce((a, r) => a + r.carryKrw, 0);
     const oc = rs.reduce((a, r) => a + r.origCostKrw, 0);
-    const pnl = rs.reduce((a, r) => a + r.pnlKrw, 0) + ss.reduce((a, r) => a + r.pnlKrw, 0);
+    const pnl = rs.reduce((a, r) => a + r.pnlKrw, 0);
     const tp = rs.reduce((a, r) => a + r.totalPnlKrw, 0) + ss.reduce((a, r) => a + r.totalPnlKrw, 0);
     return { valueKrw: v, costKrw: c, carryKrw: carry, origCostKrw: oc, pnlKrw: pnl, returnPct: c ? pnl / c : null, totalPnlKrw: tp, totalPct: oc ? tp / oc : null };
   };

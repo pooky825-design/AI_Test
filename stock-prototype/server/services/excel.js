@@ -50,11 +50,11 @@ async function assetsWorkbook(data) {
     ['환율 기준 시각', fmtTime(data.basis.fxTime)],
     ['매입 기준', `평균 매입단가·매입금액은 ${data.year}년 1월 1일 기준: 전년 말까지 보유한 수량은 1월 1일 평가액(전년 마지막 종가), 그 해 매수분은 매수 단가`],
     ['계산 기준', '원화 평가금액 = 가격(올해는 현재가, 지난 연도는 연말 종가) × 그 해 말 보유 수량 × 환율(국내 1). 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영).'],
-    ['올해 손익', `원화 평가금액 − 1월 1일 기준 매입금액 + ${data.year}년 실현손익 − 이월분 매도 시 전년까지 오른 몫(전년도 손익에 반영). 올해 수익률 = 올해 손익 ÷ 1월 1일 기준 매입금액`],
+    ['금년 손익', '평가금액(원화) − 손익 기준액(금년). 손익 기준액(금년) = 이월 금액이 있으면 이월 금액, 없으면 매입금액. 금년 수익률 = 금년 손익 ÷ 손익 기준액(금년)'],
     ['전체기간 손익', '원화 평가금액 − 원래 매입금액(실제 평균 매입단가 × 수량) + 누적 실현손익. 전체 수익률 = 전체기간 손익 ÷ 원래 매입금액'],
     ['안내', '시세는 지연되거나 부정확할 수 있으며, 투자 권유가 아닌 참고용입니다.'],
   ]);
-  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '평균 매입단가(1/1 기준)', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '올해 손익(원화)', '올해 수익률', '시세 기준 시각', '분류', '올해 손익 기준금액(원화, 이월액+올해 매수)', '실제 평균 매입단가', '원래 매입금액(원화)', '전체 손익(원화)', '전체 수익률', '올해 실현손익(원화)']);
+  header(ws, ['그룹', '종목코드', '종목명', '구분', '시장', '통화', '보유 수량', '매입단가(평균)', data.ongoing ? '현재가' : '연말 종가', '평가금액(거래통화)', '적용 환율', '원화 평가금액', '금년 손익(원화)', '금년 수익률', '시세 기준 시각', '분류', '손익 기준액(금년, 원화)', '실제 평균 매입단가', '원래 매입금액(원화)', '전체 손익(원화)', '전체 수익률', '올해 실현손익(원화)']);
   for (const r of data.rows) {
     if (r.error) {
       ws.addRow([r.groupName, r.code, `조회 실패: ${r.error}`, '', '', '', r.quantity, r.avgPrice]);
@@ -62,7 +62,7 @@ async function assetsWorkbook(data) {
     }
     const cur = r.instrument.currency === 'USD' ? USD : KRW;
     const row = ws.addRow([
-      r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, r.quantity, r.avgPrice, r.price,
+      r.groupName, r.code, r.instrument.name, r.instrument.type, r.instrument.market, r.instrument.currency, r.quantity, r.origAvgPrice, r.price,
       r.value, r.fxRate, r.valueKrw, r.pnlKrw, r.returnPct, fmtTime(r.priceTime), r.categoryLabel, r.costKrw, r.origAvgPrice,
       r.origCostKrw, r.totalPnlKrw, r.totalPct, r.realizedYearKrw || null,
     ]);
@@ -91,13 +91,13 @@ async function assetsWorkbook(data) {
   // 그룹별 합계
   if ((data.groupTotals || []).length > 1) {
     ws.addRow([]);
-    header(ws, ['그룹', '종목 수', '원화 평가금액', '원화 매입금액(1/1 기준)', '올해 손익', '올해 수익률', '원래 매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
+    header(ws, ['그룹', '종목 수', '원화 평가금액', '손익 기준액(금년)', '금년 손익', '금년 수익률', '매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const g of data.groupTotals) totalsRow(ws, g.name, g, data.ongoing);
   }
   // 분류별 합계
   if ((data.categoryTotals || []).length) {
     ws.addRow([]);
-    header(ws, ['분류', '종목 수', '원화 평가금액', '원화 매입금액(1/1 기준)', '올해 손익', '올해 수익률', '원래 매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
+    header(ws, ['분류', '종목 수', '원화 평가금액', '손익 기준액(금년)', '금년 손익', '금년 수익률', '매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const c of data.categoryTotals) totalsRow(ws, c.label, c, data.ongoing);
   }
   ws.columns.forEach((c, i) => (c.width = [10, 10, 30, 8, 12, 7, 12, 14, 12, 18, 10, 16, 16, 9, 22][i] || 12));

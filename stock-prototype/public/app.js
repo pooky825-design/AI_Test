@@ -333,7 +333,7 @@
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
       // 소계·합계 행의 현재가(·전일 대비) 칸: 전일 대비 칸에는 보유 종목 전체의 오늘 손익 합계
       // 소계·합계 행의 이월금액(·전일 대비) 칸
-      const gapCells = (x) => `<td class="num">${krw(x.carryKrw)}</td>${d.ongoing ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}`;
+      const gapCells = (x) => `<td class="num">${krw(x.costKrw)}</td>${d.ongoing ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}`;
       // 오늘 손익·손익률 열 (올해만: 전일 종가 대비)
       const todayHead = d.ongoing ? '<th class="num today-col">오늘 손익</th><th class="num today-col">오늘 손익률</th>' : '';
       const todayCells = (x) => (d.ongoing
@@ -341,13 +341,13 @@
         : '');
       // 올해 손익(1월 1일 기준 + 올해 실현손익)과 전체기간 손익(원래 매입금액 기준 + 누적 실현손익) (v0.10)
       const pnlCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}</td><td class="num ${cls(x.returnPct)}">${pct(x.returnPct)}</td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}</td><td class="num ${cls(x.totalPct)}">${pct(x.totalPct)}</td>`;
-      const pnlHead = '<th class="num">올해 손익</th><th class="num">올해 수익률</th><th class="num">전체 손익</th><th class="num">전체 수익률</th>';
+      const pnlHead = '<th class="num">금년 손익</th><th class="num">금년 수익률</th><th class="num">전체 손익</th><th class="num">전체 수익률</th>';
       const todayNote = d.ongoing ? `<p class="small muted" style="margin:8px 0 0">오늘 손익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · 오늘 손익률 = 오늘 손익 ÷ 전일 종가 기준 평가금액 (환율 변동은 반영하지 않음) · 합계 오늘 손익 ${sKrw(t.todayPnlKrw)} (${pct(t.todayPct)})</p>` : '';
       html.push(`
         <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
         <div class="grid k4">
-          <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.origCostKrw)} · 이월금액 ${krw(t.costKrw)}</div></div>
-          <div class="kpi"><div class="label">${d.year}년 손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">수익률 <b class="${cls(t.returnPct)}">${pct(t.returnPct)}</b> · 이월금액 기준, 실현손익 포함</div></div>
+          <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.origCostKrw)} · 손익 기준액 ${krw(t.costKrw)}</div></div>
+          <div class="kpi"><div class="label">${d.ongoing ? '금년' : `${d.year}년`} 손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">수익률 <b class="${cls(t.returnPct)}">${pct(t.returnPct)}</b> · 평가금액 − 손익 기준액(금년)</div></div>
           <div class="kpi"><div class="label">전체기간 손익 ${req('FR-AST-11')}</div><div class="value ${cls(t.totalPnlKrw)}">${sKrw(t.totalPnlKrw)}</div><div class="sub">수익률 <b class="${cls(t.totalPct)}">${pct(t.totalPct)}</b> · 매입금액 ${krw(t.origCostKrw)} 기준</div></div>
           <div class="kpi"><div class="label">${d.ongoing ? '적용 환율' : '연말 환율'} (USD/KRW) ${req('FR-AST-04')}</div><div class="value">${rate(d.basis.fxRate)}</div><div class="sub">${d.ongoing ? `${fmtTime(d.basis.fxTime)} 기준` : `${esc(String(d.basis.fxTime || '').slice(0, 10))} 기준`}</div></div>
         </div></div>
@@ -390,8 +390,8 @@
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table class="stock-table">
             <thead><tr>
-              <th>종목</th><th class="num">보유 수량</th><th class="num">매입단가(평균)</th><th class="num">매입금액<br/><small class="muted">원화</small></th><th class="num">이월금액<br/><small class="muted">원화 · '${String(d.year).slice(2)}.1.1 기준</small></th>${d.ongoing ? '<th class="num">전일 대비<br/><small class="muted">원화 · 보유 수량 전체</small></th>' : ''}
-              <th class="num">평가금액(원화)</th><th class="num">올해 손익<br/><small class="muted">이월금액 기준</small></th><th class="num">전체 손익<br/><small class="muted">매입금액 기준</small></th>
+              <th>종목</th><th class="num">보유 수량</th><th class="num">매입단가(평균)</th><th class="num">매입금액<br/><small class="muted">원화</small></th><th class="num">손익 기준액(금년)<br/><small class="muted">원화</small></th>${d.ongoing ? '<th class="num">전일 대비<br/><small class="muted">원화 · 보유 수량 전체</small></th>' : ''}
+              <th class="num">평가금액(원화)</th><th class="num">금년 손익<br/><small class="muted">평가금액 − 손익 기준액</small></th><th class="num">전체 손익<br/><small class="muted">매입금액 기준</small></th>
             </tr></thead>
             <tbody>${(() => {
               const cols = d.ongoing ? 9 : 8;
@@ -427,16 +427,10 @@
               };
               // 올해 손익·전체기간 손익 칸 (v0.10): 금액 + 수익률, 누르면 계산 근거
               const yearCell = (r) => {
-                const parts = [];
-                // 올해 손익 = 평가금액 − 이월액 − 올해 매수금액 + 실현손익 + 판 수량의 매입금액 (v0.11)
-                if (r.valueKrw != null) parts.push(`평가금액 ${krw(r.valueKrw)}`);
-                if (r.carryKrw) parts.push(`− 이월액 ${krw(r.carryKrw)}`);
-                if (r.newBuysKrw) parts.push(`− ${d.year}년 매수 ${krw(r.newBuysKrw)}`);
-                if (r.realizedYearKrw) parts.push(`+ 실현손익 ${sKrw(r.realizedYearKrw).replace(/^\+/, '')}`);
-                if (r.soldCostKrw) parts.push(`+ 매도 ${qty(r.soldQty)}주의 매입금액 ${krw(r.soldCostKrw)}`);
-                if (r.soldQty > 1e-9 && !r.hasRealized) parts.push(`${qty(r.soldQty)}주 매도분 실현손익 미입력`);
-                const txt = sKrw(r.pnlKrw);
-                return `<td class="num ${cls(r.pnlKrw)}">${parts.length > 1 || r.soldQty > 1e-9 ? `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${txt}</span>` : txt}${r.returnPct == null ? '' : `<br/><small>${pct(r.returnPct)}</small>`}</td>`;
+                // 금년 손익 = 평가금액(원화) − 손익 기준액(금년) (v0.12.5)
+                if (r.pnlKrw == null) return '<td class="num muted">-</td>';
+                const tip = `평가금액 ${krw(r.valueKrw)} − 손익 기준액 ${krw(r.costKrw)}`;
+                return `<td class="num ${cls(r.pnlKrw)}"><span class="tip" data-tip="${esc(tip)}" tabindex="0">${sKrw(r.pnlKrw)}</span>${r.returnPct == null ? '' : `<br/><small>${pct(r.returnPct)}</small>`}</td>`;
               };
               const totalCell = (r) => {
                 const c = r.instrument.currency;
@@ -449,7 +443,7 @@
               // 그 해 전량 매도한 종목 행: 보유 수량 0, 손익만 표시
               const soldHtml = (r) => `<tr class="sold-row">
                 <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
-                <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num">${r.carryKrw ? krw(r.carryKrw) : '<span class="muted">-</span>'}</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}<td class="num muted">-</td>
+                <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}<td class="num muted">-</td>
                 ${yearCell(r)}${totalCell(r)}
               </tr>`;
               const rowHtml = (r) => {
@@ -459,7 +453,7 @@
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.origAvgPrice, c)}</td>
                 <td class="num">${krwCell(r, r.origCostKrw, r.origCost, false)}</td>
-                <td class="num"><span class="tip" data-tip="${esc(basisTip(r))}" tabindex="0">${krw(r.carryKrw)}</span></td>
+                <td class="num"><span class="tip" data-tip="${esc(r.carryKrw > 0 ? `이월 금액(전년) 기준 · ${basisTip(r)}` : '이월 금액이 없어 총 매입금액 기준')}" tabindex="0">${krw(r.costKrw)}</span></td>
                 ${d.ongoing ? `<td class="num ${cls(r.change)}">${todayCell(r)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
                 <td class="num"><span class="tip" data-tip="${esc(valueTip(r))}" tabindex="0"><b>${krw(r.valueKrw)}</b></span></td>
                 ${yearCell(r)}${totalCell(r)}
@@ -482,7 +476,7 @@
             <span>환율 <b>${rate(d.basis.fxRate)}</b> (${d.ongoing ? fmtTime(d.basis.fxTime) : esc(String(d.basis.fxTime || '').slice(0, 10))}, ${esc(d.basis.fxSource || '-')})</span>
             ${d.ongoing ? `<span>현재가는 5분간 캐시 ${req('FR-DATA-05')}</span>` : ''}
           </div>
-          <p class="small muted" style="margin:10px 0 0">매입단가(평균)·매입금액 = 실제로 산 단가·금액(보유 종목 관리에 입력) · <b>이월금액</b> = ${d.year}년 1월 1일 기준 금액: ${d.year - 1}년 말까지 보유한 수량은 ${d.year - 1}년 마지막 거래일 종가, ${d.year}년에 산 수량은 매수 금액(누르면 계산 근거) · 외화 종목은 원화 금액을 누르면 외화 금액, 평가금액을 누르면 ${priceLabel} × 수량이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 평가금액(원화) = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · <b>올해 손익</b> = 평가금액 − 이월금액 + ${d.year}년 실현손익 − 이월분 매도 시 전년까지 오른 몫(전년도 손익에 이미 반영) · <b>전체기간 손익</b> = 평가금액 − 매입금액 + 누적 실현손익 · 올해 수익률 = 올해 손익 ÷ 이월금액, 전체 수익률 = 전체기간 손익 ÷ 매입금액 · 실현손익은 보유 종목 관리에서 입력 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>에 입력한 연도별 보유 수량(주식 항목)으로 계산</p>
+          <p class="small muted" style="margin:10px 0 0">매입단가(평균)·매입금액 = 실제로 산 단가·금액(보유 종목 관리에 입력) · <b>손익 기준액(금년)</b> = 이월 금액(전년)이 있으면 이월 금액, 없으면 매입금액(보유 종목 관리와 같음, 누르면 근거) · 외화 종목은 원화 금액을 누르면 외화 금액, 평가금액을 누르면 ${priceLabel} × 수량이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 평가금액(원화) = ${priceLabel} × ${d.year}년 말 보유 수량 × 환율(국내 1) · <b>금년 손익</b> = 평가금액(원화) − 손익 기준액(금년) · <b>전체기간 손익</b> = 평가금액 − 매입금액 + 누적 실현손익 · 금년 수익률 = 금년 손익 ÷ 손익 기준액, 전체 수익률 = 전체기간 손익 ÷ 매입금액 · 전량 매도 종목은 평가금액이 없어 금년 손익 없이 전체기간 손익(실현손익)만 표시 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 관리</a>에 입력한 연도별 보유 수량(주식 항목)으로 계산</p>
         </div>`);
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
