@@ -1170,6 +1170,7 @@
         <div class="card"><h2>연도별 자산금액 ${req('FR-CHT-02')}</h2><div class="chart-box"><canvas data-c1></canvas></div></div>
         <div class="card"><h2>연도별 실제 수령 배당 ${req('FR-DIV-04 · 자산금액 미포함')}</h2><div class="chart-box"><canvas data-c2></canvas></div></div>
       </div>
+      <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card">
         <h2>연도별 자산금액 · 전년 대비 ${req('FR-YR-01 · 02 · 03 · 05 · 06')}</h2>
         <div class="table-wrap"><table>
@@ -1221,19 +1222,52 @@
       data: { labels, datasets: [{ data: years.map((y) => y.dividendKrw), backgroundColor: '#2e9e5b', borderRadius: 4 }] },
       options: baseOpts,
     }));
+    // 연도별 배당 합계 (v0.13.8): 배당금 조회(요약)와 같은 카드, 조회 기간의 모든 연도
+    api('GET', `/dividends/yearly?from=${from}&to=${to}`).then(({ years: dy }) => {
+      const card = main.querySelector('[data-divyearly]');
+      if (card) renderDivYearly(card, dy, { all: true });
+    }).catch((err) => {
+      const card = main.querySelector('[data-divyearly] [data-yearly]');
+      if (card) card.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    });
   }
 
   // ---------------------------------------------------------------------------
   // SC-06 배당금 관리
   // ---------------------------------------------------------------------------
+  // 연도별 배당 합계 카드 (배당금 조회(요약)·연도별 조회 공용, v0.13.8)
+  //  배당·과세표준액 = 배당금 관리에 저장한 회차, 수령액 = 실제 수령 기록
+  function divYearlyShell() {
+    return `<h2>연도별 배당 합계 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
+        <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>`;
+  }
+  function renderDivYearly(card, years, { all = false } = {}) {
+    const shown = all ? years : years.filter((y, i) => y.count || y.divCount || i >= years.length - 5);
+    card.querySelector('[data-yearly]').innerHTML = `<table><thead><tr><th>연도</th><th class="num">배당</th><th class="num">과세표준액</th><th class="num">수령액</th></tr></thead><tbody>${shown.slice().reverse().map((y) => `<tr><td>${y.year}</td>
+        <td class="num">${y.divCount ? `<b>${krw(y.divKrw)}</b><br/><small class="muted">${y.divCount}회</small>` : '<span class="muted">-</span>'}</td>
+        <td class="num">${y.divCount ? (y.taxMissing ? `<span class="tip" data-tip="과세표준이 없는 회차 ${y.taxMissing}개 제외" tabindex="0">${krw(y.taxKrw)}*</span>` : krw(y.taxKrw)) : '<span class="muted">-</span>'}</td>
+        <td class="num">${y.count ? `${krw(y.krw)}<br/><small class="muted">${y.count}건</small>` : '<span class="muted">-</span>'}</td></tr>`).join('')}</tbody></table>
+        <p class="small muted" style="margin:6px 0 0">배당·과세표준액 = 배당금 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 수령액 = 배당금 조회(요약)의 배당 내역(실제 수령 기록) 합계</p>`;
+    state.charts.push(new Chart(card.querySelector('canvas'), {
+      type: 'bar',
+      data: {
+        labels: shown.map((y) => String(y.year)),
+        datasets: [
+          { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: '#1f4e79', borderRadius: 4 },
+          { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: '#e8a33d', borderRadius: 4 },
+          { label: '수령액', data: shown.map((y) => y.krw), backgroundColor: '#2e9e5b', borderRadius: 4 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
+    }));
+  }
+
   async function viewDividends(query) {
     // 검색 조건이 없으면 마지막으로 검색한 조건으로 시작
     if (!query.from && !query.to && !query.code) query = { ...query, ...(settings.get('dividends.filter') || {}) };
     const main = shell('#/dividends', `
       <div class="page-head"><div><h1>배당금 조회(요약) ${req('SC-06 · FR-DIV · FR-CHT-03')}</h1><p>연도별 배당 합계와 배당 내역을 조회합니다. 배당 회차 입력은 <a href="#/divmgmt">배당금 관리</a>에서 합니다. 보유 종목을 삭제해도 내역은 유지됩니다.</p></div></div>
-      <div class="card"><h2>연도별 배당 합계 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
-        <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>
-      </div>
+      <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div>
         <div class="card">
           <h2>배당 내역 조회 ${req('FR-DIV-02')}</h2>
@@ -1289,26 +1323,8 @@
         });
       });
 
-      // 연도별 배당 합계 (v0.13.7): 수령액(기존 기록) + 배당·과세표준액(배당금 관리에 저장한 회차)
-      const shown = years.filter((y, i) => y.count || y.divCount || i >= years.length - 5);
-      main.querySelector('[data-yearly]').innerHTML = `<table><thead><tr><th>연도</th><th class="num">배당</th><th class="num">과세표준액</th><th class="num">수령액</th></tr></thead><tbody>${shown.slice().reverse().map((y) => `<tr><td>${y.year}</td>
-        <td class="num">${y.divCount ? `<b>${krw(y.divKrw)}</b><br/><small class="muted">${y.divCount}회</small>` : '<span class="muted">-</span>'}</td>
-        <td class="num">${y.divCount ? (y.taxMissing ? `<span class="tip" data-tip="과세표준이 없는 회차 ${y.taxMissing}개 제외" tabindex="0">${krw(y.taxKrw)}*</span>` : krw(y.taxKrw)) : '<span class="muted">-</span>'}</td>
-        <td class="num">${y.count ? `${krw(y.krw)}<br/><small class="muted">${y.count}건</small>` : '<span class="muted">-</span>'}</td></tr>`).join('')}</tbody></table>
-        <p class="small muted" style="margin:6px 0 0">배당·과세표준액 = 배당금 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 수령액 = 아래 배당 내역(실제 수령 기록) 합계</p>`;
       destroyCharts();
-      state.charts.push(new Chart(main.querySelector('canvas'), {
-        type: 'bar',
-        data: {
-          labels: shown.map((y) => String(y.year)),
-          datasets: [
-            { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: '#1f4e79', borderRadius: 4 },
-            { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: '#e8a33d', borderRadius: 4 },
-            { label: '수령액', data: shown.map((y) => y.krw), backgroundColor: '#2e9e5b', borderRadius: 4 },
-          ],
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
-      }));
+      renderDivYearly(main.querySelector('[data-divyearly]'), years);
     }
     refresh();
   }
