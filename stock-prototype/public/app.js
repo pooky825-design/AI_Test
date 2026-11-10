@@ -1172,7 +1172,7 @@
       ? '<div class="card empty">보유 종목이 없습니다. 보유 종목을 먼저 등록하세요.</div>'
       : `
       <div class="card">
-        <h2>연도별 자산금액 · 전년 대비 ${req('FR-YR-01 · 02 · 03 · 05 · 06 · FR-CHT-02')}</h2>
+        <h2>연도별 자산 증감 ${req('FR-YR-01 · 02 · 03 · 05 · 06 · FR-CHT-02')}</h2>
         <div class="grid c2 yr-grid">
           <div class="chart-box" style="height:300px"><canvas data-c1></canvas></div>
           <div class="table-wrap"><table class="yr-table">
@@ -1189,7 +1189,7 @@
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 보라색 선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card" data-divlist>${divListShell()}</div>`;
@@ -1231,18 +1231,58 @@
       type: 'bar',
       data: {
         labels,
-        datasets: Object.keys(CAT_LABELS).map((id) => ({
-          label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], stack: 'asset',
-        })),
+        datasets: [
+          // 환율 꺾은선 (v0.14.1): 지난 연도는 연말 환율, 올해는 현재 환율. 막대 위쪽에 그린다
+          {
+            type: 'line', label: '환율(USD/KRW)', data: years.map((y) => y.fxRate), yAxisID: 'yFx', order: 0,
+            borderColor: '#7c3aed', backgroundColor: '#7c3aed', borderWidth: 2, pointRadius: 4, tension: 0.25,
+          },
+          ...Object.keys(CAT_LABELS).map((id) => ({
+            label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], stack: 'asset', order: 1,
+          })),
+        ],
       },
       options: {
         ...baseOpts,
+        layout: { padding: { top: 18 } },
         plugins: {
           legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label} ${krw(ctx.parsed.y)}`, footer: (items) => `총자산 ${krw(years[items[0].dataIndex].valueKrw)}` } },
+          tooltip: { callbacks: {
+            label: (ctx) => (ctx.dataset.yAxisID === 'yFx' ? `환율 ${rate(ctx.parsed.y)}${years[ctx.dataIndex].ongoing ? ' (현재)' : ' (연말)'}` : `${ctx.dataset.label} ${krw(ctx.parsed.y)}`),
+            footer: (items) => `총자산 ${krw(years[items[0].dataIndex].valueKrw)}`,
+          } },
         },
-        scales: { ...baseOpts.scales, x: { ...baseOpts.scales.x, stacked: true }, y: { ...baseOpts.scales.y, stacked: true } },
+        scales: {
+          ...baseOpts.scales,
+          x: { ...baseOpts.scales.x, stacked: true },
+          // 막대 위에 환율 선이 놓이도록 막대 축에 여유를 두고, 환율 축은 위쪽 25% 구간만 쓰게 범위를 잡는다
+          y: { ...baseOpts.scales.y, stacked: true, suggestedMax: Math.max(...years.map((y) => y.valueKrw || 0)) * 1.35 },
+          yFx: (() => {
+            const fx = years.map((y) => y.fxRate).filter((v) => v != null);
+            const lo = fx.length ? Math.min(...fx) : 0;
+            const hi = fx.length ? Math.max(...fx) : 1;
+            const span = Math.max(hi - lo, 20);
+            return { display: false, min: lo - span * 3.2, max: hi + span * 0.25 };
+          })(),
+        },
       },
+      plugins: [{
+        id: 'fxLabels',
+        afterDatasetsDraw(chart) {
+          const meta = chart.getDatasetMeta(0);
+          if (!meta || meta.hidden) return;
+          const { ctx } = chart;
+          ctx.save();
+          ctx.font = '600 11px sans-serif';
+          ctx.fillStyle = '#6d28d9';
+          ctx.textAlign = 'center';
+          meta.data.forEach((pt, i) => {
+            const v = years[i].fxRate;
+            if (v != null) ctx.fillText(nf0.format(Math.round(v)), pt.x, pt.y - 8);
+          });
+          ctx.restore();
+        },
+      }],
     }));
     // 연도별 배당 합계 (v0.13.8): 조회 기간의 모든 연도
     const loadDivYearly = () => api('GET', `/dividends/yearly?from=${from}&to=${to}`).then(({ years: dy }) => {
@@ -1263,7 +1303,7 @@
   // 연도별 배당 합계 카드 (연도별 자산 화면)
   //  배당·과세표준액 = 배당금 관리에 저장한 회차, 수령액 = 실제 수령 기록
   function divYearlyShell() {
-    return `<h2>연도별 배당 합계 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
+    return `<h2>연도별 배당 증감 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
         <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>`;
   }
   // 세금(배당소득세 추정) = 과세표준액 × 16.5% (소득세 15.4% 아님: 요청 기준 16.5%)
