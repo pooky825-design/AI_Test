@@ -330,7 +330,7 @@
       const priceLabel = d.ongoing ? '현재가' : '연말 종가';
       // 소계·합계 행의 현재가(·전일 대비) 칸: 전일 대비 칸에는 보유 종목 전체의 오늘 손익 합계
       // 소계·합계 행의 이월금액(·전일 대비) 칸
-      const gapCells = (x) => `<td class="num">${krw(x.costKrw)}</td>${d.ongoing ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}`;
+      const gapCells = (x) => `<td class="num">${krw(x.carryKrw)}</td>${d.ongoing ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}`;
       // 오늘 손익·손익률 열 (올해만: 전일 종가 대비)
       const todayHead = d.ongoing ? '<th class="num today-col">오늘 손익</th><th class="num today-col">오늘 손익률</th>' : '';
       const todayCells = (x) => (d.ongoing
@@ -402,10 +402,12 @@
               // 이월금액(1월 1일 기준 금액) 계산 근거
               const basisTip = (r) => {
                 const c = r.instrument.currency;
-                const parts = [`${d.year}.1.1 기준 단가 ${money(r.avgPrice, c)}`];
-                if (r.carriedQty > 0) parts.push(r.basisFallback ? `이월 ${qty(r.carriedQty)}주: 전년 종가가 없어 실제 매입단가 적용` : `이월 ${qty(r.carriedQty)}주: ${esc(r.startClose ? r.startClose.date : '')} 종가 ${money(r.startClose ? r.startClose.close : null, c)}`);
-                if (r.quantity - r.carriedQty > 1e-9) parts.push(`${d.year}년 매수분: 매수 단가`);
-                if (c === 'USD') parts.push(`${usd(r.cost)} × ${rate(r.fxRate)}`);
+                const parts = [];
+                if (r.carryFixed) parts.push('보유 종목 관리에 저장한 이월액(수량을 바꿔도 그대로)');
+                else if (r.carriedQty > 0) parts.push(r.basisFallback ? `이월 ${qty(r.carriedQty)}주: 전년 종가가 없어 실제 매입금액 적용` : `이월 ${qty(r.carriedQty)}주 × ${esc(r.startClose ? r.startClose.date : '')} 종가 ${money(r.startClose ? r.startClose.close : null, c)}`);
+                else parts.push(`${d.year}년 신규 매수(이월 없음)`);
+                if (c === 'USD' && r.carry) parts.push(`${usd(r.carry)} × ${rate(r.fxRate)}`);
+                if (r.newBuysKrw) parts.push(`${d.year}년 매수금액 ${krw(r.newBuysKrw)}은 별도(올해 손익에서 차감)`);
                 return parts.join(' · ');
               };
               // 평가금액: 현재가(지난 연도는 연말 종가) × 보유 수량 (× 환율)
@@ -423,9 +425,12 @@
               // 올해 손익·전체기간 손익 칸 (v0.10): 금액 + 수익률, 누르면 계산 근거
               const yearCell = (r) => {
                 const parts = [];
-                if (r.unrealizedKrw != null) parts.push(`평가손익 ${sKrw(r.unrealizedKrw)}`);
-                if (r.realizedYearKrw) parts.push(`실현손익 ${sKrw(r.realizedYearKrw)}`);
-                if (r.soldAdjKrw) parts.push(`전년까지 오른 몫 ${sKrw(-r.soldAdjKrw)} (이월분 ${qty(r.soldQty)}주 매도, 전년도 손익에 반영됨)`);
+                // 올해 손익 = 평가금액 − 이월액 − 올해 매수금액 + 실현손익 + 판 수량의 매입금액 (v0.11)
+                if (r.valueKrw != null) parts.push(`평가금액 ${krw(r.valueKrw)}`);
+                if (r.carryKrw) parts.push(`− 이월액 ${krw(r.carryKrw)}`);
+                if (r.newBuysKrw) parts.push(`− ${d.year}년 매수 ${krw(r.newBuysKrw)}`);
+                if (r.realizedYearKrw) parts.push(`+ 실현손익 ${sKrw(r.realizedYearKrw).replace(/^\+/, '')}`);
+                if (r.soldCostKrw) parts.push(`+ 매도 ${qty(r.soldQty)}주의 매입금액 ${krw(r.soldCostKrw)}`);
                 if (r.soldQty > 1e-9 && !r.hasRealized) parts.push(`${qty(r.soldQty)}주 매도분 실현손익 미입력`);
                 const txt = sKrw(r.pnlKrw);
                 return `<td class="num ${cls(r.pnlKrw)}">${parts.length > 1 || r.soldQty > 1e-9 ? `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${txt}</span>` : txt}${r.returnPct == null ? '' : `<br/><small>${pct(r.returnPct)}</small>`}</td>`;
@@ -441,7 +446,7 @@
               // 그 해 전량 매도한 종목 행: 보유 수량 0, 손익만 표시
               const soldHtml = (r) => `<tr class="sold-row">
                 <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${esc(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
-                <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}<td class="num muted">-</td>
+                <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num">${r.carryKrw ? krw(r.carryKrw) : '<span class="muted">-</span>'}</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}<td class="num muted">-</td>
                 ${yearCell(r)}${totalCell(r)}
               </tr>`;
               const rowHtml = (r) => {
@@ -451,7 +456,7 @@
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.origAvgPrice, c)}</td>
                 <td class="num">${krwCell(r, r.origCostKrw, r.origCost, false)}</td>
-                <td class="num"><span class="tip" data-tip="${esc(basisTip(r))}" tabindex="0">${krw(r.costKrw)}</span></td>
+                <td class="num"><span class="tip" data-tip="${esc(basisTip(r))}" tabindex="0">${krw(r.carryKrw)}</span></td>
                 ${d.ongoing ? `<td class="num ${cls(r.change)}">${todayCell(r)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
                 <td class="num"><span class="tip" data-tip="${esc(valueTip(r))}" tabindex="0"><b>${krw(r.valueKrw)}</b></span></td>
                 ${yearCell(r)}${totalCell(r)}
@@ -725,7 +730,7 @@
           <div class="field" style="width:110px"><label>보유 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
           <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
-          <div class="field" style="width:150px" data-basis-field hidden><label>${yy}년 이월액</label><input name="basisAmount" class="auto-calc" readonly tabindex="-1" /><span class="hint" data-basis-hint>${year}.1.1 기준 · 저장하면 다시 계산</span></div>
+          <div class="field" style="width:160px" data-basis-field hidden><label>${yy}년 이월액 <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" /><span class="hint" data-basis-hint>수량을 바꿔도 그대로</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" style="width:150px"><label>${year}년 실현손익 (선택)</label><input name="realizedPnl" inputmode="decimal" placeholder="매도 시 입력" /><span class="hint">매도금액 − 매입금액, 손실은 −</span><span class="err" data-err="realizedPnl"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
@@ -782,6 +787,16 @@
     };
     form.quantity.addEventListener('input', calcAvg);
     form.purchaseAmount.addEventListener('input', calcAvg);
+    // 이월액 칸: 이월 여부가 ‘신규’면 쓰지 않음
+    const syncCarryField = () => {
+      const isNew = form.carryMode.value === 'NEW';
+      form.carryAmount.disabled = isNew;
+      if (isNew) form.carryAmount.value = '';
+    };
+    form.carryMode.addEventListener('change', syncCarryField);
+    const carryHintPlain = (it) => (it.basis_carried_qty > 1e-9 && it.basis_start_close != null
+      ? `자동값 ${money(it.carry_auto, it.currency)} = ${qty(it.basis_carried_qty)}주 × ${money(it.basis_start_close, it.currency)}`
+      : '전년 종가 기준 자동값 없음');
 
     const setTitles = () => {
       main.querySelector('[data-list-title]').innerHTML = `${year}년 주식 항목 · ${esc(groupName())} ${req('FR-HLD-02')}`;
@@ -790,6 +805,7 @@
     const resetForm = () => {
       form.reset();
       main.querySelector('[data-basis-field]').hidden = true;
+      form.carryAmount.disabled = false;
       form.id.value = '';
       form.code.disabled = false;
       form.groupId.disabled = false;
@@ -913,13 +929,18 @@
       }
       const cols = 10;
       let lastGroup = null;
-      // 1월 1일 기준 매입금액: 이월분은 전년 마지막 종가로 평가 (올해 손익의 기준). 누르면 계산 근거
-      const basisCell = (it) => {
+      // 이월액 (v0.11): 일괄이월·등록 때 고정, 수량을 바꿔도 다시 계산하지 않음(수정 화면에서 직접 변경). 누르면 근거
+      const carryHint = (it) => {
         const c = it.currency;
-        const parts = [];
-        if (it.basis_carried_qty > 1e-9) parts.push(it.basis_start_close != null ? `이월 ${qty(it.basis_carried_qty)}주 × ${esc(it.basis_start_date || '')} 종가 ${money(it.basis_start_close, c)}` : `이월 ${qty(it.basis_carried_qty)}주: 전년 종가가 없어 실제 매입단가 적용`);
-        if (it.quantity - it.basis_carried_qty > 1e-9) parts.push(`${year}년 매수분 ${qty(it.quantity - it.basis_carried_qty)}주: 매입금액`);
-        return `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${money(it.basis_amount, c)}</span>`;
+        const auto = it.basis_carried_qty > 1e-9
+          ? (it.basis_start_close != null ? `전년 말 ${qty(it.basis_carried_qty)}주 × ${esc(it.basis_start_date || '')} 종가 ${money(it.basis_start_close, c)}` : `전년 말 ${qty(it.basis_carried_qty)}주: 전년 종가가 없어 매입금액 적용`)
+          : '이월 없음(신규)';
+        return it.carry_fixed ? `고정 이월액 · 자동 계산값 ${money(it.carry_auto, c)}(${auto})` : `자동: ${auto}`;
+      };
+      const basisCell = (it) => {
+        const parts = [carryHint(it)];
+        if (it.new_buys > 1e-9) parts.push(`${year}년 매수금액 ${money(it.new_buys, it.currency)}은 별도`);
+        return `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${money(it.carry_amount, it.currency)}</span>${it.carry_fixed ? '' : '<br/><small class="muted">자동</small>'}`;
       };
       const rows = d.items.map((it, idx) => {
         let head = '';
@@ -985,12 +1006,12 @@
           calcAvg();
           form.memo.value = it.memo || '';
           form.realizedPnl.value = it.realized_pnl == null ? '' : String(it.realized_pnl);
-          // 수정 시 이월액(1월 1일 기준 금액) 표시: 읽기 전용, 저장하면 서버에서 다시 계산
-          form.basisAmount.value = money(it.basis_amount, it.currency);
-          main.querySelector('[data-basis-hint]').textContent = it.basis_carried_qty > 1e-9 && it.basis_start_close != null
-            ? `이월 ${qty(it.basis_carried_qty)}주 × ${money(it.basis_start_close, it.currency)}${it.quantity - it.basis_carried_qty > 1e-9 ? ' + 올해 매수분' : ''}`
-            : `${year}년 매수분(이월 없음)`;
+          // 수정 시 이월액 입력 칸 (v0.11): 저장된 고정값(없으면 자동 계산값)을 채워 두고, 수량을 바꿔도 다시 계산하지 않는다
+          form.carryAmount.value = it.carry_amount ? String(Number(it.carry_amount.toFixed(it.currency === 'USD' ? 2 : 0))) : '';
+          main.querySelector('[data-cur2]').textContent = `(${it.currency === 'USD' ? '달러' : '원'})`;
+          main.querySelector('[data-basis-hint]').textContent = `수량을 바꿔도 그대로 · ${carryHintPlain(it)}`;
           main.querySelector('[data-basis-field]').hidden = false;
+          syncCarryField();
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${esc(it.group_name)} ${req('FR-HLD-02')}`;
           form.querySelector('[data-submit]').textContent = '저장';

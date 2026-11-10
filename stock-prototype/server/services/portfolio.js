@@ -55,17 +55,20 @@ async function getAssets(userId, year, groupId, merged) {
   const startClose = new Map(codes.map((c) => [c, market.yearEndClose(c, y - 1)]));
   for (const p of perGroup) {
     const sc = startClose.get(p.code);
-    const b = positions.yearBasis(allTrades, p.groupId, p.code, y, sc ? sc.close : null);
+    // 그 해 손익 기준 (v0.11): 이월액(고정 또는 전년 종가) + 올해 매수금액, 판 수량의 원래 매입금액
+    const yb = positions.yearBase(allTrades, p.groupId, p.code, y, sc ? sc.close : null);
     p.origCost = p.cost;
     p.origAvgPrice = p.avgPrice;
-    p.cost = b.cost;
-    p.avgPrice = b.cost / p.quantity;
-    p.carriedQty = b.startQty;
-    p.basisFallback = b.fallback;
-    p.startClose = b.startQty > 0 && sc ? sc : null;
-    // 올해 손익·전체기간 손익 보조값 (v0.10)
-    const pp = positions.pnlParts(allTrades, p.groupId, p.code, y, sc ? sc.close : null);
-    Object.assign(p, { realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldAdj: pp.soldAdj, soldQty: pp.soldQty, yearExtra: pp.realizedYear - pp.soldAdj });
+    p.carry = yb.carry;
+    p.newBuys = yb.newBuys;
+    p.cost = yb.carry + yb.newBuys; // 올해 손익의 기준 금액
+    p.avgPrice = p.cost / p.quantity;
+    p.carriedQty = yb.carriedQty;
+    p.carryFixed = yb.fixed;
+    p.basisFallback = yb.fallback;
+    p.startClose = yb.carriedQty > 0 && sc ? sc : null;
+    const pp = positions.pnlParts(allTrades, p.groupId, p.code, y, null);
+    Object.assign(p, { realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldQty: yb.soldQty, soldCost: yb.soldCost, yearExtra: pp.realizedYear + yb.soldCost });
   }
   // 그 해 전량 매도한 종목: 수량 0 항목 (전년 말 보유했거나 실현손익을 입력한 경우)
   const prevState = positions.stateAt(allTrades, y - 1);
@@ -78,8 +81,9 @@ async function getAssets(userId, year, groupId, merged) {
     if (!(pv && pv.quantity > 1e-9) && !pp0.hasRealized) continue;
     await market.ensureInstrument(c.code).catch(() => null);
     const sc = market.yearEndClose(c.code, y - 1);
-    const pp = positions.pnlParts(allTrades, c.groupId, c.code, y, sc ? sc.close : null);
-    soldOut.push({ code: c.code, groupId: c.groupId, realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldAdj: pp.soldAdj, soldQty: pp.soldQty, yearExtra: pp.realizedYear - pp.soldAdj });
+    const pp = positions.pnlParts(allTrades, c.groupId, c.code, y, null);
+    const yb = positions.yearBase(allTrades, c.groupId, c.code, y, sc ? sc.close : null);
+    soldOut.push({ code: c.code, groupId: c.groupId, realizedYear: pp.realizedYear, realizedCum: pp.realizedCum, hasRealized: pp.hasRealized, soldQty: yb.soldQty, soldCost: yb.soldCost, carry: yb.carry, carryFixed: yb.fixed, newBuys: 0, yearExtra: pp.realizedYear + yb.soldCost });
   }
   soldOut.sort((a, b) => (order.get(a.groupId) ?? 99) - (order.get(b.groupId) ?? 99));
   let soldList = soldOut;
@@ -89,13 +93,14 @@ async function getAssets(userId, year, groupId, merged) {
     for (const p of perGroup) {
       const m = byCode.get(p.code) || {
         code: p.code, groupId: null, quantity: 0, cost: 0, origCost: 0, carriedQty: 0, basisFallback: false, startClose: null,
-        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [], realizedYear: 0, realizedCum: 0, hasRealized: false, soldAdj: 0, soldQty: 0, yearExtra: 0,
+        tradesInYear: 0, lastTradeAt: p.lastTradeAt, mergedGroups: [], realizedYear: 0, realizedCum: 0, hasRealized: false, soldQty: 0, soldCost: 0, carry: 0, newBuys: 0, yearExtra: 0, carryFixed: false,
       };
       m.quantity += p.quantity;
       m.cost += p.cost;
       m.origCost += p.origCost;
-      for (const f of ['realizedYear', 'realizedCum', 'soldAdj', 'soldQty', 'yearExtra']) m[f] += p[f];
+      for (const f of ['realizedYear', 'realizedCum', 'soldQty', 'soldCost', 'carry', 'newBuys', 'yearExtra']) m[f] += p[f];
       m.hasRealized = m.hasRealized || p.hasRealized;
+      m.carryFixed = m.carryFixed || p.carryFixed;
       m.carriedQty += p.carriedQty;
       m.basisFallback = m.basisFallback || p.basisFallback;
       m.startClose = m.startClose || p.startClose;
@@ -109,8 +114,9 @@ async function getAssets(userId, year, groupId, merged) {
     const soldByCode = new Map();
     for (const so of soldOut) {
       const held = list.find((m) => m.code === so.code);
-      const tgt = held || soldByCode.get(so.code) || { ...so, groupId: null, realizedYear: 0, realizedCum: 0, soldAdj: 0, soldQty: 0, yearExtra: 0, hasRealized: false, mergedGroups: [] };
-      for (const f of ['realizedYear', 'realizedCum', 'soldAdj', 'soldQty', 'yearExtra']) tgt[f] += so[f];
+      const tgt = held || soldByCode.get(so.code) || { ...so, groupId: null, realizedYear: 0, realizedCum: 0, soldQty: 0, soldCost: 0, carry: 0, newBuys: 0, yearExtra: 0, hasRealized: false, mergedGroups: [] };
+      for (const f of ['realizedYear', 'realizedCum', 'soldQty', 'soldCost', 'carry', 'yearExtra']) tgt[f] += so[f];
+      if (held) tgt.cost += so.carry; // 통합 행: 다른 그룹 전량 매도분의 이월액도 기준 금액에 포함
       tgt.hasRealized = tgt.hasRealized || so.hasRealized;
       if (!held) { tgt.mergedGroups.push(groupName.get(so.groupId) || '-'); soldByCode.set(so.code, tgt); }
     }
@@ -139,7 +145,8 @@ async function getAssets(userId, year, groupId, merged) {
       code: h.code, groupId: h.groupId, groupName: isMerged ? '통합' : groupName.get(h.groupId) || '-',
       mergedGroups: h.mergedGroups || null, quantity: h.quantity, avgPrice: h.avgPrice, tradesInYear: h.tradesInYear,
       origAvgPrice: h.origAvgPrice, carriedQty: h.carriedQty, basisFallback: h.basisFallback, startClose: h.startClose,
-      realizedYear: h.realizedYear, realizedCum: h.realizedCum, hasRealized: h.hasRealized, soldAdj: h.soldAdj, soldQty: h.soldQty,
+      realizedYear: h.realizedYear, realizedCum: h.realizedCum, hasRealized: h.hasRealized, soldQty: h.soldQty,
+      carry: h.carry, newBuys: h.newBuys, soldCost: h.soldCost, carryFixed: h.carryFixed,
     };
     try {
       let price;
@@ -165,7 +172,7 @@ async function getAssets(userId, year, groupId, merged) {
       const usd = inst.currency === 'USD';
       const rate = usd ? (fx ? fx.rate : null) : 1;
       const value = price * h.quantity; // 거래 통화 기준
-      const cost = h.avgPrice * h.quantity; // 1월 1일 기준 매입금액
+      const cost = h.cost; // 올해 손익의 기준 = 이월액 + 올해 매수금액
       const origCost = h.origAvgPrice * h.quantity; // 원래 매입금액
       const yearPnl = value - cost + h.yearExtra; // 올해 손익 (실현손익 포함)
       const totalPnl = value - origCost + h.realizedCum; // 전체기간 손익 (누적 실현손익 포함)
@@ -185,7 +192,9 @@ async function getAssets(userId, year, groupId, merged) {
         origCostKrw: k(origCost),
         realizedYearKrw: k(h.realizedYear),
         realizedCumKrw: k(h.realizedCum),
-        soldAdjKrw: k(h.soldAdj),
+        carryKrw: k(h.carry),
+        newBuysKrw: k(h.newBuys),
+        soldCostKrw: k(h.soldCost),
         unrealizedKrw: k(value - cost),
         pnlKrw: k(yearPnl), // 올해 손익
         totalPnlKrw: k(totalPnl), // 전체기간 손익
@@ -219,18 +228,20 @@ async function getAssets(userId, year, groupId, merged) {
     soldRows.push({
       code: so.code, groupId: so.groupId, groupName: isMerged ? '통합' : groupName.get(so.groupId) || '-', mergedGroups: so.mergedGroups || null,
       instrument: inst, fxRate: rate, soldQty: so.soldQty, hasRealized: so.hasRealized, category: c.id, categoryLabel: c.label,
-      realizedYear: so.realizedYear, realizedYearKrw: so.realizedYear * rate, soldAdjKrw: so.soldAdj * rate,
-      pnlKrw: so.yearExtra * rate, totalPnlKrw: so.realizedCum * rate,
+      realizedYear: so.realizedYear, realizedYearKrw: so.realizedYear * rate, soldCostKrw: so.soldCost * rate,
+      carryKrw: so.carry * rate, costKrw: so.carry * rate, newBuysKrw: 0, carryFixed: so.carryFixed,
+      pnlKrw: (so.yearExtra - so.carry) * rate, totalPnlKrw: so.realizedCum * rate, returnPct: so.carry ? (so.yearExtra - so.carry) / so.carry : null,
     });
   }
   // 합계 행: 보유 종목 + 전량 매도 종목의 올해 손익·전체기간 손익
   const sumOf = (rs, ss) => {
     const v = rs.reduce((a, r) => a + r.valueKrw, 0);
-    const c = rs.reduce((a, r) => a + r.costKrw, 0);
+    const c = rs.reduce((a, r) => a + r.costKrw, 0) + ss.reduce((a, r) => a + r.costKrw, 0);
+    const carry = rs.reduce((a, r) => a + r.carryKrw, 0) + ss.reduce((a, r) => a + r.carryKrw, 0);
     const oc = rs.reduce((a, r) => a + r.origCostKrw, 0);
     const pnl = rs.reduce((a, r) => a + r.pnlKrw, 0) + ss.reduce((a, r) => a + r.pnlKrw, 0);
     const tp = rs.reduce((a, r) => a + r.totalPnlKrw, 0) + ss.reduce((a, r) => a + r.totalPnlKrw, 0);
-    return { valueKrw: v, costKrw: c, origCostKrw: oc, pnlKrw: pnl, returnPct: c ? pnl / c : null, totalPnlKrw: tp, totalPct: oc ? tp / oc : null };
+    return { valueKrw: v, costKrw: c, carryKrw: carry, origCostKrw: oc, pnlKrw: pnl, returnPct: c ? pnl / c : null, totalPnlKrw: tp, totalPct: oc ? tp / oc : null };
   };
   const priceTimes = ok.map((r) => r.priceTime).sort();
   const range = positions.tradeYearRange(userId);

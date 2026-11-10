@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS holding_items (
   memo TEXT,
   carry_mode TEXT,                  -- 이월 여부 (v0.8.1): CARRIED(이월) / NEW(신규) / NULL(자동: 전년 말 보유 여부)
   realized_pnl REAL,                -- 그 해 실현손익 (v0.10, 거래 통화, 선택): 매도한 수량의 매도금액 − 원래 매입금액
+  carry_amount REAL,                -- 그 해 이월액 (v0.11, 거래 통화): 일괄이월·등록 때 고정, 수정 화면에서만 변경. NULL이면 전년 말 수량 × 전년 마지막 종가
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (user_id, group_id, code, year)
@@ -296,6 +297,7 @@ function migrate() {
   const icols = all('PRAGMA table_info(holding_items)').map((c) => c.name);
   if (!icols.includes('carry_mode')) db.run('ALTER TABLE holding_items ADD COLUMN carry_mode TEXT');
   if (!icols.includes('realized_pnl')) db.run('ALTER TABLE holding_items ADD COLUMN realized_pnl REAL');
+  if (!icols.includes('carry_amount')) db.run('ALTER TABLE holding_items ADD COLUMN carry_amount REAL');
 
   // v0.8: 매수·매도 기록(holding_trades)을 연도별 주식 항목(holding_items)으로 한 번 변환
   if (!all("SELECT value FROM app_meta WHERE key = 'trades_to_items'")[0]) {

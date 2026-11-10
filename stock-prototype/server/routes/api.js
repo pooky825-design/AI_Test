@@ -207,10 +207,12 @@ router.get('/holdings', async (req, res) => {
     const c = categories.categoryOf(req.user.id, p.code, inst, saved);
     // 1월 1일 기준 매입금액(이월분은 전년 마지막 종가) · 올해 실현손익 (v0.10)
     const sc = market.yearEndClose(p.code, year - 1);
-    const b = positions.yearBasis(allItems, p.groupId, p.code, year, sc ? sc.close : null);
-    const pp = positions.pnlParts(allItems, p.groupId, p.code, year, sc ? sc.close : null);
+    const yb = positions.yearBase(allItems, p.groupId, p.code, year, sc ? sc.close : null);
+    const pp = positions.pnlParts(allItems, p.groupId, p.code, year, null);
     return {
-      basis_amount: b.cost, basis_carried_qty: b.startQty, basis_start_close: b.startQty > 0 && sc ? sc.close : null, basis_start_date: sc ? sc.date : null,
+      // 이월액 (v0.11): 고정값(일괄이월·등록·수정 때 저장) 또는 전년 말 수량 × 전년 종가
+      carry_amount: yb.carry, carry_fixed: yb.fixed, carry_auto: yb.autoCarry ?? null, new_buys: yb.newBuys,
+      basis_carried_qty: yb.carriedQty, basis_start_close: yb.carriedQty > 0 && sc ? sc.close : null, basis_start_date: sc ? sc.date : null,
       realized_pnl: p.itemYear === year ? p.realized : null, realized_cum: pp.realizedCum,
       group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
       name: inst.name, market: inst.market, type: inst.type, currency: inst.currency,
@@ -244,6 +246,9 @@ async function validateItem(body, userId) {
   const p = hasAmount ? { value: amt.value && q.value ? amt.value / q.value : null } : positiveNumber(body.avgPrice);
   const carryMode = body.carryMode === 'CARRIED' || body.carryMode === 'NEW' ? body.carryMode : null;
   const realized = signedAmount(body.realizedPnl);
+  // 이월액 (선택, v0.11): 0 이상, 비우면 기존 고정값 유지(없으면 저장 때 한 번 계산해 고정)
+  const carryRaw = String(body.carryAmount ?? '').trim().replace(/,/g, '');
+  const carry = !carryRaw ? { value: null } : /^\d+(\.\d{1,4})?$/.test(carryRaw) ? { value: Number(carryRaw) } : { error: '0 이상의 숫자를 입력해 주세요.' };
   const memo = String(body.memo || '');
   fieldErrors({
     groupId: group ? null : '그룹을 선택해 주세요.',
@@ -255,19 +260,33 @@ async function validateItem(body, userId) {
     avgPrice: hasAmount ? null : p.error,
     carryMode: carryMode ? null : '이월 또는 신규를 선택해 주세요.',
     realizedPnl: realized.error || null,
+    carryAmount: carry.error || null,
     memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
   });
   const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
-  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null, realizedPnl: realized.value };
+  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null, realizedPnl: realized.value, carryAmount: carry.value };
+}
+
+// 이월액 결정 (v0.11): 이월이면 입력값 → 기존 고정값 → (처음) 전년 말 수량 × 전년 마지막 종가로 계산해 고정. 신규면 없음
+function resolveCarry(userId, v) {
+  if (v.carryMode !== 'CARRIED') return null;
+  if (v.carryAmount != null) return v.carryAmount;
+  const ex = db.get('SELECT carry_amount FROM holding_items WHERE user_id = ? AND group_id = ? AND code = ? AND year = ?', [userId, v.groupId, v.code, v.year]);
+  if (ex && ex.carry_amount != null) return ex.carry_amount;
+  const prev = positions.stateAt(positions.itemsOf(userId), v.year - 1).get(`${v.groupId}|${v.code}`);
+  const sc = market.yearEndClose(v.code, v.year - 1);
+  if (prev && prev.quantity > 0) return sc ? prev.quantity * sc.close : prev.cost;
+  return sc ? v.quantity * sc.close : v.quantity * v.avgPrice;
 }
 
 function upsertItem(userId, v) {
+  const carry = resolveCarry(userId, v);
   db.run(
-    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = excluded.quantity, avg_price = excluded.avg_price,
-       memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, updated_at = excluded.updated_at`,
-    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, v.realizedPnl ?? null, now(), now()]
+       memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, carry_amount = excluded.carry_amount, updated_at = excluded.updated_at`,
+    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, v.realizedPnl ?? null, carry, now(), now()]
   );
   categories.setCategory(userId, v.code, v.category); // 종목 분류는 회원·종목별로 하나
 }
