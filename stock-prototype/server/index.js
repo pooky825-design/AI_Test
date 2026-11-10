@@ -26,7 +26,7 @@ async function main() {
   if (isNew) await seedDemo();
 
   const app = express();
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '5mb' })); // 백업 복원 파일(v0.15)도 받을 수 있게
   app.use(auth.loadUser);
   app.get('/vendor/chart.umd.js', (_req, res) => res.sendFile(path.join(__dirname, '..', 'node_modules', 'chart.js', 'dist', 'chart.umd.min.js')));
   app.get('/api/health', (_req, res) => res.json({ ok: true, dataMode: providers.mode }));

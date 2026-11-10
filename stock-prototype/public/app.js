@@ -1389,9 +1389,115 @@
   // ---------------------------------------------------------------------------
   // SC-07 내 정보
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 데이터 백업·복원 (v0.15)
+  //  - 웹: 파일 내려받기 / 파일 선택
+  //  - 앱: 안드로이드 파일 선택 창(저장 위치 선택·파일 열기). 앱 삭제 후에도 남는 위치에 저장된다
+  // ---------------------------------------------------------------------------
+  const docWaiters = {};
+  window.__docDone = (id, ok, payload) => { const w = docWaiters[id]; if (w) { delete docWaiters[id]; w(ok, payload); } };
+  const nativeDoc = (fn, ...args) => new Promise((resolve, reject) => {
+    const id = `d${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+    docWaiters[id] = (ok, payload) => (ok ? resolve(payload) : reject(new Error(payload || '취소했습니다.')));
+    window.AndroidBridge[fn](...args, id);
+  });
+  const utf8ToB64 = (text) => {
+    const bytes = new TextEncoder().encode(text);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
+  const b64ToUtf8 = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+
+  async function backupData() {
+    try {
+      const data = await api('GET', '/backup');
+      const text = JSON.stringify(data, null, 2);
+      const name = `stock-manager-backup-${today()}.json`; // 영문 파일 이름(일부 브라우저는 한글 이름을 무시)
+      const c = data.counts || {};
+      const summary = `주식 항목 ${c.items || 0}건 · 그룹 ${c.groups || 0}개 · 배당 회차 ${c.holdingDividends || 0}건`;
+      if (window.AndroidBridge && window.AndroidBridge.createDocument) {
+        const msg = await nativeDoc('createDocument', name, 'application/json', utf8ToB64(text));
+        toast(`${msg} (${summary})`);
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 3000);
+        toast(`${name} 파일을 내려받았습니다. (${summary})`);
+      }
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async function readBackupFile() {
+    if (window.AndroidBridge && window.AndroidBridge.openDocument) return b64ToUtf8(await nativeDoc('openDocument'));
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.addEventListener('change', () => {
+        const f = input.files && input.files[0];
+        if (!f) return reject(new Error('취소했습니다.'));
+        f.text().then(resolve, reject);
+      });
+      input.click();
+    });
+  }
+
+  async function restoreData() {
+    let backup;
+    try {
+      backup = JSON.parse(await readBackupFile());
+    } catch (err) {
+      toast(err instanceof SyntaxError ? '백업 파일을 읽을 수 없습니다(JSON 형식 아님).' : err.message);
+      return;
+    }
+    if (!backup || backup.format !== 'stock-manager-backup') { toast('주식 관리시스템 백업 파일이 아닙니다.'); return; }
+    const c = backup.counts || {};
+    const body = openModal('백업 파일로 복원');
+    body.innerHTML = `<p style="margin:0 0 10px">아래 백업 파일로 복원합니다. 지금 계정(<b>${esc(state.user.email)}</b>)의 데이터는 <b>모두 지워지고</b> 백업 내용으로 바뀝니다.</p>
+      <table><tbody>
+        <tr><td class="left">백업 계정</td><td class="right">${esc(backup.account || '-')}</td></tr>
+        <tr><td class="left">백업 일시</td><td class="right">${esc(fmtTime(backup.exportedAt))}</td></tr>
+        <tr><td class="left">그룹</td><td class="right">${c.groups || 0}개</td></tr>
+        <tr><td class="left">주식 항목(연도별)</td><td class="right">${c.items || 0}건</td></tr>
+        <tr><td class="left">배당내역 관리 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
+        <tr><td class="left">종목 분류 · 화면 설정</td><td class="right">${c.categories || 0}건 · ${c.settings || 0}건</td></tr>
+      </tbody></table>
+      ${backup.account && backup.account !== state.user.email ? '<div class="notice warn" style="margin-top:10px"><div>다른 계정에서 만든 백업입니다. 복원하면 지금 계정에 그 데이터가 들어갑니다.</div></div>' : ''}
+      <div class="field-row" style="justify-content:flex-end;margin-top:14px"><button class="secondary" data-close>취소</button><button class="danger" data-go>복원</button></div>`;
+    body.querySelector('[data-close]').addEventListener('click', closeModal);
+    body.querySelector('[data-go]').addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      try {
+        const r = await api('POST', '/restore', { backup });
+        closeModal();
+        await loadSettings();
+        toast(`복원했습니다. 주식 항목 ${r.counts.items}건 · 배당 회차 ${r.counts.holdingDividends}건`);
+        go('#/assets');
+      } catch (err) {
+        e.target.disabled = false;
+        toast(err.message);
+      }
+    });
+  }
+
   function viewMe() {
     const main = shell('#/me', `
       <div class="page-head"><div><h1>나의 정보 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="card">
+        <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
+        <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당내역 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
+        <div class="field-row" style="gap:10px;flex-wrap:wrap">
+          <button data-backup>백업 파일 저장</button>
+          <button class="secondary" data-restore>백업 파일로 복원</button>
+        </div>
+        <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
+      </div>
       <div class="grid c2">
         <div class="card">
           <h2>비밀번호 변경</h2>
@@ -1410,6 +1516,8 @@
           </form>
         </div>
       </div>`);
+    main.querySelector('[data-backup]').addEventListener('click', backupData);
+    main.querySelector('[data-restore]').addEventListener('click', restoreData);
     const pw = main.querySelector('[data-pw]');
     pw.addEventListener('submit', async (e) => {
       e.preventDefault();

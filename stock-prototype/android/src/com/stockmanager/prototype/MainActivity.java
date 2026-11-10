@@ -3,6 +3,7 @@ package com.stockmanager.prototype;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -49,6 +50,12 @@ public class MainActivity extends Activity {
             "www.soletf.com", "investments.miraeasset.com"));
 
     private WebView webView;
+
+    // 백업·복원 (v0.15): 안드로이드 파일 선택 창(저장 위치 선택 / 파일 열기)으로 앱 삭제 후에도 남는 위치에 저장·불러오기
+    private static final int REQ_CREATE_DOC = 7001;
+    private static final int REQ_OPEN_DOC = 7002;
+    private String pendingDocId;
+    private byte[] pendingDocData;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -68,6 +75,50 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
         setContentView(webView);
         webView.loadUrl("file:///android_asset/www/index.html");
+    }
+
+    /** JS 콜백: window.__docDone(id, ok, payload) */
+    private void docDone(final String id, final boolean ok, final String payload) {
+        main.post(new Runnable() {
+            @Override public void run() {
+                webView.evaluateJavascript("window.__docDone && window.__docDone(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(payload == null ? "" : payload) + ")", null);
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_CREATE_DOC && requestCode != REQ_OPEN_DOC) return;
+        final String id = pendingDocId;
+        final byte[] bytes = pendingDocData;
+        pendingDocId = null;
+        pendingDocData = null;
+        if (id == null) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) { docDone(id, false, "취소했습니다."); return; }
+        final Uri uri = data.getData();
+        pool.execute(new Runnable() {
+            @Override public void run() {
+                try {
+                    if (requestCode == REQ_CREATE_DOC) {
+                        OutputStream out = getContentResolver().openOutputStream(uri, "w");
+                        out.write(bytes);
+                        out.close();
+                        docDone(id, true, "백업 파일을 저장했습니다.");
+                    } else {
+                        InputStream in = getContentResolver().openInputStream(uri);
+                        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                        byte[] b = new byte[8192];
+                        int n;
+                        while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                        in.close();
+                        docDone(id, true, Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP));
+                    }
+                } catch (Exception e) {
+                    docDone(id, false, "파일 처리 실패: " + e.getMessage());
+                }
+            }
+        });
     }
 
     @Override
@@ -180,6 +231,46 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 // 다음 저장 때 다시 시도됨
             }
+        }
+
+        /** 백업 파일 저장: 파일 선택 창에서 저장 위치를 고르게 한다 (결과는 window.__docDone). */
+        @JavascriptInterface
+        public void createDocument(final String name, final String mime, final String b64, final String id) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        pendingDocId = id;
+                        pendingDocData = Base64.decode(b64, Base64.DEFAULT);
+                        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType(mime);
+                        i.putExtra(Intent.EXTRA_TITLE, name);
+                        startActivityForResult(i, REQ_CREATE_DOC);
+                    } catch (Exception e) {
+                        pendingDocId = null;
+                        docDone(id, false, "저장 창을 열 수 없습니다: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+        /** 백업 파일 열기: 파일 선택 창에서 고른 파일 내용을 base64로 돌려준다. */
+        @JavascriptInterface
+        public void openDocument(final String id) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        pendingDocId = id;
+                        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                        startActivityForResult(i, REQ_OPEN_DOC);
+                    } catch (Exception e) {
+                        pendingDocId = null;
+                        docDone(id, false, "파일 창을 열 수 없습니다: " + e.getMessage());
+                    }
+                }
+            });
         }
 
         /** 엑셀 파일을 다운로드 폴더에 저장하고 안내 문구를 돌려준다. */

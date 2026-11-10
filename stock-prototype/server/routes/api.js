@@ -758,6 +758,104 @@ router.delete('/dividends/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 엑셀 내보내기 (3.8)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 데이터 백업·복원 (v0.15): 회원의 모든 데이터를 JSON 파일 하나로 내려받고, 그 파일로 되살린다.
+// 시세·환율·배당 이벤트 같은 공통 데이터는 다시 받아오므로 넣지 않는다.
+// ---------------------------------------------------------------------------
+const BACKUP_FORMAT = 'stock-manager-backup';
+const BACKUP_VERSION = 1;
+const pick = (row, cols) => Object.fromEntries(cols.map((c) => [c, row[c] ?? null]));
+const COLS = {
+  groups: ['id', 'name', 'sort_order', 'created_at'],
+  items: ['group_id', 'code', 'year', 'quantity', 'avg_price', 'memo', 'carry_mode', 'realized_pnl', 'carry_amount', 'carry_qty', 'created_at', 'updated_at'],
+  categories: ['code', 'category', 'updated_at'],
+  settings: ['key', 'value', 'updated_at'],
+  dividends: ['code', 'pay_date', 'amount', 'currency', 'memo', 'created_at'],
+  holdingDividends: ['group_id', 'code', 'ex_date', 'pay_date', 'per_share', 'tax_per_share', 'quantity', 'amount', 'tax_amount', 'created_at', 'updated_at'],
+};
+
+router.get('/backup', (req, res) => {
+  const uid = req.user.id;
+  const data = {
+    groups: db.all('SELECT * FROM holding_groups WHERE user_id = ? ORDER BY sort_order, id', [uid]).map((r) => pick(r, COLS.groups)),
+    items: db.all('SELECT * FROM holding_items WHERE user_id = ? ORDER BY year, id', [uid]).map((r) => pick(r, COLS.items)),
+    categories: db.all('SELECT * FROM stock_categories WHERE user_id = ?', [uid]).map((r) => pick(r, COLS.categories)),
+    settings: db.all('SELECT * FROM user_settings WHERE user_id = ?', [uid]).map((r) => pick(r, COLS.settings)),
+    dividends: db.all('SELECT * FROM dividends WHERE user_id = ? ORDER BY pay_date, id', [uid]).map((r) => pick(r, COLS.dividends)),
+    holdingDividends: db.all('SELECT * FROM holding_dividends WHERE user_id = ? ORDER BY ex_date, id', [uid]).map((r) => pick(r, COLS.holdingDividends)),
+  };
+  const counts = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length]));
+  res.json({ format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now(), account: req.user.email, counts, data });
+});
+
+// 복원: 지금 회원의 데이터를 모두 지우고 백업 파일의 데이터로 바꾼다 (그룹 번호는 새로 매기고 연결을 다시 맞춤)
+router.post('/restore', (req, res) => {
+  const b = req.body && req.body.backup;
+  const bad = (msg) => res.status(400).json({ error: msg, code: 'VALIDATION' });
+  if (!b || b.format !== BACKUP_FORMAT || !b.data || typeof b.data !== 'object') return bad('주식 관리시스템 백업 파일이 아닙니다.');
+  if (Number(b.version) > BACKUP_VERSION) return bad('더 새로운 버전에서 만든 백업 파일입니다. 앱을 업데이트한 뒤 복원해 주세요.');
+  const d = b.data;
+  const arr = (k) => (Array.isArray(d[k]) ? d[k] : []);
+  const groups = arr('groups');
+  if (!groups.length && arr('items').length) return bad('백업 파일에 그룹 정보가 없습니다.');
+  const uid = req.user.id;
+  const t = now();
+  const counts = {};
+  db.tx(() => {
+    for (const tbl of ['holding_items', 'holding_dividends', 'stock_categories', 'user_settings', 'dividends', 'holding_groups', 'holdings', 'holding_trades']) {
+      db.run(`DELETE FROM ${tbl} WHERE user_id = ?`, [uid]);
+    }
+    const gmap = new Map();
+    groups.forEach((g, i) => {
+      const name = String(g.name || `그룹${i + 1}`).slice(0, 20);
+      const { lastId } = db.run('INSERT INTO holding_groups (user_id, name, sort_order, created_at) VALUES (?, ?, ?, ?)', [uid, name, Number(g.sort_order) || i, g.created_at || t]);
+      gmap.set(Number(g.id), lastId);
+    });
+    const gid = (v) => gmap.get(Number(v));
+    let n = 0;
+    for (const r of arr('items')) {
+      if (!gid(r.group_id) || !r.code || !Number.isInteger(Number(r.year))) continue;
+      db.run(`INSERT OR REPLACE INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, carry_qty, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uid, gid(r.group_id), String(r.code), Number(r.year), Number(r.quantity) || 0, r.avg_price, r.memo, r.carry_mode, r.realized_pnl, r.carry_amount, r.carry_qty, r.created_at || t, r.updated_at || t]);
+      n++;
+    }
+    counts.items = n;
+    n = 0;
+    for (const r of arr('holdingDividends')) {
+      if (!gid(r.group_id) || !r.code || !r.ex_date) continue;
+      db.run(`INSERT OR REPLACE INTO holding_dividends (user_id, group_id, code, ex_date, pay_date, per_share, tax_per_share, quantity, amount, tax_amount, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uid, gid(r.group_id), String(r.code), String(r.ex_date), r.pay_date, Number(r.per_share) || 0, r.tax_per_share, Number(r.quantity) || 0, Number(r.amount) || 0, r.tax_amount, r.created_at || t, r.updated_at || t]);
+      n++;
+    }
+    counts.holdingDividends = n;
+    n = 0;
+    for (const r of arr('categories')) {
+      if (!r.code || !categories.IDS.includes(r.category)) continue;
+      db.run('INSERT OR REPLACE INTO stock_categories (user_id, code, category, updated_at) VALUES (?, ?, ?, ?)', [uid, String(r.code), r.category, r.updated_at || t]);
+      n++;
+    }
+    counts.categories = n;
+    n = 0;
+    for (const r of arr('settings')) {
+      if (!SETTING_KEYS.includes(r.key)) continue;
+      db.run('INSERT OR REPLACE INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)', [uid, r.key, String(r.value), r.updated_at || t]);
+      n++;
+    }
+    counts.settings = n;
+    n = 0;
+    for (const r of arr('dividends')) {
+      if (!r.code || !r.pay_date) continue;
+      db.run('INSERT INTO dividends (user_id, code, pay_date, amount, currency, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid, String(r.code), String(r.pay_date), Number(r.amount) || 0, r.currency === 'USD' ? 'USD' : 'KRW', r.memo, r.created_at || t]);
+      n++;
+    }
+    counts.dividends = n;
+    counts.groups = groups.length;
+  });
+  res.json({ ok: true, counts, account: b.account || null, exportedAt: b.exportedAt || null });
+});
+
 function sendXlsx(res, buf, name) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
