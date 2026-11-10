@@ -245,7 +245,8 @@ async function validateItem(body, userId) {
   const amt = hasAmount ? positiveNumber(body.purchaseAmount) : { value: null };
   const p = hasAmount ? { value: amt.value && q.value ? amt.value / q.value : null } : positiveNumber(body.avgPrice);
   const carryMode = body.carryMode === 'CARRIED' || body.carryMode === 'NEW' ? body.carryMode : null;
-  const realized = signedAmount(body.realizedPnl);
+  // 실현손익: 요청에 칸이 없으면(수정 화면에서 제외, v0.12) 기존 값 유지
+  const realized = body.realizedPnl === undefined ? { value: undefined } : signedAmount(body.realizedPnl);
   // 이월액 (선택, v0.11): 0 이상, 비우면 기존 고정값 유지(없으면 저장 때 한 번 계산해 고정)
   const carryRaw = String(body.carryAmount ?? '').trim().replace(/,/g, '');
   const carry = !carryRaw ? { value: null } : /^\d+(\.\d{1,4})?$/.test(carryRaw) ? { value: Number(carryRaw) } : { error: '0 이상의 숫자를 입력해 주세요.' };
@@ -281,12 +282,17 @@ function resolveCarry(userId, v) {
 
 function upsertItem(userId, v) {
   const carry = resolveCarry(userId, v);
+  let realized = v.realizedPnl ?? null;
+  if (v.realizedPnl === undefined) {
+    const ex = db.get('SELECT realized_pnl FROM holding_items WHERE user_id = ? AND group_id = ? AND code = ? AND year = ?', [userId, v.groupId, v.code, v.year]);
+    realized = ex ? ex.realized_pnl : null;
+  }
   db.run(
     `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = excluded.quantity, avg_price = excluded.avg_price,
        memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, carry_amount = excluded.carry_amount, updated_at = excluded.updated_at`,
-    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, v.realizedPnl ?? null, carry, now(), now()]
+    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, realized, carry, now(), now()]
   );
   categories.setCategory(userId, v.code, v.category); // 종목 분류는 회원·종목별로 하나
 }

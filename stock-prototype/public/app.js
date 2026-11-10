@@ -91,6 +91,9 @@
   }
 
   const formData = (form) => Object.fromEntries(new FormData(form).entries());
+  // 표 안의 수정·삭제 아이콘 버튼
+  const ICON_EDIT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  const ICON_DEL = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
 
   function parseHash() {
     const h = location.hash || '#/';
@@ -727,11 +730,10 @@
           <div class="field" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
-          <div class="field" style="width:110px"><label>보유 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" style="width:110px"><label>현재 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
           <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
-          <div class="field" style="width:160px" data-basis-field hidden><label>${yy}년 이월액 <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" /><span class="hint" data-basis-hint>수량을 바꿔도 그대로</span><span class="err" data-err="carryAmount"></span></div>
-          <div class="field" style="width:150px"><label>${year}년 실현손익 (선택)</label><input name="realizedPnl" inputmode="decimal" placeholder="매도 시 입력" /><span class="hint">매도금액 − 매입금액, 손실은 −</span><span class="err" data-err="realizedPnl"></span></div>
+          <div class="field" style="width:160px" data-basis-field hidden><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" /><span class="hint" data-basis-hint>수량을 바꿔도 그대로</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
@@ -927,7 +929,7 @@
         tbox.innerHTML = `<div class="empty">${year}년 ${esc(groupName())}에 보유한 종목이 없습니다.<br/><span class="small">위에서 종목을 등록하세요.</span></div>`;
         return;
       }
-      const cols = 10;
+      const cols = 8;
       let lastGroup = null;
       // 이월액 (v0.11): 일괄이월·등록 때 고정, 수량을 바꿔도 다시 계산하지 않음(수정 화면에서 직접 변경). 누르면 근거
       const carryHint = (it) => {
@@ -942,6 +944,12 @@
         if (it.new_buys > 1e-9) parts.push(`${year}년 매수금액 ${money(it.new_buys, it.currency)}은 별도`);
         return `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${money(it.carry_amount, it.currency)}</span>${it.carry_fixed ? '' : '<br/><small class="muted">자동</small>'}`;
       };
+      const hasCarry = (it) => it.carry_amount > 1e-9 && it.basis_carried_qty > 1e-9;
+      // 손익 기준액 = 이월액이 있으면 이월액, 없으면 매입금액
+      const baseCell = (it) => (hasCarry(it)
+        ? `<span class="tip" data-tip="이월 금액(전년) 기준" tabindex="0">${money(it.carry_amount, it.currency)}</span>`
+        : `<span class="tip" data-tip="이월 금액이 없어 매입금액 기준" tabindex="0">${money(it.purchase_amount, it.currency)}</span>`);
+      const dash = '<span class="muted">-</span>';
       const rows = d.items.map((it, idx) => {
         let head = '';
         if (!groupId && it.group_id !== lastGroup) {
@@ -950,21 +958,19 @@
         }
         return `${head}<tr data-idx="${idx}">
           <td class="left"><div class="name-cell"><span>${esc(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
-          <td>${it.carried ? '<span class="badge carry">이월</span>' : '<span class="muted small">신규</span>'}</td>
+          <td class="right">${hasCarry(it) ? qty(it.basis_carried_qty) : dash}</td>
+          <td class="right">${hasCarry(it) ? basisCell(it) : dash}</td>
           <td class="right">${qty(it.quantity)}</td>
-          <td class="right">${money(it.avg_price, it.currency)}</td>
-          <td class="right"><b>${money(it.purchase_amount, it.currency)}</b></td>
-          <td class="right">${basisCell(it)}</td>
-          <td class="right ${it.realized_pnl == null ? '' : cls(it.realized_pnl)}">${it.realized_pnl == null ? '<span class="muted">-</span>' : sMoney(it.realized_pnl, it.currency)}${it.realized_cum && it.realized_cum !== it.realized_pnl ? `<br/><small class="muted">누적 ${sMoney(it.realized_cum, it.currency)}</small>` : ''}</td>
+          <td class="right"><span class="tip" data-tip="매입단가(평균) ${esc(money(it.avg_price, it.currency))}" tabindex="0">${money(it.purchase_amount, it.currency)}</span></td>
+          <td class="right"><b>${baseCell(it)}</b></td>
           <td class="small">${esc(it.memo || '')}</td>
-          <td class="small muted">${esc(String(it.created_at || '').slice(0, 10).replace(/-/g, '.'))}${it.item_year < year ? `<br/><span class="muted">${it.item_year}년 항목</span>` : ''}</td>
-          <td><button class="sm secondary" data-edit>수정</button> <button class="sm danger" data-del>삭제</button></td>
+          <td class="icon-actions"><button class="icon-btn" data-edit title="수정" aria-label="수정">${ICON_EDIT}</button><button class="icon-btn danger" data-del title="삭제" aria-label="삭제">${ICON_DEL}</button></td>
         </tr>`;
       }).join('');
       tbox.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>종목</th><th>이월</th><th>수량</th><th>매입단가(평균)</th><th>매입금액</th><th>${yy}년 이월액</th><th>실현손익</th><th>메모</th><th>입력일</th><th></th></tr></thead>
+        <thead><tr><th>종목</th><th>이월 수량</th><th>이월 금액(전년)</th><th>현재 수량</th><th>매입금액</th><th>손익 기준액</th><th>메모</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">매입금액 = 실제로 산 금액(보유 수량 × 매입단가(평균), 거래 통화, 전체기간 손익의 기준) · ${yy}년 이월액 = ${year}년 1월 1일 기준 금액: 이월분은 ${year - 1}년 마지막 종가로 평가한 금액 + ${year}년 매수분(올해 손익의 기준, 누르면 계산 근거) · 실현손익 = 그 해 매도한 수량의 매도금액 − 매입금액(증권사 앱의 실현손익) · 이월 = 전년도부터 보유(이전 연도에서 자동으로 이어진 종목은 이월, 자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 입력일 = 종목을 입력한 날 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">이월 수량·이월 금액(전년) = 전년 말부터 가져온 수량과 그 1월 1일 평가액(전년 말 수량 × 전년 마지막 종가, 일괄이월 때 고정, 수정에서 변경 가능, ‘자동’은 아직 고정 전) · 현재 수량 = ${year}년 말 보유 수량 · 매입금액 = 실제로 산 금액(누르면 매입단가(평균)) · 손익 기준액 = 이월 금액이 있으면 이월 금액, 없으면 매입금액 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', () => {
@@ -1005,7 +1011,6 @@
           form.purchaseAmount.value = String(Number(it.purchase_amount.toFixed(it.currency === 'USD' ? 2 : 0)));
           calcAvg();
           form.memo.value = it.memo || '';
-          form.realizedPnl.value = it.realized_pnl == null ? '' : String(it.realized_pnl);
           // 수정 시 이월액 입력 칸 (v0.11): 저장된 고정값(없으면 자동 계산값)을 채워 두고, 수량을 바꿔도 다시 계산하지 않는다
           form.carryAmount.value = it.carry_amount ? String(Number(it.carry_amount.toFixed(it.currency === 'USD' ? 2 : 0))) : '';
           main.querySelector('[data-cur2]').textContent = `(${it.currency === 'USD' ? '달러' : '원'})`;

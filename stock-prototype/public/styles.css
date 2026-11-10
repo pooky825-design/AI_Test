@@ -302,3 +302,9 @@ td.left .name-cell { align-items: flex-start; }
 tr.sold-row td { background: #fffbf5; }
 .stock-table th, .stock-table td { padding-left: 7px; padding-right: 7px; }
 .field[hidden] { display: none; }
+/* 표 안의 아이콘 버튼 (수정·삭제) */
+.icon-actions { white-space: nowrap; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; margin: 0 2px; border-radius: 6px; background: #fff; color: #334155; border: 1px solid #cbd5e1; vertical-align: middle; }
+.icon-btn:hover { background: #f1f5f9; }
+.icon-btn.danger { color: #b91c1c; border-color: #fecaca; }
+.icon-btn.danger:hover { background: #fef2f2; }
