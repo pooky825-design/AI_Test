@@ -99,7 +99,7 @@
   // ---------------------------------------------------------------------------
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
-  const SHARE_PATH = { '#/yearly': 'yearly', '#/assets': 'assets', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
+  const SHARE_PATH = { '#/assets': 'assets', '#/yearly': 'yearly', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
   const NO_AS = /^\/(auth|shares|settings|backup|restore)(\/|\?|$)/;
   const PERM_LABEL = { view: '조회', edit: '편집' };
   function withAs(path) {
@@ -212,8 +212,8 @@
   // 레이아웃
   // ---------------------------------------------------------------------------
   const NAV = [
-    ['#/yearly', '연도별 자산 (요약)', 'SC-05'],
     ['#/assets', '나의 자산', 'SC-02'],
+    ['#/yearly', '연도별 자산 (요약)', 'SC-05'],
     ['#/stock', '종목 정보 조회', 'SC-03'],
     ['#/holdings', '보유 종목 관리', 'SC-04'],
     ['#/divmgmt', '배당 내역 관리', 'SC-08'],

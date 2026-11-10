@@ -127,8 +127,8 @@ router.use(auth.requireAuth);
 // 요청 경로를 화면에 대응시켜, 그 화면에 권한(view: 조회, edit: 조회+수정)이 있을 때만 통과시킨다.
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
-  { id: 'yearly', label: '연도별 자산 (요약)', edit: false },
   { id: 'assets', label: '나의 자산', edit: false },
+  { id: 'yearly', label: '연도별 자산 (요약)', edit: false },
   { id: 'stock', label: '종목 정보 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
   { id: 'divmgmt', label: '배당 내역 관리', edit: true },
