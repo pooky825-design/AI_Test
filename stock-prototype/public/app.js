@@ -1166,43 +1166,47 @@
     main.querySelector('[data-loading]').outerHTML = !hasHoldings
       ? '<div class="card empty">보유 종목이 없습니다. 보유 종목을 먼저 등록하세요.</div>'
       : `
-      <div class="grid c2">
-        <div class="card"><h2>연도별 자산금액 ${req('FR-CHT-02')}</h2><div class="chart-box"><canvas data-c1></canvas></div></div>
-        <div class="card"><h2>연도별 실제 수령 배당 ${req('FR-DIV-04 · 자산금액 미포함')}</h2><div class="chart-box"><canvas data-c2></canvas></div></div>
-      </div>
-      <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card">
-        <h2>연도별 자산금액 · 전년 대비 ${req('FR-YR-01 · 02 · 03 · 05 · 06')}</h2>
-        <div class="table-wrap"><table>
-          <thead><tr><th>연도</th><th class="num">연말 환율</th><th class="num">자산금액</th><th class="num">전년 대비</th><th class="num">증감률</th><th class="num">실제 수령 배당<br/><small>(자산금액 미포함)</small></th><th>비고</th></tr></thead>
-          <tbody>${years.map((y) => `
-            <tr class="clickable" data-y="${y.year}">
-              <td><b>${y.year}</b> ${y.ongoing ? '<span class="badge ongoing">진행 중</span>' : ''} <span class="small muted">▾</span></td>
-              <td class="num">${rate(y.fxRate)}</td>
-              <td class="num"><b>${krw(y.valueKrw)}</b></td>
-              <td class="num ${cls(y.diffKrw)}">${y.diffKrw == null ? '-' : sKrw(y.diffKrw)}</td>
-              <td class="num ${cls(y.diffPct)}">${pct(y.diffPct)}</td>
-              <td class="num">${y.dividendCount ? krw(y.dividendKrw) : '-'}</td>
-              <td class="small">${y.excludedCount ? `<span class="up">제외 종목 ${y.excludedCount}개 (합계 미포함)</span>` : ''}${y.ongoing ? '<span class="muted">최신 시세·현재 환율로 계산</span>' : ''}</td>
-            </tr>
-            <tr class="detail" data-detail="${y.year}" hidden><td colspan="7"><div class="inner">
-              <table><thead><tr><th>종목</th><th>구분</th><th class="num">연말 보유 수량</th><th class="num">${y.ongoing ? '현재가' : '연말 종가'}</th><th>종가 기준일</th><th class="num">적용 환율</th><th class="num">원화 금액</th></tr></thead>
-              <tbody>${y.items.map((i) => `<tr>
-                <td><div class="name-cell">${esc(i.name)}<small>${esc(i.code)}${i.tradedThisYear ? ' · 이 해 매매 있음' : ' · 이전 연도 수량 이어 씀'}</small></div></td><td>${badge(i.type)}</td>
-                <td class="num">${qty(i.quantity)}</td>
-                <td class="num">${i.close == null ? '-' : money(i.close, i.currency)}</td>
-                <td class="small muted">${i.closeDate ? (y.ongoing ? fmtTime(i.closeDate) : esc(i.closeDate)) : '-'}</td>
-                <td class="num">${i.excluded ? '-' : i.currency === 'USD' ? rate(i.fxRate) : '1'}</td>
-                <td class="num">${i.excluded ? `- <span class="small up">(${esc(i.reason)} · 합계 제외)</span>` : krw(i.valueKrw)}</td>
-              </tr>`).join('')}</tbody></table>
-            </div></td></tr>`).join('')}</tbody>
-        </table></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 행을 누르면 종목별 내역이 펼쳐집니다 · 상장 전 연도는 ‘-’로 표시하고 합계에서 제외</p>
-      </div>`;
+        <h2>연도별 자산금액 · 전년 대비 ${req('FR-YR-01 · 02 · 03 · 05 · 06 · FR-CHT-02')}</h2>
+        <div class="grid c2">
+          <div class="chart-box" style="height:280px"><canvas data-c1></canvas></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>연도</th><th class="num">연말 환율</th><th class="num">자산금액</th><th class="num">전년 대비</th><th class="num">증감률</th></tr></thead>
+            <tbody>${years.slice().reverse().map((y) => `
+              <tr class="clickable" data-y="${y.year}">
+                <td><b>${y.year}</b> <span class="small muted">▾</span>${y.ongoing ? '<br/><span class="badge ongoing">진행 중</span>' : ''}${y.excludedCount ? `<br/><small class="up">제외 ${y.excludedCount}개</small>` : ''}</td>
+                <td class="num">${rate(y.fxRate)}</td>
+                <td class="num"><b>${krw(y.valueKrw)}</b></td>
+                <td class="num ${cls(y.diffKrw)}">${y.diffKrw == null ? '-' : sKrw(y.diffKrw)}</td>
+                <td class="num ${cls(y.diffPct)}">${pct(y.diffPct)}</td>
+              </tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+        <div data-ydetail></div>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+      </div>
+      <div class="card" data-divyearly>${divYearlyShell()}</div>`;
+    // 종목별 내역 (연도 행을 누르면 표 아래에 전체 폭으로 표시)
+    const detailHtml = (y) => `<div class="inner" style="margin-top:12px">
+      <h3 style="margin:0 0 8px">${y.year}년 종목별 내역${y.ongoing ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
+      <div class="table-wrap"><table><thead><tr><th>종목</th><th>구분</th><th class="num">연말 보유 수량</th><th class="num">${y.ongoing ? '현재가' : '연말 종가'}</th><th>종가 기준일</th><th class="num">적용 환율</th><th class="num">원화 금액</th></tr></thead>
+      <tbody>${y.items.map((i) => `<tr>
+        <td><div class="name-cell">${esc(i.name)}<small>${esc(i.code)}${i.tradedThisYear ? ' · 이 해 매매 있음' : ' · 이전 연도 수량 이어 씀'}</small></div></td><td>${badge(i.type)}</td>
+        <td class="num">${qty(i.quantity)}</td>
+        <td class="num">${i.close == null ? '-' : money(i.close, i.currency)}</td>
+        <td class="small muted">${i.closeDate ? (y.ongoing ? fmtTime(i.closeDate) : esc(i.closeDate)) : '-'}</td>
+        <td class="num">${i.excluded ? '-' : i.currency === 'USD' ? rate(i.fxRate) : '1'}</td>
+        <td class="num">${i.excluded ? `- <span class="small up">(${esc(i.reason)} · 합계 제외)</span>` : krw(i.valueKrw)}</td>
+      </tr>`).join('')}</tbody></table></div></div>`;
     if (!hasHoldings) return;
     main.querySelectorAll('tr[data-y]').forEach((tr) => tr.addEventListener('click', () => {
-      const det = main.querySelector(`tr[data-detail="${tr.dataset.y}"]`);
-      det.hidden = !det.hidden;
+      const box = main.querySelector('[data-ydetail]');
+      const open = box.dataset.year === tr.dataset.y;
+      main.querySelectorAll('tr[data-y]').forEach((r) => r.classList.remove('on'));
+      if (open) { box.innerHTML = ''; box.dataset.year = ''; return; }
+      box.innerHTML = detailHtml(years.find((y) => String(y.year) === tr.dataset.y));
+      box.dataset.year = tr.dataset.y;
+      tr.classList.add('on');
     }));
     destroyCharts();
     const labels = years.map((y) => (y.ongoing ? `${y.year} (진행 중)` : String(y.year)));
@@ -1215,11 +1219,6 @@
     state.charts.push(new Chart(main.querySelector('[data-c1]'), {
       type: 'bar',
       data: { labels, datasets: [{ data: years.map((y) => y.valueKrw), backgroundColor: years.map((y) => (y.ongoing ? '#f0b44c' : '#2b6cb0')), borderRadius: 4 }] },
-      options: baseOpts,
-    }));
-    state.charts.push(new Chart(main.querySelector('[data-c2]'), {
-      type: 'bar',
-      data: { labels, datasets: [{ data: years.map((y) => y.dividendKrw), backgroundColor: '#2e9e5b', borderRadius: 4 }] },
       options: baseOpts,
     }));
     // 연도별 배당 합계 (v0.13.8): 배당금 조회(요약)와 같은 카드, 조회 기간의 모든 연도

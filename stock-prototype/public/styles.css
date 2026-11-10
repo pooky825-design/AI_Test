@@ -345,3 +345,4 @@ td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 
 .divm-table tfoot td { background: #e6edf5; font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .divm-table tr.group-sub td, .divm-table tfoot td { text-align: right; }
 .divm-table tr.group-sub td:first-child, .divm-table tfoot td:first-child { text-align: center; }
+tr.clickable.on td { background: #eef3fa; }
