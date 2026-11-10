@@ -724,17 +724,17 @@
       </div>
       <div class="card">
         <h2 data-form-title></h2>
-        <form class="inline" data-add novalidate>
+        <form class="inline edit-mode" data-add novalidate>
           <input type="hidden" name="id" />
           <div class="field" data-f="group" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
           <div class="field" data-f="code" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" data-f="category" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
-          <div class="field" data-f="cqty" data-edit-only hidden style="width:120px"><label>이월 수량</label><input name="carriedQty" class="auto-calc" readonly tabindex="-1" /><span class="hint">전년 말 보유 수량</span></div>
+          <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" inputmode="decimal" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
           <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
           <div class="field" data-f="amount" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" data-f="avg" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
-          <div class="field" data-f="carry" style="width:160px" data-basis-field hidden><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" /><span class="hint" data-basis-hint>수량을 바꿔도 그대로</span><span class="err" data-err="carryAmount"></span></div>
+          <div class="field" data-f="carry" style="width:160px" data-basis-field><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" placeholder="비우면 자동 계산" /><span class="hint" data-basis-hint>비우면 이월 수량 × 전년 종가</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" data-f="memo" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field" data-f="buttons"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
@@ -771,6 +771,7 @@
         const q = await api('GET', `/stocks/${encodeURIComponent(code)}`);
         hint.innerHTML = `${esc(q.instrument.name)} ${badge(q.instrument.type)}`;
         curLabel.textContent = `(${q.instrument.currency === 'USD' ? '달러' : '원'})`;
+        main.querySelector('[data-cur2]').textContent = curLabel.textContent;
         // 분류: 이 종목에 저장한 분류, 없으면 추천값을 미리 선택 (바꿀 수 있음)
         if (q.category && (!form.category.value || !form.id.value)) form.category.value = q.category.id;
         clearCodeError(); // 다른 항목의 오류는 그대로 둔다
@@ -790,13 +791,12 @@
     };
     form.quantity.addEventListener('input', calcAvg);
     form.purchaseAmount.addEventListener('input', calcAvg);
-    // 이월액 칸: 이월 여부가 ‘신규’면 쓰지 않음
-    const syncCarryField = () => {
-      const isNew = form.carryMode.value === 'NEW';
-      form.carryAmount.disabled = isNew;
-      if (isNew) form.carryAmount.value = '';
+    // 이월 여부 (v0.12.3): 화면에 칸을 두지 않고, 이월 금액 또는 (입력 가능한) 이월 수량이 있으면 이월, 없으면 신규
+    const decideCarryMode = () => {
+      const num = (v) => Number(String(v || '').replace(/,/g, ''));
+      const qtyTyped = !form.carriedQty.readOnly && num(form.carriedQty.value) > 0;
+      form.carryMode.value = num(form.carryAmount.value) > 0 || qtyTyped ? 'CARRIED' : 'NEW';
     };
-    form.carryMode.addEventListener('change', syncCarryField);
     const carryHintPlain = (it) => (it.basis_carried_qty > 1e-9 && it.basis_start_close != null
       ? `자동값 ${money(it.carry_auto, it.currency)} = ${qty(it.basis_carried_qty)}주 × ${money(it.basis_start_close, it.currency)}`
       : '전년 종가 기준 자동값 없음');
@@ -807,11 +807,11 @@
     };
     const resetForm = () => {
       form.reset();
-      main.querySelector('[data-basis-field]').hidden = true;
-      form.carryAmount.disabled = false;
-      // 수정 배치 해제 (등록 화면은 기존 배치)
-      form.classList.remove('edit-mode');
-      form.querySelectorAll('[data-edit-only]').forEach((el) => (el.hidden = true));
+      // 등록 화면: 수정 화면과 같은 배치, 이월 수량·이월 금액은 전년부터 보유한 종목만 입력
+      form.carriedQty.readOnly = false;
+      form.carriedQty.classList.remove('auto-calc');
+      main.querySelector('[data-cqty-hint]').textContent = '전년부터 보유 시 입력';
+      main.querySelector('[data-basis-hint]').textContent = '비우면 이월 수량 × 전년 종가';
       form.querySelector('[data-carry]').hidden = false;
       form.id.value = '';
       form.code.disabled = false;
@@ -832,6 +832,7 @@
       msg.innerHTML = '';
       // 종목코드를 입력하고 바로 등록을 누른 경우: 종목 확인(분류 추천값 채우기)을 먼저 끝낸다
       if (!form.code.disabled && form.code.value.trim() && form.code.value.trim().toUpperCase() !== lookedUp) await lookup();
+      decideCarryMode();
       const d = { ...formData(form), code: form.code.value, groupId: form.groupId.value, year };
       const btn = form.querySelector('[data-submit]');
       btn.disabled = true;
@@ -947,7 +948,7 @@
       const basisCell = (it) => {
         const parts = [carryHint(it)];
         if (it.new_buys > 1e-9) parts.push(`${year}년 매수금액 ${money(it.new_buys, it.currency)}은 별도`);
-        return `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${money(it.carry_amount, it.currency)}</span>${it.carry_fixed ? '' : '<br/><small class="muted">자동</small>'}`;
+        return `<span class="tip" data-tip="${esc(parts.join(' · '))}" tabindex="0">${money(it.carry_amount, it.currency)}</span>`;
       };
       const hasCarry = (it) => it.carry_amount > 1e-9 && it.basis_carried_qty > 1e-9;
       // 손익 기준액 = 이월액이 있으면 이월액, 없으면 매입금액
@@ -976,7 +977,7 @@
       tbox.innerHTML = `<div class="table-wrap"><table>
         <thead><tr><th>종목</th><th>이월 수량</th><th>이월 금액(전년)</th><th>총 수량</th><th>총 매입금액</th><th>매입단가(평균)</th><th>손익 기준액(금년)</th><th>메모</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">이월 수량·이월 금액(전년) = 전년 말부터 가져온 수량과 그 1월 1일 평가액(전년 말 수량 × 전년 마지막 종가, 일괄이월 때 고정, 수정에서 변경 가능, ‘자동’은 아직 고정 전) · 총 수량 = ${year}년 말 보유 수량 · 총 매입금액 = 실제로 산 금액 · 매입단가(평균) = 총 매입금액 ÷ 총 수량 · 손익 기준액(금년) = 이월 금액이 있으면 이월 금액, 없으면 총 매입금액 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">이월 수량·이월 금액(전년) = 전년 말부터 가져온 수량과 그 1월 1일 평가액(전년 말 수량 × 전년 마지막 종가, 일괄이월·등록 때 고정, 수정에서 변경 가능) · 총 수량 = ${year}년 말 보유 수량 · 총 매입금액 = 실제로 산 금액 · 매입단가(평균) = 총 매입금액 ÷ 총 수량 · 손익 기준액(금년) = 이월 금액이 있으면 이월 금액, 없으면 총 매입금액 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', () => {
@@ -1021,13 +1022,13 @@
           form.carryAmount.value = it.carry_amount ? String(Number(it.carry_amount.toFixed(it.currency === 'USD' ? 2 : 0))) : '';
           main.querySelector('[data-cur2]').textContent = `(${it.currency === 'USD' ? '달러' : '원'})`;
           main.querySelector('[data-basis-hint]').textContent = `수량을 바꿔도 그대로 · ${carryHintPlain(it)}`;
-          main.querySelector('[data-basis-field]').hidden = false;
-          syncCarryField();
-          // 수정 배치 (v0.12.2): 그룹·종목코드·분류·이월 수량·이월 금액 / (이월 수량 아래부터) 총 수량·총 매입금액·메모
-          form.carriedQty.value = it.basis_carried_qty > 1e-9 && it.carry_amount > 1e-9 ? qty(it.basis_carried_qty) : '-';
-          form.querySelectorAll('[data-edit-only]').forEach((el) => (el.hidden = false));
+          // 이월 수량: 전년 말 보유가 있으면 전년 말 수량(고칠 수 없음), 없으면 입력값(고칠 수 있음)
+          const carriedNow = it.basis_carried_qty > 1e-9 && it.carry_amount > 1e-9;
+          form.carriedQty.readOnly = !!it.carry_has_prev;
+          form.carriedQty.classList.toggle('auto-calc', !!it.carry_has_prev);
+          form.carriedQty.value = carriedNow ? String(it.basis_carried_qty) : (it.carry_has_prev ? '-' : '');
+          main.querySelector('[data-cqty-hint]').textContent = it.carry_has_prev ? '전년 말 보유 수량' : '전년부터 보유 시 입력';
           form.querySelector('[data-carry]').hidden = true;
-          form.classList.add('edit-mode');
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${esc(it.group_name)} ${req('FR-HLD-02')}`;
           form.querySelector('[data-submit]').textContent = '저장';

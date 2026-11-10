@@ -309,7 +309,7 @@ tr.sold-row td { background: #fffbf5; }
 .icon-btn.danger { color: #b91c1c; border-color: #fecaca; }
 .icon-btn.danger:hover { background: #fef2f2; }
 /* 보유 종목 관리 수정 배치 (v0.12.2): 1줄 그룹·종목코드·분류·이월 수량·이월 금액, 2줄(이월 수량 아래부터) 총 수량·총 매입금액·메모·버튼 */
-form.edit-mode { display: grid; grid-template-columns: 120px 150px 110px 130px 170px minmax(180px, 1fr) auto; column-gap: 12px; row-gap: 10px; align-items: start; }
+form.edit-mode { display: grid; grid-template-columns: 120px 150px 110px 130px 170px minmax(140px, 1fr) auto; column-gap: 12px; row-gap: 10px; align-items: start; }
 form.edit-mode .field { width: auto !important; min-width: 0 !important; }
 form.edit-mode [data-f="carryMode"], form.edit-mode [data-f="avg"] { display: none; }
 form.edit-mode [data-f="group"] { grid-row: 1; grid-column: 1; }
@@ -327,3 +327,4 @@ form.edit-mode [data-f="buttons"] { grid-row: 2; grid-column: 7; }
   form.edit-mode [data-f="cqty"] { order: 4; } form.edit-mode [data-f="carry"] { order: 5; } form.edit-mode [data-f="qty"] { order: 6; }
   form.edit-mode [data-f="amount"] { order: 7; } form.edit-mode [data-f="memo"] { order: 8; } form.edit-mode [data-f="buttons"] { order: 9; }
 }
+form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: nowrap; }

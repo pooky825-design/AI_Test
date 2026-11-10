@@ -35,6 +35,7 @@ function stateAt(items, upToYear) {
       tradesInYear: it.year === upToYear ? 1 : 0,
       realized: it.year === upToYear && it.realized_pnl != null ? it.realized_pnl : null, // 그 해 실현손익 (v0.10)
       carryAmount: it.year === upToYear && it.carry_amount != null ? it.carry_amount : null, // 고정 이월액 (v0.11)
+      carryQty: it.year === upToYear && it.carry_qty != null ? it.carry_qty : null, // 입력한 이월 수량 (v0.12.3)
     });
   }
   return map;
@@ -164,17 +165,23 @@ function yearBase(items, groupId, code, year, startPrice) {
     auto = startPrice != null ? Q * startPrice : prev.cost;
     fallback = startPrice == null;
   } else if (mode === 'CARRIED' && N > EPS) {
-    carriedQty = N; // 전년 항목 없이 ‘이월’로 등록: 그 해 수량 전부를 1월 1일 가격으로
-    auto = startPrice != null ? N * startPrice : cur.cost;
+    // 전년 항목 없이 ‘이월’로 등록: 입력한 이월 수량(없으면 그 해 수량 전부)을 1월 1일 가격으로.
+    // 전년 매입금액을 모르므로 이월분·추가 매수분·매도분은 그 해 평균 매입단가로 나눈다
+    carriedQty = cur.carryQty != null ? cur.carryQty : N;
+    auto = startPrice != null ? carriedQty * startPrice : carriedQty * cur.avgPrice;
     fallback = startPrice == null;
+    const carry0 = fixed != null ? fixed : auto;
+    const newBuys0 = N > carriedQty + EPS ? (N - carriedQty) * cur.avgPrice : 0;
+    const sold0 = carriedQty > N + EPS ? carriedQty - N : 0;
+    return { carry: carry0, carriedQty, autoCarry: auto, newBuys: newBuys0, soldQty: sold0, soldCost: sold0 * cur.avgPrice, prevAvg: cur.avgPrice, fixed: fixed != null, fallback: fixed == null && fallback, hasPrev: false };
   } else {
     auto = 0;
   }
   const carry = fixed != null ? fixed : auto;
-  const prevCost = Q > EPS ? prev.cost : (carriedQty > EPS ? (cur ? cur.cost : 0) : 0);
+  const prevCost = Q > EPS ? prev.cost : 0;
   const newBuys = N > carriedQty + EPS && cur ? Math.max(0, cur.cost - prevCost) : 0;
   const soldQty = Q > EPS ? Math.max(0, Q - N) : 0;
-  return { carry, carriedQty, autoCarry: auto, newBuys, soldQty, soldCost: soldQty * (prev ? prev.avgPrice : 0), prevAvg: prev ? prev.avgPrice : null, fixed: fixed != null, fallback: fixed == null && fallback };
+  return { carry, carriedQty, autoCarry: auto, newBuys, soldQty, soldCost: soldQty * (prev ? prev.avgPrice : 0), prevAvg: prev ? prev.avgPrice : null, fixed: fixed != null, fallback: fixed == null && fallback, hasPrev: Q > EPS };
 }
 
 function tradeYearRange(userId) {
