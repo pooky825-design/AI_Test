@@ -8,6 +8,16 @@
   --primary: #dc5a2c;
   --primary-2: #c2410c;
   --primary-soft: #fff0e8;
+  /* 테마 색 단계 (v0.17): 환경설정 → 화면 테마에서 기준 색을 고르면 JS가 아래 값을 다시 계산한다 */
+  --t-50: #fff4ee;
+  --t-100: #fde8dc;
+  --t-200: #fbcdb6;
+  --t-300: #f0a07c;
+  --t-700: #b23c0e;
+  --t-900: #5a2410;
+  --side-a: #f5844f;
+  --side-b: #e3622f;
+  --side-c: #cf4f22;
   --up: #d63031;      /* 한국 관례: 상승 빨강 */
   --down: #1e63c7;    /* 하락 파랑 */
   --warn-bg: #fff7e6;
@@ -41,7 +51,7 @@ h3 { font-size: 15px; }
 /* ---------- layout ---------- */
 .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 .side {
-  background: linear-gradient(170deg, #f5844f 0%, #e3622f 55%, #cf4f22 100%);
+  background: linear-gradient(170deg, var(--side-a) 0%, var(--side-b) 55%, var(--side-c) 100%);
   color: #fff;
   padding: 20px 12px;
   display: flex;
@@ -94,8 +104,8 @@ th { background: var(--surface-2); color: var(--muted); font-weight: 600; font-s
 td.num, th.num { text-align: right; }
 tfoot td { font-weight: 700; background: var(--surface-2); }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover td { background: #fff4ee; }
-tr.detail > td { background: #fffbf8; padding: 0; }
+tr.clickable:hover td { background: var(--t-50); }
+tr.detail > td { background: var(--surface-2); padding: 0; }
 tr.detail .inner { padding: 8px 16px 14px; }
 .name-cell { display: flex; flex-direction: column; }
 .name-cell small { color: var(--muted); }
@@ -133,7 +143,7 @@ th.today-col { background: #f3f0de; }
 /* 자산 현황: 표 제목(머리글)은 모두 가운데 정렬 */
 .card[data-ckey] th, .card[data-ckey] th.num { text-align: center; }
 /* 자산 현황 합계·소계 행: 다른 행과 같은 선(1px 연한 회색), 배경은 조금 연하게 */
-.card[data-ckey] tfoot td { background: #fde8dc; color: #5a2410; font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.card[data-ckey] tfoot td { background: var(--t-100); color: var(--t-900); font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .card[data-ckey] tfoot td.today-col { background: #f1edd6; }
 .card[data-ckey] tfoot td.up { color: #c62a22; }
 .card[data-ckey] tfoot td.down { color: #1c5bb8; }
@@ -175,7 +185,7 @@ input, select, textarea {
   color: var(--text);
   min-width: 0;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid #fbcdb6; border-color: var(--primary-2); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--t-200); border-color: var(--primary-2); }
 input.invalid, select.invalid { border-color: var(--error-text); background: #fffafa; }
 button {
   font: inherit;
@@ -204,7 +214,7 @@ button.linkish { background: none; border: none; color: var(--primary-2); paddin
 .notice { border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: flex; gap: 10px; align-items: flex-start; }
 .notice.warn { background: var(--warn-bg); border-left: 4px solid var(--warn-border); color: var(--warn-text); }
 .notice.error { background: var(--error-bg); border-left: 4px solid var(--error-text); color: var(--error-text); }
-.notice.info { background: var(--primary-soft); border-left: 4px solid var(--primary-2); color: #7a2e10; }
+.notice.info { background: var(--primary-soft); border-left: 4px solid var(--primary-2); color: var(--t-900); }
 .notice.ok { background: var(--ok-bg); border-left: 4px solid #2e9e5b; color: var(--ok-text); }
 .notice .grow { flex: 1; }
 .basis { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12px; margin-top: 10px; }
@@ -337,16 +347,16 @@ form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: n
 .div-input-table th, .div-input-table td { padding-left: 7px; padding-right: 7px; }
 td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 관리 등) */
 /* 월 배당금 입력 팝업: 보유수량 입력칸 강조 */
-.div-input-table td.qty-col .qty-input { background: #fff; border-color: #f0a07c; } /* 입력칸 테두리: 선택 줄(#fde3d4)과 어울리는 파란 계열 (v0.13.4) */
-.div-input-table td.qty-col .qty-input:focus { border-color: #dc5a2c; box-shadow: 0 0 0 3px rgba(220, 90, 44, .15); outline: none; }
+.div-input-table td.qty-col .qty-input { background: #fff; border-color: var(--t-300); } /* 입력칸 테두리: 선택 줄(var(--t-100))과 어울리는 파란 계열 (v0.13.4) */
+.div-input-table td.qty-col .qty-input:focus { border-color: #dc5a2c; box-shadow: 0 0 0 3px var(--t-100); outline: none; }
 /* 체크한 회차 줄 전체 선택 표시 */
-.div-input-table tr.picked td { background: #fde3d4; }
+.div-input-table tr.picked td { background: var(--t-100); }
 .div-input-table tr[data-ri] { cursor: default; }
 /* 배당금 관리 합계 행 (자산 현황 합계와 같은 스타일) */
-.divm-table tfoot td { background: #fde8dc; font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.divm-table tfoot td { background: var(--t-100); font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .divm-table tr.group-sub td, .divm-table tfoot td { text-align: right; }
 .divm-table tr.group-sub td:first-child, .divm-table tfoot td:first-child { text-align: center; }
-tr.clickable.on td { background: #fff1ea; }
+tr.clickable.on td { background: var(--t-50); }
 /* 연도별 자산금액: 표가 조금 더 넓게, 칸 여백 축소 (v0.13.11) */
 .grid.c2.yr-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
 .yr-table th, .yr-table td { padding-left: 6px; padding-right: 6px; }
@@ -356,37 +366,53 @@ tr.clickable.on td { background: #fff1ea; }
 .yr-page td.left { text-align: left; }
 .yr-page td.left .name-cell { align-items: flex-start; }
 .yr-page td.center { text-align: center; }
-.divhist-table tfoot td { background: #fde8dc; font-weight: 700; border-top: 1px solid var(--border); }
+.divhist-table tfoot td { background: var(--t-100); font-weight: 700; border-top: 1px solid var(--border); }
 .divhist-table tfoot td:first-child { text-align: center; }
 
 /* 배당 내역 조회: 조회 버튼 옆 소계 요약 (v0.15.1) */
-.divhist-sum { align-self: flex-end; font-size: 13px; padding: 6px 10px; background: #fff4ee; border: 1px solid #f8d3c0; border-radius: 6px; white-space: nowrap; }
-.divhist-sum b { color: #c2410c; }
+.divhist-sum { align-self: flex-end; font-size: 13px; padding: 6px 10px; background: var(--t-50); border: 1px solid var(--t-200); border-radius: 6px; white-space: nowrap; }
+.divhist-sum b { color: var(--t-700); }
 @media (max-width: 640px) { .divhist-sum { white-space: normal; width: 100%; } }
 .divhist-sum span { white-space: nowrap; }
 
 /* ---------- 오렌지 테마 보정 (v0.16) ---------- */
-.mobile-top { background: linear-gradient(120deg, #f5844f, #d9532a) !important; }
+.mobile-top { background: linear-gradient(120deg, var(--side-a), var(--side-c)) !important; }
 .mbrand { display: inline-flex; align-items: center; gap: 8px; }
 .mbrand .brand-ico { width: 26px; height: 26px; border-radius: 7px; }
-button.secondary { border-color: #ecd5c8; }
-button.secondary:hover { background: #fff6f1; filter: none; }
-.card { border-color: #f1e4dc; }
-.page-head h1 { color: #3b2016; }
+button.secondary { border-color: var(--t-200); }
+button.secondary:hover { background: var(--t-50); filter: none; }
+.card { border-color: var(--border); }
+.page-head h1 { color: var(--t-900); }
 
 /* ---------- 화면 공유 (v0.16) ---------- */
 .act-switch { display: flex; flex-direction: column; gap: 3px; margin: 0 4px 12px; padding: 8px 10px; background: rgba(255, 255, 255, .14); border-radius: 8px; font-size: 11px; color: rgba(255, 255, 255, .85); }
-.act-switch select { width: 100%; padding: 5px 6px; border-radius: 6px; border: none; font-size: 13px; color: #3b2016; background: #fff; }
+.act-switch select { width: 100%; padding: 5px 6px; border-radius: 6px; border: none; font-size: 13px; color: var(--t-900); background: #fff; }
 .mobile-top .act-switch { flex-direction: row; align-items: center; margin: 0 12px 8px; padding: 6px 10px; }
 .mobile-top .act-switch span { white-space: nowrap; }
-.share-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: #fff3e8; border: 1px solid #f7c9a8; color: #7a2e10; }
+.share-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: var(--t-50); border: 1px solid var(--t-200); color: var(--t-900); }
 .perm { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .perm.view, .perm-chip.view { background: #eef2f7; color: #475569; }
-.perm.edit, .perm-chip.edit { background: #ffe1cf; color: #b23c0e; }
+.perm.edit, .perm-chip.edit { background: var(--t-100); color: var(--t-700); }
 .perm-chip { display: inline-block; margin: 2px 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
 .share-table td { vertical-align: middle; }
 .perm-sel { min-width: 72px; }
 .perm-sel.view { background: #f4f6f9; }
-.perm-sel.edit { background: #fff0e6; border-color: #f0a07c; color: #b23c0e; font-weight: 600; }
+.perm-sel.edit { background: var(--t-50); border-color: var(--t-300); color: var(--t-700); font-weight: 600; }
 .share-add { align-items: flex-end; }
 body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage], body.ro [data-save], body.ro [data-carry] { display: none !important; }
+
+/* ---------- 화면 테마 (v0.17) ---------- */
+.theme-swatches { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 12px; }
+.theme-sw { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 8px; background: #fff; border: 2px solid var(--border); border-radius: 10px; color: var(--text); font-weight: 400; font-size: 12px; min-width: 64px; }
+.theme-sw:hover { filter: none; border-color: var(--t-300); }
+.theme-sw.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--t-100); font-weight: 600; }
+.theme-sw i { display: block; width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .6); }
+.theme-custom { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.theme-custom input[type=color] { width: 46px; height: 34px; padding: 2px; border-radius: 8px; cursor: pointer; }
+.theme-preview { display: flex; gap: 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); margin-top: 12px; max-width: 520px; }
+.theme-preview .pv-side { width: 110px; padding: 10px; background: linear-gradient(170deg, var(--side-a), var(--side-b) 55%, var(--side-c)); color: #fff; font-size: 12px; }
+.theme-preview .pv-side span { display: block; padding: 4px 6px; border-radius: 5px; margin-top: 4px; }
+.theme-preview .pv-side span.on { background: rgba(255, 255, 255, .2); font-weight: 600; }
+.theme-preview .pv-main { flex: 1; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.theme-preview .pv-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.theme-preview .pv-tot { background: var(--t-100); color: var(--t-900); padding: 4px 8px; border-radius: 5px; font-weight: 700; }

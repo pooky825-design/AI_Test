@@ -129,6 +129,7 @@ router.use(auth.requireAuth);
 const SHARE_SCREENS = [
   { id: 'yearly', label: '연도별 자산', edit: false },
   { id: 'assets', label: '자산 현황', edit: false },
+  { id: 'stock', label: '종목 상세 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
   { id: 'divmgmt', label: '배당내역 관리', edit: true },
 ];
@@ -750,7 +751,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
+const SETTING_KEYS = ['ui.theme', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
 
 router.get('/settings', (req, res) => {
   const out = {};

@@ -17,7 +17,64 @@
   };
   async function loadSettings() {
     try { state.settings = (await api('GET', '/settings')).settings || {}; } catch (_) { state.settings = {}; }
+    applyTheme(state.settings['ui.theme'] || null);
   }
+
+  // ---------------------------------------------------------------------------
+  // 화면 테마 (v0.17): 기준 색 하나로 메뉴·버튼·탭·강조 행·배경 색을 모두 계산한다
+  // ---------------------------------------------------------------------------
+  const THEME_DEFAULT = '#dc5a2c';
+  const THEME_PRESETS = [
+    ['#dc5a2c', '주황(기본)'], ['#e11d48', '빨강'], ['#db2777', '핑크'], ['#7c3aed', '보라'],
+    ['#1f4e79', '남색'], ['#2563eb', '파랑'], ['#0f766e', '청록'], ['#2f855a', '초록'],
+    ['#a16207', '황토'], ['#475569', '회색'],
+  ];
+  const THEME_KEYS = ['--primary', '--primary-2', '--primary-soft', '--bg', '--border', '--surface-2', '--t-50', '--t-100', '--t-200', '--t-300', '--t-700', '--t-900', '--side-a', '--side-b', '--side-c'];
+  const isHex = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
+  function hexToHsl(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 255) / 255; const g = ((n >> 8) & 255) / 255; const b = (n & 255) / 255;
+    const max = Math.max(r, g, b); const min = Math.min(r, g, b); const l = (max + min) / 2;
+    let h = 0; let sat = 0;
+    if (max !== min) {
+      const d = max - min;
+      sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, sat * 100, l * 100];
+  }
+  const hsl = (h, sat, l) => `hsl(${Math.round(h)}, ${Math.round(Math.max(0, Math.min(100, sat)))}%, ${Math.round(Math.max(0, Math.min(100, l)))}%)`;
+  function themeVars(hex) {
+    const [h, s0, l0] = hexToHsl(hex);
+    const sat = Math.min(s0, 90);
+    const l = Math.max(28, Math.min(l0, 50)); // 흰 글자가 읽히도록 밝기를 제한
+    const ts = sat < 8 ? sat : Math.max(sat, 35); // 옅은 색 단계의 채도
+    return {
+      '--primary': hsl(h, sat, l), '--primary-2': hsl(h, sat, Math.min(l, 38)), '--primary-soft': hsl(h, ts, 95),
+      '--bg': hsl(h, Math.min(ts, 45), 97), '--border': hsl(h, Math.min(ts, 35), 89), '--surface-2': hsl(h, Math.min(ts, 40), 98.5),
+      '--t-50': hsl(h, ts, 96), '--t-100': hsl(h, ts, 91), '--t-200': hsl(h, ts, 83), '--t-300': hsl(h, ts * 0.9, 68),
+      '--t-700': hsl(h, sat, Math.min(l, 36)), '--t-900': hsl(h, Math.min(sat, 60), 20),
+      '--side-a': hsl(h, sat, l + 9), '--side-b': hsl(h, sat, l + 2), '--side-c': hsl(h, sat, l - 6),
+    };
+  }
+  function applyTheme(hex) {
+    const root = document.documentElement;
+    const custom = isHex(hex) && hex.toLowerCase() !== THEME_DEFAULT;
+    if (custom) Object.entries(themeVars(hex)).forEach(([k, v]) => root.style.setProperty(k, v));
+    else THEME_KEYS.forEach((k) => root.style.removeProperty(k));
+    const meta = document.querySelector('meta[name=theme-color]');
+    if (meta) meta.setAttribute('content', custom ? getComputedStyle(root).getPropertyValue('--side-b').trim() : '#ee6a3c');
+    try { if (custom) localStorage.setItem('ui.theme', hex); else localStorage.removeItem('ui.theme'); } catch (_) { /* 무시 */ }
+  }
+  function saveTheme(hex) {
+    const v = isHex(hex) && hex.toLowerCase() !== THEME_DEFAULT ? hex.toLowerCase() : null;
+    applyTheme(v);
+    state.settings = { ...(state.settings || {}), 'ui.theme': v };
+    return api('PUT', '/settings/ui.theme', { value: v });
+  }
+  // 로그인 전 화면도 마지막으로 쓴 테마로 (이 기기에 기억한 값)
+  try { applyTheme(localStorage.getItem('ui.theme')); } catch (_) { /* 무시 */ }
   const THIS_YEAR = new Date().getFullYear();
   const yearOptions = (sel, min = THIS_YEAR - 15, max = THIS_YEAR) =>
     Array.from({ length: max - min + 1 }, (_, k) => max - k).map((y) => `<option value="${y}" ${y === sel ? 'selected' : ''}>${y}년</option>`).join('');
@@ -30,7 +87,7 @@
   // ---------------------------------------------------------------------------
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
-  const SHARE_PATH = { '#/yearly': 'yearly', '#/assets': 'assets', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
+  const SHARE_PATH = { '#/yearly': 'yearly', '#/assets': 'assets', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
   const NO_AS = /^\/(auth|shares|settings|backup|restore)(\/|\?|$)/;
   const PERM_LABEL = { view: '조회', edit: '편집' };
   function withAs(path) {
@@ -670,7 +727,7 @@
           <dt>과거 종가 출처</dt><dd>${esc(i.historySource || '-')}${i.historySource && i.historySource !== i.priceSource ? ' <span class="small muted">(예비 출처 · FR-DATA-08)</span>' : ''}</dd>
         </dl>
         <div style="margin-top:14px" class="field-row">
-          <a href="#/holdings?code=${encodeURIComponent(i.code)}"><button>보유 종목으로 등록</button></a>
+          ${state.actAs && state.actAs.perms.holdings !== 'edit' ? '' : `<a href="#/holdings?code=${encodeURIComponent(i.code)}"><button>보유 종목으로 등록</button></a>`}
           <button class="secondary" data-divs>배당금 지급내역</button>
           <button class="secondary" data-refresh>현재가 새로고침</button>
         </div>
@@ -1554,6 +1611,35 @@
     });
   }
 
+  // 화면 테마 카드 (v0.17)
+  function mountThemeCard(card) {
+    const sw = card.querySelector('[data-swatches]');
+    const color = card.querySelector('[data-color]');
+    const hexIn = card.querySelector('[data-hex]');
+    const current = () => ((state.settings || {})['ui.theme'] || THEME_DEFAULT).toLowerCase();
+    function paint() {
+      const cur = current();
+      sw.innerHTML = THEME_PRESETS.map(([hex, name]) => `<button type="button" class="theme-sw ${hex === cur ? 'on' : ''}" data-hexv="${hex}"><i style="background:${hex}"></i>${esc(name)}</button>`).join('')
+        + (THEME_PRESETS.some(([hex]) => hex === cur) ? '' : `<button type="button" class="theme-sw on" data-hexv="${cur}"><i style="background:${cur}"></i>직접 지정</button>`);
+      color.value = cur;
+      hexIn.value = cur;
+    }
+    async function pick(hex) {
+      if (!isHex(hex)) { toast('색상은 #RRGGBB 형식으로 입력하세요.'); return; }
+      try {
+        await saveTheme(hex);
+        paint();
+        toast('테마를 적용했습니다.');
+      } catch (err) { toast(err.message); }
+    }
+    sw.addEventListener('click', (e) => { const b = e.target.closest('[data-hexv]'); if (b) pick(b.dataset.hexv); });
+    color.addEventListener('input', () => { hexIn.value = color.value; applyTheme(color.value); }); // 고르는 동안 미리 적용
+    color.addEventListener('change', () => pick(color.value));
+    card.querySelector('[data-apply]').addEventListener('click', () => pick(hexIn.value.trim().startsWith('#') ? hexIn.value.trim() : `#${hexIn.value.trim()}`));
+    card.querySelector('[data-reset]').addEventListener('click', () => pick(THEME_DEFAULT));
+    paint();
+  }
+
   // 화면 공유·권한 관리 카드 (v0.16)
   function permSelect(sc, val, attrs = '') {
     return `<select class="perm-sel ${val || 'none'}" data-sc="${sc.id}" ${attrs}>
@@ -1590,7 +1676,7 @@
             <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
-        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당내역 관리(회차 저장)까지 가능 · 연도별 자산·자산 현황은 조회만 공유됩니다 · 환경설정(백업·비밀번호)과 종목 상세 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
+        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당내역 관리(회차 저장)까지 가능 · 연도별 자산·자산 현황·종목 상세 조회는 조회만 공유됩니다(종목 상세 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
       const add = body.querySelector('[data-add]');
       add.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1647,6 +1733,26 @@
         </div>
         <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
       </div>
+      <div class="card" data-theme-card>
+        <h2>화면 테마 ${req('FR-UI-01')}</h2>
+        <p style="margin:0 0 6px">기준 색을 고르면 왼쪽 메뉴·버튼·탭·합계 행·배경 등 <b>전체 화면 색</b>이 그 색에 맞춰 바뀝니다. 계정에 저장되어 PC·앱 어디서나 같은 테마로 보입니다.</p>
+        <div class="theme-swatches" data-swatches></div>
+        <div class="theme-custom">
+          <label class="small muted" for="themeColor">직접 지정</label>
+          <input type="color" id="themeColor" data-color />
+          <input data-hex maxlength="7" style="width:100px" placeholder="#dc5a2c" />
+          <button class="sm" data-apply>적용</button>
+          <button class="sm secondary" data-reset>기본값(주황)으로</button>
+        </div>
+        <div class="theme-preview" aria-hidden="true">
+          <div class="pv-side"><b>미리보기</b><span class="on">자산 현황</span><span>보유 종목 관리</span></div>
+          <div class="pv-main">
+            <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="javascript:void 0" tabindex="-1">링크</a></div>
+            <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
+          </div>
+        </div>
+        <p class="small muted" style="margin:10px 0 0">상승 빨강·하락 파랑과 그래프 색은 의미가 있는 색이라 테마와 관계없이 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
+      </div>
       <div class="card" data-share-card>
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
         <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
@@ -1670,6 +1776,7 @@
           </form>
         </div>
       </div>`);
+    mountThemeCard(main.querySelector('[data-theme-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
