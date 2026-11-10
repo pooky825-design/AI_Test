@@ -441,3 +441,12 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .brand small { margin-top: 2px; }
 .mbrand .brand-name { display: inline; font-size: 20px; }
 .auth-ico { width: 40px; height: 40px; border-radius: 10px; vertical-align: -9px; margin-right: 10px; }
+
+/* 내가 조회한 종목 (v0.20) */
+.card-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.card-head-row h2 { margin: 0; }
+.stock-chip.recent { padding: 0 4px 0 0; gap: 0; }
+.stock-chip.recent a { display: inline-flex; align-items: center; gap: 4px; padding: 7px 6px 7px 12px; color: var(--text); }
+.stock-chip.recent a:hover { text-decoration: none; }
+.stock-chip .chip-x { background: none; border: none; color: var(--muted); padding: 2px 6px; font-size: 12px; font-weight: 400; border-radius: 50%; }
+.stock-chip .chip-x:hover { color: var(--error-text); background: var(--t-100); filter: none; }

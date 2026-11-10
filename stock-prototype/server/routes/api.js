@@ -127,11 +127,11 @@ router.use(auth.requireAuth);
 // 요청 경로를 화면에 대응시켜, 그 화면에 권한(view: 조회, edit: 조회+수정)이 있을 때만 통과시킨다.
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
-  { id: 'yearly', label: '연도별 자산', edit: false },
-  { id: 'assets', label: '자산 현황', edit: false },
+  { id: 'yearly', label: '연도별 자산(요약)', edit: false },
+  { id: 'assets', label: '나의 자산(상세)', edit: false },
   { id: 'stock', label: '종목 상세 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
-  { id: 'divmgmt', label: '배당내역 관리', edit: true },
+  { id: 'divmgmt', label: '배당 관리', edit: true },
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
@@ -751,7 +751,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
+const SETTING_KEYS = ['ui.theme', 'stock.recent', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
 
 router.get('/settings', (req, res) => {
   const out = {};
@@ -765,7 +765,7 @@ router.put('/settings/:key', (req, res) => {
   const key = req.params.key;
   if (!SETTING_KEYS.includes(key)) return res.status(400).json({ error: '저장할 수 없는 설정입니다.', code: 'VALIDATION' });
   const value = JSON.stringify(req.body.value ?? null);
-  if (value.length > 1000) return res.status(400).json({ error: '설정 값이 너무 큽니다.', code: 'VALIDATION' });
+  if (value.length > 2000) return res.status(400).json({ error: '설정 값이 너무 큽니다.', code: 'VALIDATION' });
   db.run(
     `INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,

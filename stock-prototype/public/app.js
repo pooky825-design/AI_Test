@@ -212,11 +212,11 @@
   // 레이아웃
   // ---------------------------------------------------------------------------
   const NAV = [
-    ['#/yearly', '연도별 자산', 'SC-05'],
-    ['#/assets', '자산 현황', 'SC-02'],
+    ['#/yearly', '연도별 자산(요약)', 'SC-05'],
+    ['#/assets', '나의 자산(상세)', 'SC-02'],
     ['#/stock', '종목 상세 조회', 'SC-03'],
     ['#/holdings', '보유 종목 관리', 'SC-04'],
-    ['#/divmgmt', '배당내역 관리', 'SC-08'],
+    ['#/divmgmt', '배당 관리', 'SC-08'],
     ['#/me', '환경설정', 'SC-07'],
   ];
 
@@ -446,7 +446,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // SC-02 자산 현황 (로그인 후 첫 화면)
+  // SC-02 나의 자산(상세) (로그인 후 첫 화면)
   // ---------------------------------------------------------------------------
   async function viewAssets(query) {
     const year = Math.min(Number(query.year) || Number(settings.get('assets.year')) || THIS_YEAR, THIS_YEAR);
@@ -457,7 +457,7 @@
     const groupQs = (groupParam ? `&group=${encodeURIComponent(groupParam)}` : '') + (merged ? '&merged=1' : '');
     const main = shell('#/assets', `
       <div class="page-head">
-        <div><h1>자산 현황 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
+        <div><h1>나의 자산(상세) ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
         <div class="field-row">
           <div class="field"><label>기준 연도</label><select data-year>${yearOptions(year)}</select></div>
           <button class="secondary" data-refresh>새로고침</button>
@@ -710,6 +710,14 @@
     return { from: f(from), to: f(to) };
   }
 
+  // 내가 조회한 종목 (v0.20): 보유 종목이 아닌 종목을 조회하면 최근 순으로 계정 설정(stock.recent)에 저장
+  const RECENT_MAX = 12;
+  const recentStocks = () => (Array.isArray(settings.get('stock.recent')) ? settings.get('stock.recent') : []).filter((r) => r && r.c);
+  function rememberStock(inst) {
+    const item = { c: inst.code, n: String(inst.name || '').slice(0, 40), t: inst.type || '' };
+    settings.set('stock.recent', [item, ...recentStocks().filter((r) => r.c !== item.c)].slice(0, RECENT_MAX));
+  }
+
   async function viewStock(query) {
     const main = shell('#/stock', `
       <div class="page-head"><div><h1>종목 상세 조회 ${req('SC-03 · FR-STK · FR-CHT-01')}</h1><p>국내(KOSPI·KOSDAQ) 주식·ETF·ETN, 미국 주식·ETF의 종목코드를 입력하세요.</p></div></div>
@@ -739,19 +747,47 @@
       let held = [];
       try { held = (await api('GET', `/holdings?year=${THIS_YEAR}`)).holdings || []; } catch (_) { /* 예시만 표시 */ }
       held.sort((a, b) => String(a.name || a.code).localeCompare(String(b.name || b.code), 'ko'));
-      box.innerHTML = held.length
+      const heldCodes = new Set(held.map((h) => h.code));
+      const recent = recentStocks().filter((r) => !heldCodes.has(r.c));
+      const recentCard = recent.length ? `<div class="card" data-recent>
+            <div class="card-head-row"><h2>내가 조회한 종목 <span class="small muted" style="font-weight:400">${recent.length}개 · 최근 조회 순 · 눌러서 조회</span></h2><button type="button" class="sm secondary" data-rclear>전체 지우기</button></div>
+            <div class="stock-chips">${recent.map((r) => `<span class="stock-chip recent"><a href="#/stock?code=${encodeURIComponent(r.c)}">${r.t ? badge(r.t) : ''} ${esc(r.n || r.c)}<span class="muted">(${esc(r.c)})</span></a><button type="button" class="chip-x" data-rm="${esc(r.c)}" title="목록에서 지우기" aria-label="${esc(r.n || r.c)} 지우기">✕</button></span>`).join('')}</div>
+            <p class="small muted" style="margin:10px 0 0">보유 종목이 아닌 종목을 조회하면 여기에 최근 ${RECENT_MAX}개까지 저장됩니다(계정에 저장되어 PC·앱 어디서나 보임).</p>
+          </div>` : '';
+      box.innerHTML = (held.length
         ? `<div class="card">
             <h2>내 보유 종목 <span class="small muted" style="font-weight:400">${held.length}개 · 눌러서 조회</span></h2>
             <div class="stock-chips">${held.map((h) => `<a class="stock-chip" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} ${esc(h.name || h.code)}<span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
             <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 관리</a>에 입력한 올해 보유 수량 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
           </div>`
-        : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`;
+        : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`) + recentCard;
+      const rc = box.querySelector('[data-recent]');
+      if (rc) {
+        rc.addEventListener('click', (e) => {
+          const x = e.target.closest('[data-rm]');
+          if (x) {
+            settings.set('stock.recent', recentStocks().filter((r) => r.c !== x.dataset.rm));
+            render();
+          } else if (e.target.closest('[data-rclear]') && confirm('조회한 종목 목록을 모두 지울까요?')) {
+            settings.set('stock.recent', []);
+            render();
+          }
+        });
+      }
       return;
     }
-    await loadStock(main.querySelector('[data-result]'), query.code, query.refresh === '1', main.querySelector('[data-search]'));
+    const resBox = main.querySelector('[data-result]');
+    await loadStock(resBox, query.code, query.refresh === '1', main.querySelector('[data-search]'));
+    // 조회에 성공했고 내 보유 종목이 아니면 ‘내가 조회한 종목’에 저장
+    if (resBox._q && resBox._q.instrument) {
+      const inst = resBox._q.instrument;
+      api('GET', `/holdings?year=${THIS_YEAR}`).then(({ holdings }) => {
+        if (!(holdings || []).some((h) => h.code === inst.code)) rememberStock(inst);
+      }).catch(() => {});
+    }
   }
 
-  // 종목 정보·날짜별 종가를 box 안에 그린다. 종목 조회 화면과 자산 현황의 종목 팝업에서 함께 사용
+  // 종목 정보·날짜별 종가를 box 안에 그린다. 종목 조회 화면과 나의 자산(상세)의 종목 팝업에서 함께 사용
   async function loadStock(box, code, refresh, form) {
     box.innerHTML = `<div class="card empty">${esc(code)} 조회 중… (처음 조회하는 종목은 최근 10년 종가를 적재합니다 ${req('FR-DATA-02')})</div>`;
     let q;
@@ -768,6 +804,7 @@
       }
       return;
     }
+    box._q = q;
     const i = q.instrument;
     const c = i.currency;
     box.innerHTML = `
@@ -1314,7 +1351,7 @@
     const opts = (sel) => Array.from({ length: 10 }, (_, k) => thisYear - 9 + k).map((y) => `<option ${y === sel ? 'selected' : ''}>${y}</option>`).join('');
     const main = shell('#/yearly', `
       <div class="page-head">
-        <div><h1>연도별 자산 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 관리에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
+        <div><h1>연도별 자산(요약) ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 관리에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
         <button data-export="/export/yearly.xlsx?from=${from}&to=${to}">엑셀 내보내기</button>
       </div>
       <div class="notice warn"><div><b>해석 주의:</b> 연도별로 입력한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 종목을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
@@ -1479,14 +1516,14 @@
       if (card) card.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     });
     loadDivYearly();
-    // 배당 내역 조회 (v0.14): 배당내역 관리에서 저장한 회차
+    // 배당 내역 조회 (v0.14): 배당 관리에서 저장한 회차
     mountDivList(main.querySelector('[data-divlist]'));
   }
 
   // ---------------------------------------------------------------------------
   // SC-06 배당금 관리
   // ---------------------------------------------------------------------------
-  // 연도별 배당 합계 카드 (연도별 자산 화면)
+  // 연도별 배당 합계 카드 (연도별 자산(요약) 화면)
   //  배당·과세표준액 = 배당금 관리에 저장한 회차, 수령액 = 실제 수령 기록
   function divYearlyShell() {
     return `<h2>연도별 배당 증감 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
@@ -1505,7 +1542,7 @@
         <td class="num">${y.divCount ? taxCell : dash}</td>
         <td class="num">${y.divCount ? krw(y.taxKrw * DIV_TAX_RATE) : dash}</td></tr>`;
     }).join('')}</tbody></table>
-        <p class="small muted" style="margin:6px 0 0">배당·수령회차·과세표준액 = 배당내역 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)</p>`;
+        <p class="small muted" style="margin:6px 0 0">배당·수령회차·과세표준액 = 배당 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)</p>`;
     if (card._chart) { card._chart.destroy(); state.charts = state.charts.filter((c) => c !== card._chart); }
     const pal = chartPalette();
     card._chart = new Chart(card.querySelector('canvas'), {
@@ -1523,7 +1560,7 @@
     state.charts.push(card._chart);
   }
 
-  // 배당 내역 조회 카드 (v0.14): 배당내역 관리에서 저장한 회차를 지급일 기간으로 조회. 기본 올해 1월 1일 ~ 오늘
+  // 배당 내역 조회 카드 (v0.14): 배당 관리에서 저장한 회차를 지급일 기간으로 조회. 기본 올해 1월 1일 ~ 오늘
   const DIV_WITHHOLD_RATE = 0.154; // 과세 = 과세표준 × 15.4%
   function divListShell() {
     return `<h2>배당 내역 조회 ${req('FR-DIV-02')}</h2>
@@ -1556,7 +1593,7 @@
       // 조회 버튼 옆 소계 요약 (v0.15.1): 표의 합계(원화)와 같은 값
       if (sumBox) sumBox.innerHTML = `<span class="muted">(합계)</span> <span>월배당 <b>${krw(tot('amount_krw'))}</b></span> · <span>과세표준 <b>${krw(tot('tax_krw'))}${miss}</b></span> · <span>과세 <b>${krw(tot('tax_krw') * DIV_WITHHOLD_RATE)}${miss}</b></span>`;
       if (!rows.length) {
-        list.innerHTML = '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당내역 관리에서 회차를 저장하면 여기에 나옵니다.</div>';
+        list.innerHTML = '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당 관리에서 회차를 저장하면 여기에 나옵니다.</div>';
         return;
       }
       const krwTip = (r, v) => (r.currency === 'USD' && v != null ? `<br/><small class="muted">${krw(v * r.fx_rate)}</small>` : '');
@@ -1573,7 +1610,7 @@
           <td>${r.tax_amount == null ? dash : money(r.tax_amount * DIV_WITHHOLD_RATE, r.currency) + krwTip(r, r.tax_amount * DIV_WITHHOLD_RATE)}</td>
         </tr>`).join('')}</tbody>
         <tfoot><tr><td colspan="4">합계 (원화)</td><td>${krw(sum('amount_krw'))}</td><td>${krw(sum('tax_krw'))}${taxMissing ? '*' : ''}</td><td>${krw(sum('tax_krw') * DIV_WITHHOLD_RATE)}${taxMissing ? '*' : ''}</td></tr></tfoot></table></div>
-        <div class="small muted" style="margin-top:6px">${rows.length}건 · 배당내역 관리에서 저장한 회차 기준 · 월 배당 = 수량 × 주당배당 · 과세 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨)${taxMissing ? ' · * 과세표준이 없는 회차 제외' : ''} · 지급일이 없는 회차는 배당락일 기준</div>`;
+        <div class="small muted" style="margin-top:6px">${rows.length}건 · 배당 관리에서 저장한 회차 기준 · 월 배당 = 수량 × 주당배당 · 과세 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨)${taxMissing ? ' · * 과세표준이 없는 회차 제외' : ''} · 지급일이 없는 회차는 배당락일 기준</div>`;
     }
     filter.addEventListener('submit', (e) => { e.preventDefault(); load(); });
     return load();
@@ -1658,7 +1695,7 @@
         <tr><td class="left">백업 일시</td><td class="right">${esc(fmtTime(backup.exportedAt))}</td></tr>
         <tr><td class="left">그룹</td><td class="right">${c.groups || 0}개</td></tr>
         <tr><td class="left">주식 항목(연도별)</td><td class="right">${c.items || 0}건</td></tr>
-        <tr><td class="left">배당내역 관리 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
+        <tr><td class="left">배당 관리 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
         <tr><td class="left">종목 분류 · 화면 설정</td><td class="right">${c.categories || 0}건 · ${c.settings || 0}건</td></tr>
       </tbody></table>
       ${backup.account && backup.account !== state.user.email ? '<div class="notice warn" style="margin-top:10px"><div>다른 계정에서 만든 백업입니다. 복원하면 지금 계정에 그 데이터가 들어갑니다.</div></div>' : ''}
@@ -1747,7 +1784,7 @@
             <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
-        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당내역 관리(회차 저장)까지 가능 · 연도별 자산·자산 현황·종목 상세 조회는 조회만 공유됩니다(종목 상세 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
+        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산(요약)·나의 자산(상세)·종목 상세 조회는 조회만 공유됩니다(종목 상세 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
       const add = body.querySelector('[data-add]');
       add.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1797,7 +1834,7 @@
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
       <div class="card">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
-        <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당내역 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
+        <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
         <div class="field-row" style="gap:10px;flex-wrap:wrap">
           <button data-backup>백업 파일 저장</button>
           <button class="secondary" data-restore>백업 파일로 복원</button>
@@ -1816,7 +1853,7 @@
           <button class="sm secondary" data-reset>기본값(주황)으로</button>
         </div>
         <div class="theme-preview" aria-hidden="true">
-          <div class="pv-side"><b>미리보기</b><span class="on">자산 현황</span><span>보유 종목 관리</span></div>
+          <div class="pv-side"><b>미리보기</b><span class="on">나의 자산(상세)</span><span>보유 종목 관리</span></div>
           <div class="pv-main">
             <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="javascript:void 0" tabindex="-1">링크</a></div>
             <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
@@ -1937,7 +1974,7 @@
     return back.querySelector('.modal-body');
   }
 
-  // 종목 조회 팝업 (자산 현황에서 종목을 누를 때)
+  // 종목 조회 팝업 (나의 자산(상세)에서 종목을 누를 때)
   function openStockModal(code) {
     const body = openModal(`종목 상세 조회 ${req('SC-03')}`, { wide: true, loadingText: `${code} 조회 중…` });
     body.classList.add('stock-modal');
@@ -1988,7 +2025,7 @@
           <tbody>${d.events.map((e) => `<tr><td>${esc(e.exDate)}</td>${d.hasPayDate ? `<td>${esc(e.payDate || '-')}</td>` : ''}<td class="num">${money(e.amount, c)}</td><td class="num">${e.taxBase == null ? '-' : money(e.taxBase, c)}</td>${held ? `<td class="num">${money(e.estimate, c)}${c === 'USD' && e.estimateKrw != null ? ` <small class="muted">≈ ${krw(e.estimateKrw)}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
         </table></div>`);
     }
-    parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 실지급일은 운용사·FunETF가 제공하는 국내 ETF 회차만 표시합니다. 실제 배당은 배당내역 관리 화면에서 회차를 선택해 저장하세요.</p>`);
+    parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 실지급일은 운용사·FunETF가 제공하는 국내 ETF 회차만 표시합니다. 실제 배당은 배당 관리 화면에서 회차를 선택해 저장하세요.</p>`);
     body.innerHTML = parts.join('');
     const retry = body.querySelector('[data-retry]');
     if (retry) retry.addEventListener('click', () => { closeModal(); openDividendModal(code, true); });
@@ -2054,7 +2091,7 @@
     };
     const main = shell('#/divmgmt', `
       <div class="page-head">
-        <div><h1>배당내역 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
+        <div><h1>배당 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
         <div class="field-row" style="align-items:flex-end">
           <div class="field"><label>연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
           <div class="field"><label>기간</label><div class="field-row" style="align-items:center;gap:6px"><select data-from>${monthOpts(fromM)}</select><span>~</span><select data-to>${monthOpts(toM)}</select></div></div>
