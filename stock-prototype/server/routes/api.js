@@ -8,6 +8,14 @@ const portfolio = require('../services/portfolio');
 const excel = require('../services/excel');
 const { ValidationError } = market;
 const categories = require('../services/categories');
+const config = require('../config');
+const { limiter, clientIp } = require('../security');
+
+// 요청 횟수 제한 (v0.25): 로그인 실패는 이메일+IP 5회/15분, IP 30회/15분 · 가입·재설정은 IP 10회/시간
+const loginFail = limiter({ windowMs: 15 * 60 * 1000, max: 5 });
+const loginFailIp = limiter({ windowMs: 15 * 60 * 1000, max: 30 });
+const signupLimit = limiter({ windowMs: 60 * 60 * 1000, max: 10 });
+const tooMany = (res, sec) => res.status(429).json({ error: `시도 횟수가 너무 많습니다. ${Math.ceil(sec / 60)}분 뒤에 다시 시도해 주세요.`, code: 'TOO_MANY' });
 
 const router = express.Router();
 const now = () => new Date().toISOString();
@@ -56,9 +64,15 @@ function fieldErrors(fields) {
 // 회원·인증 (3.1)
 // ---------------------------------------------------------------------------
 router.post('/auth/signup', async (req, res) => {
+  const ip = clientIp(req);
+  const wait = signupLimit.blocked(ip);
+  if (wait) return tooMany(res, wait);
+  signupLimit.hit(ip);
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
-  fieldErrors({ email: validateEmail(email), password: validatePassword(password) });
+  // 공개 서버에 가입 코드가 있으면 그 코드를 알아야 가입 (v0.25)
+  const codeErr = config.SIGNUP_CODE && String(req.body.signupCode || '').trim() !== config.SIGNUP_CODE ? '가입 코드가 올바르지 않습니다. 서버 관리자에게 받은 코드를 입력하세요.' : null;
+  fieldErrors({ email: validateEmail(email), password: validatePassword(password), signupCode: codeErr });
   if (db.get('SELECT 1 FROM users WHERE email = ?', [email])) {
     throw new ValidationError('이미 가입된 이메일입니다.', { email: '이미 가입된 이메일입니다.' });
   }
@@ -71,9 +85,18 @@ router.post('/auth/signup', async (req, res) => {
 
 router.post('/auth/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
+  const ip = clientIp(req);
+  const key = `${ip}|${email}`;
+  const wait = loginFail.blocked(key) || loginFailIp.blocked(ip);
+  if (wait) return tooMany(res, wait);
   const user = db.get('SELECT * FROM users WHERE email = ?', [email]);
   const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
-  if (!ok) return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'LOGIN_FAILED' });
+  if (!ok) {
+    loginFail.hit(key);
+    loginFailIp.hit(ip);
+    return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'LOGIN_FAILED' });
+  }
+  loginFail.clear(key);
   auth.createSession(res, user.id);
   res.json({ user: { id: user.id, email: user.email } });
 });
@@ -91,6 +114,10 @@ router.get('/auth/me', (req, res) => {
 router.post('/auth/reset-request', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   fieldErrors({ email: validateEmail(email) });
+  // 공개 서버: 메일 발송 기능이 없으므로 링크를 화면에 보여주면 누구나 남의 비밀번호를 바꿀 수 있다 → 관리자 도구로만 재설정 (v0.25)
+  if (config.CLOUD) {
+    return res.json({ message: '이 서버는 비밀번호 재설정 메일을 보내지 않습니다. 서버 관리자에게 재설정을 요청하세요(관리자는 서버에서 kstock-admin reset-password 명령으로 임시 비밀번호를 발급합니다).', demoLink: null });
+  }
   const user = db.get('SELECT id FROM users WHERE email = ?', [email]);
   let demoLink = null;
   if (user) {

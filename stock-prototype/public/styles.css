@@ -479,3 +479,7 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .card.foldable { position: relative; }
 .card.foldable > h2 { padding-right: 40px; }
 .card.foldable > .fold-btn { position: absolute; top: 15px; right: 16px; margin: 0; }
+
+/* 클라우드 서버 연결 (v0.25) */
+.cloud-box { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--t-300); border-radius: 8px; background: var(--t-50); font-size: 13px; text-align: center; }
+.cloud-box button.linkish { font-weight: 700; font-size: 13px; }

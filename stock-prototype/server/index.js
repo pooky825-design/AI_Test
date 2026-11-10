@@ -7,6 +7,8 @@ const auth = require('./auth');
 const market = require('./services/market');
 const providers = require('./providers');
 const { seedDemo } = require('./seed');
+const config = require('./config');
+const { securityHeaders } = require('./security');
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -23,13 +25,18 @@ function openChrome(url) {
 
 async function main() {
   const { isNew } = await db.init();
-  if (isNew) await seedDemo();
+  if (isNew && config.SEED_DEMO) await seedDemo();
 
   const app = express();
+  app.disable('x-powered-by');
+  // 공개 서버는 Caddy(HTTPS) 뒤에서 동작: 실제 접속 IP는 X-Forwarded-For 첫 번째 프록시 값으로 판단
+  if (config.CLOUD) app.set('trust proxy', 'loopback');
+  app.use(securityHeaders(config.CLOUD));
   app.use(express.json({ limit: '5mb' })); // 백업 복원 파일(v0.15)도 받을 수 있게
   app.use(auth.loadUser);
   app.get('/vendor/chart.umd.js', (_req, res) => res.sendFile(path.join(__dirname, '..', 'node_modules', 'chart.js', 'dist', 'chart.umd.min.js')));
-  app.get('/api/health', (_req, res) => res.json({ ok: true, dataMode: providers.mode }));
+  // 화면이 서버 성격을 알 수 있게: 공개 서버 여부, 가입 코드 필요 여부, 데모 계정 유무 (v0.25)
+  app.get('/api/health', (_req, res) => res.json({ ok: true, dataMode: providers.mode, cloud: config.CLOUD, signupCode: !!config.SIGNUP_CODE, demo: config.SEED_DEMO }));
   app.use('/api', require('./routes/api'));
   app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -44,10 +51,11 @@ async function main() {
     res.status(status).json({ error: err.message, code: err.code, fields: err.fields });
   });
 
-  const server = app.listen(PORT, () => {
-    const url = `http://localhost:${PORT}`;
+  const server = app.listen(PORT, config.HOST, () => {
+    const url = `http://${config.HOST || 'localhost'}:${PORT}`;
     console.log('==============================================');
     console.log(` K-Stock 실행 중: ${url}`);
+    if (config.CLOUD) console.log(` 공개 서버 모드 (가입 코드 ${config.SIGNUP_CODE ? '필요' : '없음 — 누구나 가입 가능'})`);
     console.log(` 데이터 출처: ${providers.mode === 'sample' ? '샘플(가상) 데이터' : '야후 파이낸스(주) / 네이버 증권(예비)'}`);
     console.log(' 종료하려면 이 창에서 Ctrl+C 를 누르세요.');
     console.log('==============================================');

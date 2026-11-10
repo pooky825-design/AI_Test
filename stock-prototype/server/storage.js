@@ -4,7 +4,8 @@ const path = require('path');
 const initSqlJs = require('sql.js');
 
 // 샘플 모드는 실데이터 DB와 섞이지 않도록 별도 폴더 사용
-const DATA_DIR = path.join(__dirname, '..', (process.env.DATA_PROVIDER || '').toLowerCase() === 'sample' ? 'data-sample' : 'data');
+// 공개 서버는 DATA_DIR 환경변수로 앱 폴더 밖(예: /var/lib/kstock)에 저장 (v0.25)
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', (process.env.DATA_PROVIDER || '').toLowerCase() === 'sample' ? 'data-sample' : 'data');
 const DB_FILE = path.join(DATA_DIR, 'stock.db');
 
 module.exports = {

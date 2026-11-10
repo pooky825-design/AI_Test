@@ -3,7 +3,13 @@
   'use strict';
 
   const $app = document.getElementById('app');
-  const state = { user: null, charts: [], settings: null, received: undefined, actAs: null, actSettings: {} };
+  const state = { user: null, charts: [], settings: null, received: undefined, actAs: null, actSettings: {}, server: { cloud: false, signupCode: false, demo: true } };
+  // 실행 환경 (v0.25): 안드로이드 앱 안(휴대폰 모드: 앱 내장 서버 / 클라우드 모드: 연결한 서버 화면) 또는 PC 브라우저
+  const IN_APP = !!window.AndroidBridge;
+  const LOCAL_APP = IN_APP && !!window.MobileApp;
+  const REMOTE_APP = IN_APP && !window.MobileApp;
+  const appServerUrl = () => { try { return (window.AndroidBridge.getServerUrl && window.AndroidBridge.getServerUrl()) || ''; } catch (_) { return ''; } };
+  const hostOf = (u) => { try { return new URL(u).host; } catch (_) { return u; } };
 
   // 회원별 화면 설정: 마지막 조회 기간·선택 연도 (서버에 저장 → PC·앱 어디서나 이어짐)
   const settings = {
@@ -304,6 +310,53 @@
     return $app.querySelector('form');
   }
 
+  // ---------------------------------------------------------------------------
+  // 클라우드 서버 연결 (v0.25, 안드로이드 앱): 서버 주소를 정하면 앱이 그 서버 화면을 연다
+  // ---------------------------------------------------------------------------
+  function cloudConnectModal() {
+    const body = openModal('클라우드 서버에 연결');
+    const cur = appServerUrl();
+    body.innerHTML = `<p style="margin:0 0 10px">다른 기기와 화면을 공유하려면, 직접 만든 K-Stock 클라우드 서버(예: Oracle Cloud)에 연결하세요. 연결하면 이 앱은 그 서버의 화면과 데이터를 사용합니다.</p>
+      <form class="stack" data-cform novalidate>
+        <div class="field"><label>서버 주소</label><input name="url" placeholder="https://kstock.duckdns.org" value="${esc(cur)}" autocomplete="off" inputmode="url" /><span class="err" data-err="url"></span></div>
+        <div class="notice info small"><div><b>휴대폰에 있던 데이터를 옮기려면</b><br/>① 연결 전에 환경설정 → <b>백업 파일 저장</b> ② 연결 후 서버에서 회원가입·로그인 ③ 환경설정 → <b>백업 파일로 복원</b><br/>휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.</div></div>
+        <div class="field-row" style="justify-content:flex-end"><button type="button" class="secondary" data-close>취소</button><button type="submit">연결</button></div>
+      </form>`;
+    const f = body.querySelector('[data-cform]');
+    body.querySelector('[data-close]').addEventListener('click', closeAllModals);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const msg = window.AndroidBridge.setServerUrl(f.url.value.trim());
+      showFieldErrors(f, msg ? { url: msg } : {});
+      if (!msg) toast('서버에 연결하는 중…');
+    });
+    f.url.focus();
+  }
+  function switchToLocal() {
+    if (!confirm('이 휴대폰 모드로 전환할까요? 휴대폰 안에 저장된 데이터로 돌아갑니다(서버의 데이터는 그대로 남습니다).')) return;
+    window.AndroidBridge.setServerUrl('');
+  }
+  function cloudLoginBox(query) {
+    if (LOCAL_APP) {
+      const saved = appServerUrl();
+      const err = query && query.cloudError && saved
+        ? `<div class="notice error small"><div class="grow"><b>클라우드 서버(${esc(hostOf(saved))})에 연결하지 못했습니다.</b><br/>인터넷 연결이나 서버 상태를 확인하세요. 지금 화면은 휴대폰 안의 데이터입니다.</div></div>
+           <div class="field-row" style="margin-bottom:10px"><button type="button" class="sm" data-cretry>다시 연결</button><button type="button" class="sm secondary" data-clocal>이 휴대폰 모드로 사용</button></div>`
+        : '';
+      return `${err}<div class="cloud-box">☁️ 다른 기기와 공유하려면 <button type="button" class="linkish" data-cloud>클라우드 서버에 연결</button></div>`;
+    }
+    if (REMOTE_APP) return `<div class="cloud-box">☁️ 연결된 서버: <b>${esc(hostOf(appServerUrl() || location.origin))}</b> · <button type="button" class="linkish" data-clocal>이 휴대폰 모드로 전환</button></div>`;
+    return '';
+  }
+  function bindCloudBox(root) {
+    root.querySelectorAll('[data-cloud]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); cloudConnectModal(); }));
+    root.querySelectorAll('[data-cretry]').forEach((a) => a.addEventListener('click', () => window.AndroidBridge.setServerUrl(appServerUrl())));
+    root.querySelectorAll('[data-clocal]').forEach((a) => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (LOCAL_APP) { window.AndroidBridge.setServerUrl(''); toast('이 휴대폰 모드로 사용합니다.'); render(); } else switchToLocal();
+    }));
+  }
+
   // 로그인 아이디 기억 (v0.18): 이 기기(브라우저·앱)에만 저장, 비밀번호는 저장하지 않음
   const LOGIN_IDS_MAX = 5;
   const loginStore = {
@@ -313,7 +366,7 @@
     setRemember(on) { try { localStorage.setItem('login.remember', on ? '1' : '0'); } catch (_) { /* 무시 */ } },
   };
 
-  function viewLogin() {
+  function viewLogin(query = {}) {
     const form = authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
       <form class="stack" novalidate>
         <div class="field id-field"><label>이메일(아이디)</label><input name="email" type="email" autocomplete="off" required /><div class="id-menu" data-idmenu hidden></div><span class="err" data-err="email"></span></div>
@@ -323,7 +376,9 @@
         <button type="submit">로그인</button>
       </form>
       <div class="links"><a href="#/signup">회원가입</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
-      <div class="demo-box">데모 계정: <b>demo@example.com</b> / <b>demo1234</b><br/>보유 종목 5개와 배당 내역이 미리 들어 있습니다.</div>`);
+      ${state.server.demo ? '<div class="demo-box">데모 계정: <b>demo@example.com</b> / <b>demo1234</b><br/>보유 종목 5개와 배당 내역이 미리 들어 있습니다.</div>' : ''}
+      ${cloudLoginBox(query)}`);
+    bindCloudBox($app);
     // 저장한 아이디: 체크되어 있으면 마지막 아이디를 채우고, 입력칸을 누르면 예전 아이디 목록을 보여준다
     const menu = form.querySelector('[data-idmenu]');
     const remember = form.rememberId;
@@ -386,11 +441,12 @@
 
   function viewSignup() {
     const form = authPage('회원가입', '이메일과 비밀번호로 가입합니다. <span class="req">FR-AUTH-01</span>', `
-      <div class="notice info small" style="margin-top:14px">프로토타입에서는 이메일 인증 절차를 생략하고 가입 즉시 계정이 활성화됩니다.</div>
+      <div class="notice info small" style="margin-top:14px">${state.server.cloud ? '이 서버는 가입 즉시 계정이 활성화됩니다. 비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.' : '프로토타입에서는 이메일 인증 절차를 생략하고 가입 즉시 계정이 활성화됩니다.'}</div>
       <form class="stack" novalidate style="margin-top:4px">
         <div class="field"><label>이메일</label><input name="email" type="email" autocomplete="username" /><span class="err" data-err="email"></span></div>
         <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="password"></span></div>
         <div class="field"><label>비밀번호 확인</label><input name="password2" type="password" autocomplete="new-password" /><span class="err" data-err="password2"></span></div>
+        ${state.server.signupCode ? '<div class="field"><label>가입 코드</label><input name="signupCode" autocomplete="off" /><span class="hint">서버 관리자에게 받은 코드</span><span class="err" data-err="signupCode"></span></div>' : ''}
         <button type="submit">가입하기</button>
       </form>
       <div class="links"><a href="#/login">← 로그인으로</a></div>`);
@@ -399,12 +455,13 @@
       const d = formData(form);
       if (d.password !== d.password2) return showFieldErrors(form, { password2: '비밀번호가 일치하지 않습니다.' });
       try {
-        const r = await api('POST', '/auth/signup', { email: d.email, password: d.password });
+        const r = await api('POST', '/auth/signup', { email: d.email, password: d.password, signupCode: d.signupCode });
         state.user = r.user;
         toast('가입이 완료되었습니다.');
         go('#/assets');
       } catch (err) {
-        showFieldErrors(form, err.fields);
+        showFieldErrors(form, err.fields || {});
+        if (!err.fields || !Object.keys(err.fields).length) toast(err.message);
       }
     });
   }
@@ -1939,6 +1996,15 @@
   function viewMe() {
     const main = shell('#/me', `
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      ${IN_APP ? `<div class="card" data-fold="cloud">
+        <h2>클라우드 서버 연결 ${req('FR-CLD-01')}</h2>
+        ${REMOTE_APP ? `<p style="margin:0 0 10px">지금 <b>클라우드 서버(${esc(hostOf(appServerUrl() || location.origin))})</b>에 연결되어 있습니다. 다른 기기(PC 브라우저·다른 휴대폰)에서도 같은 주소로 접속하면 같은 데이터를 보고, 화면 공유도 기기에 상관없이 됩니다.</p>
+          <div class="field-row"><button class="secondary" data-clocal>이 휴대폰 모드로 전환</button></div>
+          <p class="small muted" style="margin:10px 0 0">이 휴대폰 모드로 바꾸면 휴대폰 안에 저장된 데이터를 씁니다. 서버의 데이터는 그대로 남습니다.</p>`
+        : `<p style="margin:0 0 10px">지금은 <b>이 휴대폰 모드</b>입니다(데이터가 휴대폰 안에만 있어 같은 휴대폰의 계정끼리만 공유 가능). 다른 기기와 공유하려면 직접 만든 K-Stock 클라우드 서버(Oracle Cloud 등)에 연결하세요.</p>
+          <div class="field-row"><button data-cloud>클라우드 서버에 연결</button></div>
+          <p class="small muted" style="margin:10px 0 0">데이터 옮기기: 연결 전에 아래 <b>백업 파일 저장</b> → 연결 후 서버에서 회원가입·로그인 → <b>백업 파일로 복원</b>. 서버 만드는 방법은 README의 ‘클라우드 서버(Oracle Cloud)’ 안내를 보세요.</p>`}
+      </div>` : ''}
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
         <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 내역 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
@@ -1962,7 +2028,7 @@
         <div class="theme-preview" aria-hidden="true">
           <div class="pv-side"><b>미리보기</b><span class="on">나의 자산</span><span>보유 종목 관리</span></div>
           <div class="pv-main">
-            <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="javascript:void 0" tabindex="-1">링크</a></div>
+            <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="#/me" tabindex="-1">링크</a></div>
             <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
             <div class="pv-row pv-chart" data-pv-chart></div>
           </div>
@@ -1993,6 +2059,7 @@
         </div>
       </div>`);
     makeFoldable(main, 'me.collapsed');
+    bindCloudBox(main);
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
@@ -2029,6 +2096,24 @@
   // 엑셀 내보내기: PC 브라우저는 바로 다운로드, 안드로이드 앱은 기기의 다운로드 폴더에 저장
   // ---------------------------------------------------------------------------
   async function download(path) {
+    if (REMOTE_APP && window.AndroidBridge.saveFile) {
+      // 클라우드 서버 화면(앱): 파일을 받아 휴대폰 다운로드 폴더에 저장
+      try {
+        toast('엑셀 파일을 만드는 중…');
+        const res = await fetch(`/api${withAs(path)}`, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).error) || '내보내기에 실패했습니다.');
+        const cd = res.headers.get('content-disposition') || '';
+        const m = /filename\*=UTF-8''([^;]+)/.exec(cd) || /filename="?([^";]+)"?/.exec(cd);
+        const name = m ? decodeURIComponent(m[1]) : 'k-stock.xlsx';
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        toast(window.AndroidBridge.saveFile(name, btoa(bin), res.headers.get('content-type') || 'application/octet-stream'));
+      } catch (e) {
+        toast(e.message);
+      }
+      return;
+    }
     if (!window.MobileApp) {
       location.href = `/api${withAs(path)}`;
       return;
@@ -2388,7 +2473,10 @@
     closeAllModals();
     const { path, query } = parseHash();
     if (PUBLIC[path]) {
-      if (state.user && path !== '/reset') return go('#/assets');
+      if (state.user && path !== '/reset') {
+        if (query.cloudError) toast('클라우드 서버에 연결하지 못해 휴대폰 안의 데이터로 열었습니다. 환경설정에서 다시 연결할 수 있습니다.');
+        return go('#/assets');
+      }
       return PUBLIC[path](query);
     }
     if (!state.user) return go('#/login');
@@ -2412,8 +2500,10 @@
   }
 
   window.addEventListener('hashchange', render);
-  api('GET', '/auth/me').then((r) => {
-    state.user = r.user;
-    render();
-  }).catch(() => render());
+  api('GET', '/health').then((h) => { state.server = { ...state.server, ...h }; }).catch(() => {}).finally(() => {
+    api('GET', '/auth/me').then((r) => {
+      state.user = r.user;
+      render();
+    }).catch(() => render());
+  });
 })();

@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -12,8 +13,11 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -52,6 +56,49 @@ public class MainActivity extends Activity {
 
     private WebView webView;
 
+    // 클라우드 서버 모드 (v0.25): 서버 주소를 정하면 휴대폰 안의 서버 대신 그 서버 화면을 연다
+    private static final String LOCAL_URL = "file:///android_asset/www/index.html";
+    private static final String PREFS = "kstock";
+    private static final String KEY_SERVER = "serverUrl";
+    private volatile String serverUrl = "";   // "" 이면 이 휴대폰 모드
+    private volatile boolean pageIsLocal = true; // 지금 화면이 앱 안의 화면(file://)인지. 서버 화면에는 휴대폰 DB·외부 호출을 열지 않는다
+
+    private String loadServerUrl() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SERVER, "");
+    }
+
+    /** https 주소만 허용하고 "https://호스트[:포트]/" 형태로 정리한다. 올바르지 않으면 null */
+    private static String normalizeServer(String raw) {
+        try {
+            String t = raw == null ? "" : raw.trim();
+            if (t.isEmpty()) return "";
+            if (!t.contains("://")) t = "https://" + t;
+            URL u = new URL(t);
+            if (!"https".equals(u.getProtocol()) || u.getHost() == null || u.getHost().isEmpty()) return null;
+            return "https://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : "") + "/";
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean isServerUrl(String url) {
+        return !serverUrl.isEmpty() && url != null && url.startsWith(serverUrl);
+    }
+
+    private void openStart() {
+        serverUrl = loadServerUrl();
+        webView.loadUrl(serverUrl.isEmpty() ? LOCAL_URL : serverUrl);
+    }
+
+    /** 서버에 연결하지 못하면 휴대폰 안의 화면으로 돌아와 안내한다(서버 주소는 그대로 둠) */
+    private void showCloudError() {
+        main.post(new Runnable() {
+            @Override public void run() {
+                webView.loadUrl(LOCAL_URL + "#/login?cloudError=1");
+            }
+        });
+    }
+
     // 백업·복원 (v0.15): 안드로이드 파일 선택 창(저장 위치 선택 / 파일 열기)으로 앱 삭제 후에도 남는 위치에 저장·불러오기
     private static final int REQ_CREATE_DOC = 7001;
     private static final int REQ_OPEN_DOC = 7002;
@@ -63,7 +110,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (Build.VERSION.SDK_INT >= 21) getWindow().setStatusBarColor(Color.parseColor("#1F4E79"));
+        if (Build.VERSION.SDK_INT >= 21) getWindow().setStatusBarColor(Color.parseColor("#D9600A"));
 
         webView = new WebView(this);
         WebSettings s = webView.getSettings();
@@ -71,11 +118,38 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(true);
         s.setTextZoom(100);
-        webView.setWebViewClient(new WebViewClient());
+        CookieManager.getInstance().setAcceptCookie(true);
+        webView.setWebViewClient(new WebViewClient() {
+            // 앱 화면과 연결한 서버 안에서만 이동하고, 다른 주소는 휴대폰 브라우저로 연다
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url.startsWith("file:///android_asset/") || isServerUrl(url)) return false;
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                } catch (Exception ignored) { }
+                return true;
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                pageIsLocal = url != null && url.startsWith("file:///android_asset/");
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                if (isServerUrl(failingUrl)) showCloudError();
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+                // 서버가 꺼져 있으면 Caddy 가 502 등을 돌려준다
+                if (request.isForMainFrame() && response.getStatusCode() >= 500 && isServerUrl(request.getUrl().toString())) showCloudError();
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient()); // alert/confirm 대화상자
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
         setContentView(webView);
-        webView.loadUrl("file:///android_asset/www/index.html");
+        openStart();
     }
 
     /** JS 콜백: window.__docDone(id, ok, payload) */
@@ -129,6 +203,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush(); // 로그인 상태 저장
+    }
+
+    @Override
     protected void onDestroy() {
         pool.shutdownNow();
         if (webView != null) webView.destroy();
@@ -149,6 +229,24 @@ public class MainActivity extends Activity {
     }
 
     private class Bridge {
+
+        /** 연결한 클라우드 서버 주소 ("" 이면 이 휴대폰 모드) */
+        @JavascriptInterface
+        public String getServerUrl() {
+            return serverUrl.isEmpty() ? loadServerUrl() : serverUrl;
+        }
+
+        /** 서버 주소 저장 후 그 서버 화면을 연다. "" 이면 이 휴대폰 모드로. 오류 문구를 돌려주고 성공하면 "" */
+        @JavascriptInterface
+        public String setServerUrl(String raw) {
+            final String url = normalizeServer(raw);
+            if (url == null) return "https:// 로 시작하는 올바른 서버 주소를 입력하세요.";
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_SERVER, url).apply();
+            main.post(new Runnable() {
+                @Override public void run() { openStart(); }
+            });
+            return "";
+        }
 
         /** 외부 출처 GET. 결과는 window.__mobileHttpDone(id, status, base64, error) 로 돌려준다. */
         @JavascriptInterface
@@ -171,6 +269,7 @@ public class MainActivity extends Activity {
                     String error = null;
                     HttpURLConnection c = null;
                     try {
+                        if (!pageIsLocal) throw new Exception("서버 화면에서는 사용할 수 없습니다.");
                         URL u = new URL(url);
                         if (!"https".equals(u.getProtocol()) || !ALLOWED_HOSTS.contains(u.getHost())) {
                             throw new Exception("허용되지 않은 주소입니다.");
@@ -210,6 +309,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String loadDb() {
+            if (!pageIsLocal) return "";
             try {
                 File f = dbFile();
                 if (!f.exists()) return "";
@@ -221,6 +321,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void saveDb(String b64) {
+            if (!pageIsLocal) return;
             try {
                 byte[] data = Base64.decode(b64, Base64.DEFAULT);
                 File tmp = new File(getFilesDir(), "stock.db.tmp");
