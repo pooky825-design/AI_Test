@@ -696,6 +696,7 @@
     // 종목 조회에서 ‘보유 종목으로 등록’으로 들어오면 올해, 아니면 마지막으로 본 연도·그룹
     const year = Math.min(Number(query.year) || (query.code ? THIS_YEAR : Number(settings.get('holdings.year')) || THIS_YEAR), THIS_YEAR);
     const groupParam = query.group !== undefined ? query.group : settings.get('holdings.group');
+    const yy = `'${String(year).slice(2)}`; // 예: '26 (이월액 라벨)
     const main = shell('#/holdings', `
       <div class="page-head">
         <div><h1>보유 종목 관리 ${req('SC-04 · FR-HLD')}</h1><p>그룹(ISA·연금·일반 등)과 연도를 골라 주식 항목을 관리합니다. 보유 수량은 목록의 <b>수정</b>에서 매수·매도 구분 없이 바로 바꾸면 됩니다. 손대지 않은 연도는 직전 연도 보유가 그대로 이어집니다(이월).</p></div>
@@ -715,8 +716,9 @@
           <div class="field" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
           <div class="field" style="width:110px"><label>보유 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
           <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
-          <div class="field" style="width:140px"><label>평균 매입단가</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
-          <div class="field" style="width:150px"><label>${year}년 실현손익 (선택)</label><input name="realizedPnl" inputmode="decimal" placeholder="매도 시 입력" /><span class="hint">매도금액 − 원래 매입금액, 손실은 −</span><span class="err" data-err="realizedPnl"></span></div>
+          <div class="field" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
+          <div class="field" style="width:150px" data-basis-field hidden><label>${yy}년 이월액</label><input name="basisAmount" class="auto-calc" readonly tabindex="-1" /><span class="hint" data-basis-hint>${year}.1.1 기준 · 저장하면 다시 계산</span></div>
+          <div class="field" style="width:150px"><label>${year}년 실현손익 (선택)</label><input name="realizedPnl" inputmode="decimal" placeholder="매도 시 입력" /><span class="hint">매도금액 − 매입금액, 손실은 −</span><span class="err" data-err="realizedPnl"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
@@ -779,6 +781,7 @@
     };
     const resetForm = () => {
       form.reset();
+      main.querySelector('[data-basis-field]').hidden = true;
       form.id.value = '';
       form.code.disabled = false;
       form.groupId.disabled = false;
@@ -930,9 +933,9 @@
         </tr>`;
       }).join('');
       tbox.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th class="left">종목</th><th>이월</th><th class="right">수량</th><th class="right">평균 매입단가</th><th class="right">원래 매입금액</th><th class="right">${year}.1.1 기준</th><th class="right">실현손익</th><th>메모</th><th>입력일</th><th></th></tr></thead>
+        <thead><tr><th>종목</th><th>이월</th><th>수량</th><th>매입단가(평균)</th><th>매입금액</th><th>${yy}년 이월액</th><th>실현손익</th><th>메모</th><th>입력일</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">원래 매입금액 = 실제로 산 금액(전체기간 손익의 기준) · ${year}.1.1 기준 = 이월분은 ${year - 1}년 마지막 종가로 평가한 금액 + ${year}년 매수분(올해 손익의 기준) · 실현손익 = 그 해 매도한 수량의 매도금액 − 원래 매입금액(증권사 앱의 실현손익) · 이월 = 전년도부터 보유(이전 연도에서 자동으로 이어진 종목은 이월, 자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 매입금액 = 보유 수량 × 평균 매입단가(거래 통화) · 입력일 = 종목을 입력한 날 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">매입금액 = 실제로 산 금액(보유 수량 × 매입단가(평균), 거래 통화, 전체기간 손익의 기준) · ${yy}년 이월액 = ${year}년 1월 1일 기준 금액: 이월분은 ${year - 1}년 마지막 종가로 평가한 금액 + ${year}년 매수분(올해 손익의 기준, 누르면 계산 근거) · 실현손익 = 그 해 매도한 수량의 매도금액 − 매입금액(증권사 앱의 실현손익) · 이월 = 전년도부터 보유(이전 연도에서 자동으로 이어진 종목은 이월, 자산 현황의 연초 기준 매입단가를 ${year}년 1월 1일 평가액으로 계산) · 신규 = ${year}년 매입금액 기준 · 입력일 = 종목을 입력한 날 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', () => {
@@ -940,7 +943,7 @@
           const body = openModal(`종목 삭제 (전량 매도) · ${year}년`);
           body.innerHTML = `<p style="margin:0 0 10px">[${esc(it.group_name)}] <b>${esc(it.name || it.code)}</b> 종목을 ${year}년 보유 목록에서 삭제합니다. ${year}년부터 보유하지 않은 것으로 처리되며, 배당 내역은 유지됩니다.</p>
             <form data-delform novalidate>
-              <div class="field" style="max-width:300px"><label>${year}년 실현손익 (선택, ${it.currency === 'USD' ? '달러' : '원'})</label><input name="realizedPnl" inputmode="decimal" placeholder="예: 150000 / 손실은 -50000" value="${it.realized_pnl == null ? '' : esc(String(it.realized_pnl))}" /><span class="hint">매도금액 − 원래 매입금액 ${money(it.purchase_amount, it.currency)}. 비우면 손익에 반영하지 않습니다.</span><span class="err" data-err="realizedPnl"></span></div>
+              <div class="field" style="max-width:300px"><label>${year}년 실현손익 (선택, ${it.currency === 'USD' ? '달러' : '원'})</label><input name="realizedPnl" inputmode="decimal" placeholder="예: 150000 / 손실은 -50000" value="${it.realized_pnl == null ? '' : esc(String(it.realized_pnl))}" /><span class="hint">매도금액 − 매입금액 ${money(it.purchase_amount, it.currency)}. 비우면 손익에 반영하지 않습니다.</span><span class="err" data-err="realizedPnl"></span></div>
               <div class="field-row" style="justify-content:flex-end;margin-top:12px"><button type="button" class="secondary" data-close>취소</button><button type="submit" class="danger">삭제</button></div>
             </form>`;
           const f = body.querySelector('[data-delform]');
@@ -974,6 +977,12 @@
           calcAvg();
           form.memo.value = it.memo || '';
           form.realizedPnl.value = it.realized_pnl == null ? '' : String(it.realized_pnl);
+          // 수정 시 이월액(1월 1일 기준 금액) 표시: 읽기 전용, 저장하면 서버에서 다시 계산
+          form.basisAmount.value = money(it.basis_amount, it.currency);
+          main.querySelector('[data-basis-hint]').textContent = it.basis_carried_qty > 1e-9 && it.basis_start_close != null
+            ? `이월 ${qty(it.basis_carried_qty)}주 × ${money(it.basis_start_close, it.currency)}${it.quantity - it.basis_carried_qty > 1e-9 ? ' + 올해 매수분' : ''}`
+            : `${year}년 매수분(이월 없음)`;
+          main.querySelector('[data-basis-field]').hidden = false;
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${esc(it.group_name)} ${req('FR-HLD-02')}`;
           form.querySelector('[data-submit]').textContent = '저장';

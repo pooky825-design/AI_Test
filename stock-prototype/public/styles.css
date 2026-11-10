@@ -301,3 +301,4 @@ td.left .name-cell { align-items: flex-start; }
 .badge.sold { background: #fff4e5; color: #9a3412; border-color: #fed7aa; }
 tr.sold-row td { background: #fffbf5; }
 .stock-table th, .stock-table td { padding-left: 7px; padding-right: 7px; }
+.field[hidden] { display: none; }
