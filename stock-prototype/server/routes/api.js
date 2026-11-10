@@ -238,6 +238,15 @@ function divYear(q) {
 router.get('/divmgmt', async (req, res) => {
   const ty = thisYear();
   const year = divYear(req.query.year);
+  // 월 기간 (v0.13.6): 기본 1월 ~ (올해는 이번 달, 지난 연도는 12월). 배당락일 기준
+  const curMonth = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }));
+  const mClamp = (v, d) => { const n = Number(v); return Number.isInteger(n) && n >= 1 && n <= 12 ? n : d; };
+  let fromM = mClamp(req.query.from, 1);
+  let toM = mClamp(req.query.to, year >= ty ? curMonth : 12);
+  if (fromM > toM) [fromM, toM] = [toM, fromM];
+  const mm = (n) => String(n).padStart(2, '0');
+  const dFrom = `${year}-${mm(fromM)}-01`;
+  const dTo = `${year}-${mm(toM)}-31`;
   const groups = positions.groupsOf(req.user.id);
   const gid = groups.some((g) => g.id === Number(req.query.group)) ? Number(req.query.group) : null;
   const gname = new Map(groups.map((g) => [g.id, g.name]));
@@ -264,11 +273,11 @@ router.get('/divmgmt', async (req, res) => {
     } catch (_) { /* 시세 없으면 '-' */ }
     const last = db.get(
       'SELECT ex_date, amount, tax_amount, quantity FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date <= ? ORDER BY ex_date DESC LIMIT 1',
-      [req.user.id, p.groupId, p.code, `${year}-12-31`]
+      [req.user.id, p.groupId, p.code, dTo]
     );
     const ytd = db.get(
       'SELECT COUNT(*) AS n, SUM(amount) AS amount, SUM(tax_amount) AS tax, SUM(CASE WHEN tax_amount IS NULL THEN 1 ELSE 0 END) AS taxMissing FROM holding_dividends WHERE user_id = ? AND group_id = ? AND code = ? AND ex_date BETWEEN ? AND ?',
-      [req.user.id, p.groupId, p.code, `${year}-01-01`, `${year}-12-31`]
+      [req.user.id, p.groupId, p.code, dFrom, dTo]
     );
     const rate = inst.currency === 'USD' ? fxRate : 1;
     const k = (v) => (v == null || rate == null ? null : v * rate);
@@ -285,7 +294,7 @@ router.get('/divmgmt', async (req, res) => {
       krw: { value: k(value), last: last ? k(last.amount) : null, last_tax: last ? k(last.tax_amount) : null, ytd: k(ytd.n ? ytd.amount : 0), ytd_tax: k(ytdTax) },
     };
   });
-  res.json({ year, ongoing: year >= ty, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, fxRate, items });
+  res.json({ year, ongoing: year >= ty, fromMonth: fromM, toMonth: toM, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, fxRate, items });
 });
 
 // 배당 회차 목록: 종목 배당 내역(최근 10년)을 불러와 선택 연도의 회차를 보여 주고, 저장한 회차는 표시

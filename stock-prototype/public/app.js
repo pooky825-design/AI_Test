@@ -1584,30 +1584,53 @@
     const year = Math.min(Number(query.year) || Number(settings.get('divmgmt.year')) || THIS_YEAR, THIS_YEAR);
     const groupParam = query.group !== undefined ? query.group : settings.get('divmgmt.group');
     settings.set('divmgmt.year', year);
+    // 월 기간 (v0.13.6): 기본 1월 ~ 이번 달(지난 연도는 12월)
+    const curMonth = new Date().getMonth() + 1;
+    let fromM = Number(query.from) || 1;
+    let toM = Number(query.to) || (year >= THIS_YEAR ? curMonth : 12);
+    if (fromM > toM) [fromM, toM] = [toM, fromM];
+    const monthOpts = (sel) => Array.from({ length: 12 }, (_, i) => i + 1).map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${m}월</option>`).join('');
+    const qsOf = (o = {}) => {
+      const g = o.group !== undefined ? o.group : groupParam;
+      const f = o.from !== undefined ? o.from : fromM;
+      const t = o.to !== undefined ? o.to : toM;
+      return `year=${o.year || year}&group=${g || ''}${f ? `&from=${f}` : ''}${t ? `&to=${t}` : ''}`; // 전체(빈 값)도 넘겨 저장된 그룹으로 바뀌지 않게
+    };
     const main = shell('#/divmgmt', `
       <div class="page-head">
         <div><h1>배당금 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
-        <div class="field-row"><div class="field"><label>연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div></div>
+        <div class="field-row" style="align-items:flex-end">
+          <div class="field"><label>연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
+          <div class="field"><label>기간</label><div class="field-row" style="align-items:center;gap:6px"><select data-from>${monthOpts(fromM)}</select><span>~</span><select data-to>${monthOpts(toM)}</select></div></div>
+        </div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
-      <div class="card"><h2 data-title>${year}년 배당금</h2><div data-list><div class="empty">불러오는 중…</div></div></div>`);
+      <div class="card"><h2 data-title>${year}년 ${fromM}~${toM}월 배당금</h2><div data-list><div class="empty">불러오는 중…</div></div></div>`);
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('divmgmt.year', Number(e.target.value));
-      go(`#/divmgmt?year=${e.target.value}${groupParam ? `&group=${groupParam}` : ''}`);
+      go(`#/divmgmt?${qsOf({ year: e.target.value, from: '', to: '' })}`); // 연도를 바꾸면 기간은 기본값
     });
+    const onMonth = () => {
+      let f = Number(main.querySelector('[data-from]').value);
+      let t = Number(main.querySelector('[data-to]').value);
+      if (f > t) [f, t] = [t, f];
+      go(`#/divmgmt?${qsOf({ from: f, to: t })}`);
+    };
+    main.querySelector('[data-from]').addEventListener('change', onMonth);
+    main.querySelector('[data-to]').addEventListener('change', onMonth);
     const dash = '<span class="muted">-</span>';
 
     async function load() {
-      const d = await api('GET', `/divmgmt?year=${year}${groupParam ? `&group=${encodeURIComponent(groupParam)}` : ''}`);
+      const d = await api('GET', `/divmgmt?${qsOf()}`);
       const tabs = main.querySelector('[data-tabs]');
       tabs.innerHTML = [`<button class="${d.groupId ? '' : 'on'}" data-g="">전체</button>`]
         .concat(d.groups.map((g) => `<button class="${d.groupId === g.id ? 'on' : ''}" data-g="${g.id}">${esc(g.name)}</button>`)).join('');
       tabs.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => {
         settings.set('divmgmt.group', b.dataset.g);
-        go(`#/divmgmt?year=${year}&group=${b.dataset.g}`);
+        go(`#/divmgmt?${qsOf({ group: b.dataset.g })}`);
       }));
       const gname = d.groupId ? (d.groups.find((g) => g.id === d.groupId) || {}).name : '전체 그룹';
-      main.querySelector('[data-title]').innerHTML = `${year}년 배당금 · ${esc(gname)} ${req('FR-DIV-06')}`;
+      main.querySelector('[data-title]').innerHTML = `${year}년 ${d.fromMonth}~${d.toMonth}월 배당금 · ${esc(gname)} ${req('FR-DIV-06')}`;
       const box = main.querySelector('[data-list]');
       if (!d.items.length) {
         box.innerHTML = `<div class="empty">${year}년 ${esc(gname)}에 보유한 종목이 없습니다.<br/><a href="#/holdings?year=${year}">보유 종목 관리</a>에서 종목을 등록하세요.</div>`;
@@ -1657,10 +1680,10 @@
       const lastSub = !d.groupId && lastGroup != null ? sumRow(`${esc(d.items.filter((x) => x.group_id === lastGroup)[0].group_name)} 소계`, sumOf(d.items.filter((x) => x.group_id === lastGroup))) : '';
       const hasUsd = d.items.some((x) => x.currency === 'USD');
       box.innerHTML = `<div class="table-wrap"><table class="divm-table">
-        <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(연간)</th><th>누적 과세표준액</th><th></th></tr></thead>
+        <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(${d.fromMonth}~${d.toMonth}월)</th><th>누적 과세표준액(${d.fromMonth}~${d.toMonth}월)</th><th></th></tr></thead>
         <tbody>${rows}${lastSub}</tbody>
         <tfoot>${sumRow('합계 (원화)', sumOf(d.items), 'tr')}</tfoot></table></div>
-        <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = ${d.toMonth}월까지 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년 ${d.fromMonth}~${d.toMonth}월에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;
       box.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-input]').addEventListener('click', () => openDivInput(it, year));
