@@ -32,6 +32,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -65,7 +66,9 @@ h3 { font-size: 15px; }
 .brand-ico { width: 36px; height: 36px; border-radius: 9px; box-shadow: 0 2px 6px rgba(120, 40, 10, .25); flex: none; }
 .brand small { display: block; font-weight: 400; opacity: .7; font-size: 11px; }
 .side a {
-  color: rgba(255, 255, 255, .85);
+  color: rgba(255, 255, 255, .9);
+  font-size: 15px;   /* 메뉴 글자 1단계 크게·굵게 (v0.18) */
+  font-weight: 700;
   padding: 9px 12px;
   border-radius: 8px;
   display: flex;
@@ -73,7 +76,7 @@ h3 { font-size: 15px; }
   align-items: center;
 }
 .side a:hover { background: rgba(255, 255, 255, .08); text-decoration: none; }
-.side a.active { background: rgba(255, 255, 255, .16); color: #fff; font-weight: 600; }
+.side a.active { background: rgba(255, 255, 255, .2); color: #fff; font-weight: 800; }
 .side .sc { font-size: 10px; opacity: .55; margin-left: auto; }
 .side .spacer { flex: 1; }
 .side .who { font-size: 12px; opacity: .8; padding: 8px 12px; word-break: break-all; }
@@ -284,7 +287,7 @@ body.modal-open { overflow: hidden; }
   }
   .mobile-top .bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; font-weight: 700; }
   .mobile-top nav { display: flex; overflow-x: auto; gap: 2px; padding: 0 8px 8px; }
-  .mobile-top nav a { color: rgba(255, 255, 255, .85); padding: 6px 10px; border-radius: 6px; white-space: nowrap; font-size: 13px; }
+  .mobile-top nav a { color: rgba(255, 255, 255, .9); padding: 6px 10px; border-radius: 6px; white-space: nowrap; font-size: 14px; font-weight: 700; }
   .mobile-top nav a.active { background: rgba(255, 255, 255, .18); color: #fff; font-weight: 600; }
   .mobile-top button.linkish { color: #fff; font-size: 12px; }
   .main { padding: 16px 16px 32px; }
@@ -416,3 +419,19 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .theme-preview .pv-main { flex: 1; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
 .theme-preview .pv-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .theme-preview .pv-tot { background: var(--t-100); color: var(--t-900); padding: 4px 8px; border-radius: 5px; font-weight: 700; }
+
+.theme-preview .pv-chart { align-items: flex-end; gap: 8px; }
+.pv-stack { display: inline-flex; flex-direction: column-reverse; width: 16px; border-radius: 3px; overflow: hidden; }
+.pv-stack i { display: block; width: 100%; }
+.pv-line { display: inline-block; width: 26px; height: 3px; border-radius: 2px; margin-bottom: 6px; }
+
+/* 로그인: 아이디 저장 (v0.18) */
+.remember-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.remember-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); font-weight: 400; }
+.remember-row input { width: 16px; height: 16px; accent-color: var(--primary); }
+.id-field { position: relative; }
+.id-menu { position: absolute; left: 0; right: 0; top: 100%; margin-top: 2px; z-index: 20; background: #fff; border: 1px solid var(--t-200); border-radius: 8px; box-shadow: 0 6px 18px rgba(15, 23, 42, .12); overflow: hidden; }
+.id-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; cursor: pointer; font-size: 14px; }
+.id-opt:hover { background: var(--t-50); }
+.id-opt + .id-opt { border-top: 1px solid var(--border); }
+.id-opt button.linkish { color: var(--muted); font-size: 13px; padding: 0 4px; }

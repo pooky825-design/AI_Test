@@ -67,6 +67,19 @@
     if (meta) meta.setAttribute('content', custom ? getComputedStyle(root).getPropertyValue('--side-b').trim() : '#ee6a3c');
     try { if (custom) localStorage.setItem('ui.theme', hex); else localStorage.removeItem('ui.theme'); } catch (_) { /* 무시 */ }
   }
+  // 그래프 색 (v0.18): 테마 기준 색에서 진한 색·이웃 색상·옅은 색과 보색(환율 선)을 만든다
+  function chartPalette() {
+    const cur = (state.settings || {})['ui.theme'];
+    const [h, s0] = hexToHsl(isHex(cur) ? cur : THEME_DEFAULT);
+    const sat = Math.min(s0, 85);
+    const gray = sat < 8;
+    return {
+      c1: hsl(h, sat, 30),
+      c2: hsl(h + 28, gray ? sat : Math.max(sat, 55), 54),
+      c3: hsl(h - 12, sat, 73),
+      line: gray ? hsl(200, 60, 35) : hsl(h + 180, 55, 35),
+    };
+  }
   function saveTheme(hex) {
     const v = isHex(hex) && hex.toLowerCase() !== THEME_DEFAULT ? hex.toLowerCase() : null;
     applyTheme(v);
@@ -282,22 +295,76 @@
     return $app.querySelector('form');
   }
 
+  // 로그인 아이디 기억 (v0.18): 이 기기(브라우저·앱)에만 저장, 비밀번호는 저장하지 않음
+  const LOGIN_IDS_MAX = 5;
+  const loginStore = {
+    ids() { try { const v = JSON.parse(localStorage.getItem('login.ids') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch (_) { return []; } },
+    setIds(list) { try { localStorage.setItem('login.ids', JSON.stringify(list.slice(0, LOGIN_IDS_MAX))); } catch (_) { /* 무시 */ } },
+    remember() { try { return localStorage.getItem('login.remember') === '1'; } catch (_) { return false; } },
+    setRemember(on) { try { localStorage.setItem('login.remember', on ? '1' : '0'); } catch (_) { /* 무시 */ } },
+  };
+
   function viewLogin() {
     const form = authPage('주식 관리시스템', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
       <form class="stack" novalidate>
-        <div class="field"><label>이메일</label><input name="email" type="email" autocomplete="username" required /><span class="err" data-err="email"></span></div>
+        <div class="field id-field"><label>이메일(아이디)</label><input name="email" type="email" autocomplete="off" required /><div class="id-menu" data-idmenu hidden></div><span class="err" data-err="email"></span></div>
         <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="current-password" required /><span class="err" data-err="password"></span></div>
+        <div class="remember-row"><label><input type="checkbox" name="rememberId" /> 아이디 저장</label><span class="small muted" data-idcount></span></div>
         <div class="notice error" data-msg hidden></div>
         <button type="submit">로그인</button>
       </form>
       <div class="links"><a href="#/signup">회원가입</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
       <div class="demo-box">데모 계정: <b>demo@example.com</b> / <b>demo1234</b><br/>보유 종목 5개와 배당 내역이 미리 들어 있습니다.</div>`);
-    form.email.focus();
+    // 저장한 아이디: 체크되어 있으면 마지막 아이디를 채우고, 입력칸을 누르면 예전 아이디 목록을 보여준다
+    const menu = form.querySelector('[data-idmenu]');
+    const remember = form.rememberId;
+    remember.checked = loginStore.remember();
+    const countEl = form.querySelector('[data-idcount]');
+    const showCount = () => { const n = loginStore.ids().length; countEl.textContent = n ? `저장된 아이디 ${n}개 · 입력칸을 눌러 선택` : ''; };
+    function openMenu() {
+      const q = form.email.value.trim().toLowerCase();
+      const list = loginStore.ids().filter((id) => !q || id.toLowerCase().includes(q) && id.toLowerCase() !== q);
+      if (!list.length) { menu.hidden = true; return; }
+      menu.innerHTML = list.map((id) => `<div class="id-opt" data-id="${esc(id)}"><span>${esc(id)}</span><button type="button" class="linkish" data-rm title="목록에서 지우기" aria-label="${esc(id)} 지우기">✕</button></div>`).join('');
+      menu.hidden = false;
+    }
+    menu.addEventListener('mousedown', (e) => e.preventDefault()); // 고르는 동안 입력칸 포커스 유지
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('[data-id]');
+      if (!opt) return;
+      if (e.target.closest('[data-rm]')) {
+        loginStore.setIds(loginStore.ids().filter((id) => id !== opt.dataset.id));
+        showCount();
+        openMenu();
+        return;
+      }
+      form.email.value = opt.dataset.id;
+      menu.hidden = true;
+      form.password.focus();
+    });
+    form.email.addEventListener('focus', openMenu);
+    form.email.addEventListener('click', openMenu);
+    form.email.addEventListener('input', openMenu);
+    form.email.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; }, 120));
+    form.email.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.hidden = true; });
+    showCount();
+    const saved = loginStore.ids();
+    if (remember.checked && saved.length) {
+      form.email.value = saved[0];
+      form.password.focus();
+    } else form.email.focus();
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      menu.hidden = true;
       const msg = form.querySelector('[data-msg]');
       try {
-        const r = await api('POST', '/auth/login', formData(form));
+        const { email, password } = formData(form);
+        const r = await api('POST', '/auth/login', { email, password });
+        // 아이디 저장: 체크하면 목록 맨 앞에 두고 다음에 자동으로 채움, 해제하면 이 아이디를 목록에서 지움
+        const id = String(email || '').trim();
+        const rest = loginStore.ids().filter((x) => x.toLowerCase() !== id.toLowerCase());
+        loginStore.setIds(remember.checked ? [id, ...rest] : rest);
+        loginStore.setRemember(remember.checked);
         state.user = r.user;
         state.settings = null;
         go('#/assets');
@@ -1307,7 +1374,7 @@
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 청록색 선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 관리의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly>${divYearlyShell()}</div>
       <div class="card" data-divlist>${divListShell()}</div>`;
@@ -1344,7 +1411,8 @@
     };
     // 연도별 자산금액: 한 막대에 국내·해외·해외추종을 층으로 쌓는다 (v0.13.11)
     // 색감은 아래 연도별 배당 증감 그래프(남색·호박색·주황갈색)와 맞춘다 (v0.15.1)
-    const CAT_COLORS = { DOMESTIC: '#1f4e79', OVERSEAS: '#e8a33d', OVERSEAS_TRACK: '#c2410c' };
+    const pal = chartPalette(); // 테마 색에 맞춘 그래프 색 (v0.18)
+    const CAT_COLORS = { DOMESTIC: pal.c1, OVERSEAS: pal.c2, OVERSEAS_TRACK: pal.c3 };
     const CAT_LABELS = { DOMESTIC: '국내', OVERSEAS: '해외', OVERSEAS_TRACK: '해외추종' };
     state.charts.push(new Chart(main.querySelector('[data-c1]'), {
       type: 'bar',
@@ -1354,7 +1422,7 @@
           // 환율 꺾은선 (v0.14.1): 지난 연도는 연말 환율, 올해는 현재 환율. 막대 위쪽에 그린다
           {
             type: 'line', label: '환율(USD/KRW)', data: years.map((y) => y.fxRate), yAxisID: 'yFx', order: 0,
-            borderColor: '#0f766e', backgroundColor: '#0f766e', borderWidth: 2, pointRadius: 4, tension: 0.25,
+            borderColor: pal.line, backgroundColor: pal.line, borderWidth: 2, pointRadius: 4, tension: 0.25,
           },
           ...Object.keys(CAT_LABELS).map((id) => ({
             label: CAT_LABELS[id], data: years.map((y) => (y.byCategory ? y.byCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], borderRadius: 4, stack: 'asset', order: 1,
@@ -1393,7 +1461,7 @@
           const { ctx } = chart;
           ctx.save();
           ctx.font = '600 11px sans-serif';
-          ctx.fillStyle = '#0f766e';
+          ctx.fillStyle = pal.line;
           ctx.textAlign = 'center';
           meta.data.forEach((pt, i) => {
             const v = years[i].fxRate;
@@ -1440,14 +1508,15 @@
     }).join('')}</tbody></table>
         <p class="small muted" style="margin:6px 0 0">배당·수령회차·과세표준액 = 배당내역 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)</p>`;
     if (card._chart) { card._chart.destroy(); state.charts = state.charts.filter((c) => c !== card._chart); }
+    const pal = chartPalette();
     card._chart = new Chart(card.querySelector('canvas'), {
       type: 'bar',
       data: {
         labels: shown.map((y) => (y.year === THIS_YEAR ? `${y.year} (진행 중)` : String(y.year))),
         datasets: [
-          { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: '#1f4e79', borderRadius: 4 },
-          { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: '#e8a33d', borderRadius: 4 },
-          { label: '세금', data: shown.map((y) => y.taxKrw * DIV_TAX_RATE), backgroundColor: '#c2410c', borderRadius: 4 },
+          { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: pal.c1, borderRadius: 4 },
+          { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: pal.c2, borderRadius: 4 },
+          { label: '세금', data: shown.map((y) => y.taxKrw * DIV_TAX_RATE), backgroundColor: pal.c3, borderRadius: 4 },
         ],
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
@@ -1623,6 +1692,9 @@
         + (THEME_PRESETS.some(([hex]) => hex === cur) ? '' : `<button type="button" class="theme-sw on" data-hexv="${cur}"><i style="background:${cur}"></i>직접 지정</button>`);
       color.value = cur;
       hexIn.value = cur;
+      const pal = chartPalette();
+      card.querySelector('[data-pv-chart]').innerHTML = [[14, 8, 3], [20, 10, 5], [26, 14, 6]].map((hs) => `<span class="pv-stack">${hs.map((hgt, i) => `<i style="height:${hgt}px;background:${[pal.c3, pal.c2, pal.c1][i]}"></i>`).join('')}</span>`).join('')
+        + `<span class="small muted">그래프 색</span><i class="pv-line" style="background:${pal.line}"></i><span class="small muted">환율 선</span>`;
     }
     async function pick(hex) {
       if (!isHex(hex)) { toast('색상은 #RRGGBB 형식으로 입력하세요.'); return; }
@@ -1749,9 +1821,10 @@
           <div class="pv-main">
             <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="javascript:void 0" tabindex="-1">링크</a></div>
             <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
+            <div class="pv-row pv-chart" data-pv-chart></div>
           </div>
         </div>
-        <p class="small muted" style="margin:10px 0 0">상승 빨강·하락 파랑과 그래프 색은 의미가 있는 색이라 테마와 관계없이 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산·배당 그래프도 테마 색에 맞춰 바뀝니다(진한 색·이웃 색·옅은 색, 환율 선은 보색). 상승 빨강·하락 파랑(종목 시세 그래프 포함)과 분류 배지 색은 의미가 있는 색이라 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
       </div>
       <div class="card" data-share-card>
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
