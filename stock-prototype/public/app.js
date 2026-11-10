@@ -730,8 +730,8 @@
           <div class="field" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
-          <div class="field" style="width:110px"><label>현재 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
-          <div class="field" style="width:150px"><label>매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
+          <div class="field" style="width:110px"><label>총 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
           <div class="field" style="width:160px" data-basis-field hidden><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" /><span class="hint" data-basis-hint>수량을 바꿔도 그대로</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
@@ -948,7 +948,7 @@
       // 손익 기준액 = 이월액이 있으면 이월액, 없으면 매입금액
       const baseCell = (it) => (hasCarry(it)
         ? `<span class="tip" data-tip="이월 금액(전년) 기준" tabindex="0">${money(it.carry_amount, it.currency)}</span>`
-        : `<span class="tip" data-tip="이월 금액이 없어 매입금액 기준" tabindex="0">${money(it.purchase_amount, it.currency)}</span>`);
+        : `<span class="tip" data-tip="이월 금액이 없어 총 매입금액 기준" tabindex="0">${money(it.purchase_amount, it.currency)}</span>`);
       const dash = '<span class="muted">-</span>';
       const rows = d.items.map((it, idx) => {
         let head = '';
@@ -968,9 +968,9 @@
         </tr>`;
       }).join('');
       tbox.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>종목</th><th>이월 수량</th><th>이월 금액(전년)</th><th>현재 수량</th><th>매입금액</th><th>손익 기준액</th><th>메모</th><th></th></tr></thead>
+        <thead><tr><th>종목</th><th>이월 수량</th><th>이월 금액(전년)</th><th>총 수량</th><th>총 매입금액</th><th>손익 기준액(금년)</th><th>메모</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">이월 수량·이월 금액(전년) = 전년 말부터 가져온 수량과 그 1월 1일 평가액(전년 말 수량 × 전년 마지막 종가, 일괄이월 때 고정, 수정에서 변경 가능, ‘자동’은 아직 고정 전) · 현재 수량 = ${year}년 말 보유 수량 · 매입금액 = 실제로 산 금액(누르면 매입단가(평균)) · 손익 기준액 = 이월 금액이 있으면 이월 금액, 없으면 매입금액 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
+        <p class="small muted" style="margin:8px 0 0">이월 수량·이월 금액(전년) = 전년 말부터 가져온 수량과 그 1월 1일 평가액(전년 말 수량 × 전년 마지막 종가, 일괄이월 때 고정, 수정에서 변경 가능, ‘자동’은 아직 고정 전) · 총 수량 = ${year}년 말 보유 수량 · 총 매입금액 = 실제로 산 금액(누르면 매입단가(평균)) · 손익 기준액(금년) = 이월 금액이 있으면 이월 금액, 없으면 총 매입금액 · 삭제하면 ${year}년부터 보유하지 않은 것으로 처리됩니다.</p>`;
       tbox.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const it = d.items[Number(tr.dataset.idx)];
         tr.querySelector('[data-del]').addEventListener('click', () => {
@@ -1553,7 +1553,9 @@
     const w = tipEl.offsetWidth;
     const left = Math.max(8, Math.min(window.scrollX + r.right - w, window.scrollX + document.documentElement.clientWidth - w - 8));
     tipEl.style.left = `${left}px`;
-    tipEl.style.top = `${window.scrollY + r.bottom + 6}px`;
+    // 툴팁은 글자 위쪽에 표시 (위쪽 공간이 모자라면 아래쪽)
+    const h = tipEl.offsetHeight;
+    tipEl.style.top = `${r.top - h - 6 >= 4 ? window.scrollY + r.top - h - 6 : window.scrollY + r.bottom + 6}px`;
   });
   window.addEventListener('hashchange', closeTip);
   document.addEventListener('click', (e) => {
