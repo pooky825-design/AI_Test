@@ -1696,6 +1696,7 @@
             tr.querySelector('[data-amt]').innerHTML = a == null ? dash : `<b>${money(a, c)}</b>`;
             tr.querySelector('[data-tax]').innerHTML = t == null ? dash : money(t, c);
             tr.querySelector('[name=qty]').classList.toggle('invalid', !(q > 0));
+            tr.classList.toggle('picked', tr.querySelector('[data-pick]').checked);
             if (tr.querySelector('[data-pick]').checked) {
               n++; amt += a || 0;
               if (t == null) taxMissing = true; else tax += t;

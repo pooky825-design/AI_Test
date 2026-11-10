@@ -335,7 +335,8 @@ form.edit-mode [data-f="buttons"] .field-row { flex-wrap: nowrap; white-space: n
 .div-input-table input[type=checkbox] { width: 16px; height: 16px; }
 .div-input-table th, .div-input-table td { padding-left: 7px; padding-right: 7px; }
 td.right { text-align: right; } /* 데이터 오른쪽 정렬 공통 (배당금 관리 등) */
-/* 월 배당금 입력 팝업: 입력하는 보유수량 열 강조 (연한 주황 파스텔) */
-.div-input-table td.qty-col { background: #fff3e0; }
-.div-input-table th.qty-col { background: #ffe5c2; color: #9a3412; }
-.div-input-table td.qty-col .qty-input { background: #fff; border-color: #fdba74; }
+/* 월 배당금 입력 팝업: 보유수량 입력칸 강조 */
+.div-input-table td.qty-col .qty-input { background: #fff; border-color: #fdba74; } /* 입력칸 테두리만 주황 (v0.13.3: 열 바탕색 제거) */
+/* 체크한 회차 줄 전체 선택 표시 */
+.div-input-table tr.picked td { background: #dbe7f5; }
+.div-input-table tr[data-ri] { cursor: default; }
