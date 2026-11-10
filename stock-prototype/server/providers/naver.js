@@ -72,4 +72,16 @@ async function koreanName(code) {
   }
 }
 
-module.exports = { NAME, load, koreanName };
+// 종목명 검색 (v0.21): 네이버 증권 자동완성. 국내·미국 종목만 돌려준다
+const NATION = { KOR: 'KR', USA: 'US' };
+async function search(q) {
+  const url = `https://ac.stock.naver.com/ac?q=${encodeURIComponent(q)}&target=stock,etf`;
+  const res = await fetchRaw(url, { timeoutMs: 6000 });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.items || [])
+    .filter((it) => NATION[it.nationCode] && it.code)
+    .map((it) => ({ code: String(it.code).toUpperCase(), name: it.name, market: it.typeName || it.typeCode || '', nation: NATION[it.nationCode], source: 'naver' }));
+}
+
+module.exports = { NAME, load, koreanName, search };

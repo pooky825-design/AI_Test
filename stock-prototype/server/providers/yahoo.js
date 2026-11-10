@@ -136,4 +136,21 @@ async function loadDividends(symbol) {
   };
 }
 
-module.exports = { NAME, load, loadFx, loadDividends };
+// 종목명 검색 보조 (v0.21): 영문 이름으로 미국·국내 종목 찾기
+async function search(q) {
+  const res = await fetchRaw(`${HOSTS[0]}/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`, { timeoutMs: 6000 });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const out = [];
+  for (const it of data.quotes || []) {
+    if (!['EQUITY', 'ETF'].includes(it.quoteType)) continue;
+    const m = /^(\d[0-9A-Z]{5})\.(KS|KQ)$/.exec(it.symbol || '');
+    if (m) out.push({ code: m[1], name: it.shortname || it.longname || m[1], market: m[2] === 'KS' ? 'KOSPI' : 'KOSDAQ', nation: 'KR', source: 'yahoo' });
+    else if (/^[A-Z][A-Z.-]{0,9}$/.test(it.symbol || '') && EXCHANGES[it.exchange]) {
+      out.push({ code: it.symbol, name: it.longname || it.shortname || it.symbol, market: EXCHANGES[it.exchange], nation: 'US', source: 'yahoo' });
+    }
+  }
+  return out;
+}
+
+module.exports = { NAME, load, loadFx, loadDividends, search };

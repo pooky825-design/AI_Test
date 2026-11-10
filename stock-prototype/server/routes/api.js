@@ -127,11 +127,11 @@ router.use(auth.requireAuth);
 // 요청 경로를 화면에 대응시켜, 그 화면에 권한(view: 조회, edit: 조회+수정)이 있을 때만 통과시킨다.
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
-  { id: 'yearly', label: '연도별 자산(요약)', edit: false },
-  { id: 'assets', label: '나의 자산(상세)', edit: false },
-  { id: 'stock', label: '종목 상세 조회', edit: false },
+  { id: 'yearly', label: '연도별 자산 (요약)', edit: false },
+  { id: 'assets', label: '나의 자산', edit: false },
+  { id: 'stock', label: '종목 정보 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
-  { id: 'divmgmt', label: '배당 관리', edit: true },
+  { id: 'divmgmt', label: '배당 내역 관리', edit: true },
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
@@ -139,6 +139,7 @@ const SHARE_RULES = [
   { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
   { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
   { m: ['GET'], re: /^\/stocks\//, s: ALL_SCREENS },
+  { m: ['GET'], re: /^\/search\/stocks$/, s: ALL_SCREENS },
   { m: ['GET'], re: /^\/holdings\/carry-candidates$/, s: ['holdings'] },
   { m: ['GET'], re: /^\/divmgmt(\/rounds)?$/, s: ['divmgmt'] },
   { m: ['POST', 'PUT', 'DELETE'], re: /^\/holdings\/(items|carry)$/, s: ['holdings'], edit: true },
@@ -272,6 +273,32 @@ router.delete('/auth/account', async (req, res) => {
 // ---------------------------------------------------------------------------
 // 종목 조회 (3.2)
 // ---------------------------------------------------------------------------
+// 종목명·종목코드 검색 (v0.21): 네이버 자동완성 → (영문이면) 야후 검색 → 이미 저장된 종목 순으로 합친다
+const providers = require('../providers');
+const searchCache = new Map();
+router.get('/search/stocks', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 40);
+  if (!q) return res.json({ items: [] });
+  const key = q.toLowerCase();
+  const hit = searchCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return res.json({ items: hit.items, cached: true });
+  const seen = new Set();
+  const items = [];
+  const add = (list) => list.forEach((it) => { if (!seen.has(it.code) && items.length < 12) { seen.add(it.code); items.push(it); } });
+  let remote = 0;
+  for (const fn of providers.search || []) {
+    if (items.length >= 8) break;
+    if (fn !== providers.search[0] && /[가-힣]/.test(q)) continue; // 한글은 네이버만
+    try { const r = await fn(q); remote += r.length; add(r); } catch (_) { /* 다음 출처 */ }
+  }
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  add(db.all('SELECT code, name, market, currency FROM instruments WHERE name LIKE ? OR code LIKE ? ORDER BY name LIMIT 12', [like, `${q.toUpperCase()}%`])
+    .map((r) => ({ code: r.code, name: r.name, market: r.market, nation: r.currency === 'USD' ? 'US' : 'KR', source: 'local' })));
+  if (remote) searchCache.set(key, { at: Date.now(), items });
+  if (searchCache.size > 300) searchCache.delete(searchCache.keys().next().value);
+  res.json({ items });
+});
+
 router.get('/stocks/:code', async (req, res) => {
   const q = await market.getQuote(req.params.code, { force: req.query.refresh === '1' });
   // 회원의 종목 분류 (등록 화면 기본값). 저장값이 없으면 추천값
