@@ -948,14 +948,17 @@
         table.dataset.colKey = tableKey(table);
         // 버튼과 표를 한 묶음(.col-wrap)으로 감싸 원래 표 자리에 둔다: 표가 그래프 옆(grid) 등에 있어도 배치가 깨지지 않게 (v0.26.11)
         const anchor = table.closest('.table-wrap') || table;
-        const wrap = document.createElement('div');
-        wrap.className = 'col-wrap';
-        anchor.parentNode.insertBefore(wrap, anchor);
+        let wrap = anchor.parentNode.classList.contains('col-wrap') ? anchor.parentNode : null; // 표만 다시 그려진 경우 기존 묶음 재사용
+        if (wrap) { const old = wrap.querySelector(':scope > .col-tools'); if (old) old.remove(); } else {
+          wrap = document.createElement('div');
+          wrap.className = 'col-wrap';
+          anchor.parentNode.insertBefore(wrap, anchor);
+          wrap.appendChild(anchor);
+        }
         const tools = document.createElement('div');
         tools.className = 'col-tools';
         tools.innerHTML = '<button type="button" class="col-btn" data-col-btn title="보일 열 선택">⋮ 열 선택</button>';
-        wrap.appendChild(tools);
-        wrap.appendChild(anchor);
+        wrap.insertBefore(tools, anchor);
         tools.querySelector('[data-col-btn]').addEventListener('click', (e) => { e.stopPropagation(); openColPicker(table, e.currentTarget); });
         table._colTools = tools;
       }
@@ -2081,7 +2084,8 @@
   //  배당·과세표준액 = 배당금 관리에 저장한 회차, 수령액 = 실제 수령 기록
   function divYearlyShell() {
     return `<h2>연도별 배당 증감 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
-        <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>`;
+        <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>
+        <p class="small muted" data-yearly-note style="margin:6px 0 0"></p>`;
   }
   // 세금(배당소득세 추정) = 과세표준액 × 16.5% (소득세 15.4% 아님: 요청 기준 16.5%)
   const DIV_TAX_RATE = 0.165;
@@ -2095,8 +2099,10 @@
         <td class="num">${y.divCount ? `${y.divCount}회` : dash}</td>
         <td class="num">${y.divCount ? taxCell : dash}</td>
         <td class="num">${y.divCount ? krw(y.taxKrw * DIV_TAX_RATE) : dash}</td></tr>`;
-    }).join('')}</tbody></table>
-        <p class="small muted" style="margin:6px 0 0">배당·수령회차·과세표준액 = 배당 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)</p>`;
+    }).join('')}</tbody></table>`;
+    // 주석은 그래프 영역부터 (연도별 자산 증감과 같게, v0.26.12)
+    const note = card.querySelector('[data-yearly-note]');
+    if (note) note.textContent = '배당·수령회차·과세표준액 = 배당 관리에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)';
     if (card._chart) { card._chart.destroy(); state.charts = state.charts.filter((c) => c !== card._chart); }
     const pal = chartPalette();
     card._chart = new Chart(card.querySelector('canvas'), {
