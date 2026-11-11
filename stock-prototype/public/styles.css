@@ -587,3 +587,8 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 .fund-table tr.hl-row td.est { background: color-mix(in srgb, var(--t-100) 70%, var(--t-200)); }
 .fund-kpis .kpi .value, .fund-kpis .kpi .sub { text-align: center; }
 .fund-kpis .kpi .value.small-v { line-height: 1.5; }
+
+/* v0.26.16 종목코드 옆 종목명 */
+.code-name { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--t-900); }
+.modal-head .code-name { font-size: 15px; font-weight: 500; margin-left: 4px; }

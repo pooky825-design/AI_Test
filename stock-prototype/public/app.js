@@ -1101,6 +1101,7 @@
             <div class="ac-menu" data-ac hidden role="listbox"></div>
             <span class="err" data-err="code"></span>
           </div>
+          <span class="code-name" data-code-name hidden></span>
           <button type="submit">조회</button>
         </form>
         <div class="small muted" style="margin-top:8px">종목명 일부를 입력하면 비슷한 종목명·종목코드 목록이 뜨고, 골라서 조회할 수 있습니다(↑↓ 이동, Enter 선택). 코드를 직접 넣으면 형식으로 시장을 자동 판별합니다: 숫자로 시작하는 6자리 → 국내, 영문 티커 → 미국 ${req('FR-STK-02')}</div>
@@ -1109,6 +1110,30 @@
       <div data-result></div>`);
     const form = main.querySelector('[data-search]');
     const ac = mountStockSearch(form.code, form.querySelector('[data-ac]'), (code) => go(`#/stock?code=${encodeURIComponent(code)}`));
+    // 종목코드 옆 종목명 (v0.26.16): 코드처럼 보이면(국내 6자리·미국 영문 1~5자) 종목명을 자동으로 찾아 옆에 보여 준다
+    const nameBox = form.querySelector('[data-code-name]');
+    const showName = (inst) => {
+      if (!inst || !inst.name) { nameBox.hidden = true; nameBox.innerHTML = ''; return; }
+      nameBox.innerHTML = `${inst.type ? badge(inst.type) : ''} <b data-noi18n>${esc(inst.name)}</b>`;
+      nameBox.hidden = false;
+    };
+    form._showName = showName;
+    let nameTimer = null;
+    let nameSeq = 0;
+    form.code.addEventListener('input', () => {
+      clearTimeout(nameTimer);
+      const v = form.code.value.trim().toUpperCase();
+      if (!/^([0-9][0-9A-Z]{5}|[A-Z]{1,5}(\.[A-Z])?)$/.test(v)) { showName(null); return; }
+      const seq = ++nameSeq;
+      nameTimer = setTimeout(async () => {
+        try {
+          const { items } = await api('GET', `/search/stocks?q=${encodeURIComponent(v)}`);
+          if (seq !== nameSeq) return;
+          const hit = (items || []).find((it) => String(it.code).toUpperCase() === v);
+          showName(hit ? { name: hit.name, type: hit.type } : null);
+        } catch (_) { if (seq === nameSeq) showName(null); }
+      }, 350);
+    });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const raw = form.code.value.trim();
@@ -1204,6 +1229,10 @@
     box._q = q;
     const i = q.instrument;
     const c = i.currency;
+    // 종목코드 옆 종목명 (v0.26.16): 조회 화면은 입력칸 옆, 팝업은 제목에 코드·종목명
+    if (form && form._showName) form._showName(i);
+    const mh = box.closest('.modal') && box.closest('.modal').querySelector('.modal-head h2');
+    if (mh && !mh.querySelector('.code-name')) mh.insertAdjacentHTML('beforeend', ` <span class="code-name"><span class="muted">${esc(i.code)}</span> <b data-noi18n>${esc(i.name)}</b></span>`);
     box.innerHTML = `
       ${q.stale ? `<div class="notice warn"><div><b>최신 시세가 아닙니다.</b> 외부 출처 오류로 마지막 저장값(${fmtTime(q.priceTime)} 기준)을 표시합니다. ${req('FR-DATA-06')}<br/><span class="small">${esc(q.staleReason)}</span></div></div>` : ''}
       <div class="card" data-fold="quote">
