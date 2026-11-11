@@ -483,3 +483,12 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 /* 클라우드 서버 연결 (v0.25) */
 .cloud-box { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--t-300); border-radius: 8px; background: var(--t-50); font-size: 13px; text-align: center; }
 .cloud-box button.linkish { font-weight: 700; font-size: 13px; }
+
+/* 종목 정보 조회: 바로가기 상자 (v0.26) */
+.stock-chip.on { border-color: var(--primary); background: var(--t-100); font-weight: 700; box-shadow: 0 0 0 2px var(--t-100); }
+.recent-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+
+/* 언어 선택 (v0.26) */
+.lang-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.lang-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.lang-switch select { width: auto; min-width: 110px; padding: 5px 8px; }

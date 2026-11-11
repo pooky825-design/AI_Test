@@ -814,7 +814,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'stock.recent', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group'];
 
 router.get('/settings', (req, res) => {
   const out = {};

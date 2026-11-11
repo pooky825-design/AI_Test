@@ -24,6 +24,16 @@
   async function loadSettings() {
     try { state.settings = (await api('GET', '/settings')).settings || {}; } catch (_) { state.settings = {}; }
     applyTheme(state.settings['ui.theme'] || null);
+    // 계정에 저장한 언어가 있으면 그 언어로 (v0.26)
+    // 로그인 화면에서 언어를 골랐으면 그 선택을 계정에 저장하고, 아니면 계정에 저장한 언어를 쓴다
+    const savedLang = state.settings['ui.lang'];
+    if (window.I18N && state.pendingLang) {
+      if (savedLang !== state.pendingLang) {
+        state.settings['ui.lang'] = state.pendingLang;
+        api('PUT', '/settings/ui.lang', { value: state.pendingLang }).catch(() => {});
+      }
+      state.pendingLang = null;
+    } else if (window.I18N && (savedLang === 'ko' || savedLang === 'en') && savedLang !== window.I18N.lang) window.I18N.set(savedLang);
   }
 
   // ---------------------------------------------------------------------------
@@ -157,7 +167,10 @@
   const nf0 = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 });
   const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const nfq = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 6 });
-  const krw = (n) => (n == null ? '-' : `${nf0.format(Math.round(n))}원`);
+  // 언어 (v0.26): 영어면 원화를 ₩1,234 형태로. 캔버스(그래프) 글자는 화면 번역이 닿지 않으므로 tt()로 직접 바꾼다
+  const isEn = () => !!(window.I18N && window.I18N.lang === 'en');
+  const tt = (str) => (window.I18N ? window.I18N.t(str) : str);
+  const krw = (n) => (n == null ? '-' : isEn() ? `${Math.round(n) < 0 ? '-' : ''}₩${nf0.format(Math.abs(Math.round(n)))}` : `${nf0.format(Math.round(n))}원`);
   const usd = (n) => (n == null ? '-' : `${n < 0 ? '-' : ''}$${nf2.format(Math.abs(n))}`);
   const money = (n, cur) => (cur === 'USD' ? usd(n) : krw(n));
   const signed = (s, n) => (n > 0 ? `+${s}` : s);
@@ -171,7 +184,7 @@
   const qty = (n) => nfq.format(n);
   const rate = (n) => (n == null ? '-' : `${nf2.format(n)}원`);
   const cls = (n) => (n == null ? '' : n > 0 ? 'up' : n < 0 ? 'down' : '');
-  const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-');
+  const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString(isEn() ? 'en-US' : 'ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-');
   const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
   const badge = (type) => (type ? `<span class="badge t-${esc(type)}">${esc(type)}</span>` : '');
   const req = (ids) => `<span class="req">${esc(ids)}</span>`;
@@ -297,9 +310,30 @@
   // ---------------------------------------------------------------------------
   // SC-01 로그인·회원가입·비밀번호 재설정
   // ---------------------------------------------------------------------------
+  // 언어 선택 (v0.26): 로그인 화면과 환경설정에서 한국어 / English 중 선택. 이 기기에 기억하고, 로그인 중이면 계정에도 저장
+  function langSelectHtml() {
+    const cur = isEn() ? 'en' : 'ko';
+    return `<label class="lang-switch" data-noi18n><span>언어 (Language)</span><select data-lang aria-label="언어 (Language)">
+      <option value="ko" ${cur === 'ko' ? 'selected' : ''}>한국어</option><option value="en" ${cur === 'en' ? 'selected' : ''}>English</option></select></label>`;
+  }
+  function setLang(v) {
+    if (!window.I18N) return;
+    window.I18N.set(v);
+    if (!state.user) state.pendingLang = v;
+    if (state.user && state.settings) {
+      state.settings = { ...state.settings, 'ui.lang': v };
+      api('PUT', '/settings/ui.lang', { value: v }).catch(() => {});
+    }
+    render();
+  }
+  function bindLang(root) {
+    root.querySelectorAll('[data-lang]').forEach((sel) => sel.addEventListener('change', () => setLang(sel.value)));
+  }
+
   function authPage(title, sub, body) {
     $app.innerHTML = `
       <div class="auth-wrap"><div class="auth-card">
+        <div class="lang-row">${langSelectHtml()}</div>
         <div class="card">
           <h1>${title}</h1>
           <p class="muted" style="margin:4px 0 0">${sub}</p>
@@ -307,6 +341,7 @@
         </div>
         <p class="footer-note" style="text-align:center;border:none">${DISCLAIMER}</p>
       </div></div>`;
+    bindLang($app);
     return $app.querySelector('form');
   }
 
@@ -878,6 +913,7 @@
         </form>
         <div class="small muted" style="margin-top:8px">종목명 일부를 입력하면 비슷한 종목명·종목코드 목록이 뜨고, 골라서 조회할 수 있습니다(↑↓ 이동, Enter 선택). 코드를 직접 넣으면 형식으로 시장을 자동 판별합니다: 숫자로 시작하는 6자리 → 국내, 영문 티커 → 미국 ${req('FR-STK-02')}</div>
       </div>
+      <div data-boxes></div>
       <div data-result></div>`);
     const form = main.querySelector('[data-search]');
     const ac = mountStockSearch(form.code, form.querySelector('[data-ac]'), (code) => go(`#/stock?code=${encodeURIComponent(code)}`));
@@ -898,52 +934,61 @@
       }
       go(`#/stock?code=${encodeURIComponent(raw.toUpperCase())}`);
     });
-    if (!query.code) {
-      form.code.focus();
-      const box = main.querySelector('[data-result]');
-      const samples = '<a href="#/stock?code=005930">005930</a> · <a href="#/stock?code=0080G0">0080G0</a> · <a href="#/stock?code=530036">530036</a> · <a href="#/stock?code=AAPL">AAPL</a> · <a href="#/stock?code=SPY">SPY</a>';
-      box.innerHTML = '<div class="card empty">종목코드를 입력해 조회하세요.</div>';
-      // 내가 보유한 모든 종목(올해 말 기준, 전 그룹 합산)을 바로 조회할 수 있는 링크로 보여준다
-      let held = [];
-      try { held = (await api('GET', `/holdings?year=${THIS_YEAR}`)).holdings || []; } catch (_) { /* 예시만 표시 */ }
-      held.sort((a, b) => String(a.name || a.code).localeCompare(String(b.name || b.code), 'ko'));
+    // 내 보유 종목·내가 조회한 종목 상자 (v0.26): 종목을 조회할 때도 그대로 두고, 각 상자를 접고 펼 수 있다
+    const boxes = main.querySelector('[data-boxes]');
+    const cur = String(query.code || '').trim().toUpperCase();
+    let held = null;
+    const samples = '<a href="#/stock?code=005930">005930</a> · <a href="#/stock?code=0080G0">0080G0</a> · <a href="#/stock?code=530036">530036</a> · <a href="#/stock?code=AAPL">AAPL</a> · <a href="#/stock?code=SPY">SPY</a>';
+    async function paintBoxes() {
+      if (held === null) {
+        try { held = (await api('GET', `/holdings?year=${THIS_YEAR}`)).holdings || []; } catch (_) { held = []; }
+        held.sort((a, b) => String(a.name || a.code).localeCompare(String(b.name || b.code), 'ko'));
+      }
       const heldCodes = new Set(held.map((h) => h.code));
       const recent = recentStocks().filter((r) => !heldCodes.has(r.c));
-      const recentCard = recent.length ? `<div class="card" data-recent>
-            <div class="card-head-row"><h2>내가 조회한 종목 <span class="small muted" style="font-weight:400">${recent.length}개 · 최근 조회 순 · 눌러서 조회</span></h2><button type="button" class="sm secondary" data-rclear>전체 지우기</button></div>
-            <div class="stock-chips">${recent.map((r) => `<span class="stock-chip recent"><a href="#/stock?code=${encodeURIComponent(r.c)}">${r.t ? badge(r.t) : ''} ${esc(r.n || r.c)}<span class="muted">(${esc(r.c)})</span></a><button type="button" class="chip-x" data-rm="${esc(r.c)}" title="목록에서 지우기" aria-label="${esc(r.n || r.c)} 지우기">✕</button></span>`).join('')}</div>
-            <p class="small muted" style="margin:10px 0 0">보유 종목이 아닌 종목을 조회하면 여기에 최근 ${RECENT_MAX}개까지 저장됩니다(계정에 저장되어 PC·앱 어디서나 보임).</p>
-          </div>` : '';
-      box.innerHTML = (held.length
-        ? `<div class="card">
+      const heldCard = held.length
+        ? `<div class="card" data-fold="held">
             <h2>내 보유 종목 <span class="small muted" style="font-weight:400">${held.length}개 · 눌러서 조회</span></h2>
-            <div class="stock-chips">${held.map((h) => `<a class="stock-chip" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} ${esc(h.name || h.code)}<span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
+            <div class="stock-chips">${held.map((h) => `<a class="stock-chip ${h.code === cur ? 'on' : ''}" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} <span class="nm">${esc(h.name || h.code)}</span><span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
             <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 관리</a>에 입력한 올해 보유 수량 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
           </div>`
-        : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`) + recentCard;
-      const rc = box.querySelector('[data-recent]');
+        : (cur ? '' : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`);
+      const recentCard = recent.length ? `<div class="card" data-fold="recent" data-recent>
+            <h2>내가 조회한 종목 <span class="small muted" style="font-weight:400">${recent.length}개 · 최근 조회 순 · 눌러서 조회</span></h2>
+            <div class="stock-chips">${recent.map((r) => `<span class="stock-chip recent ${r.c === cur ? 'on' : ''}"><a href="#/stock?code=${encodeURIComponent(r.c)}">${r.t ? badge(r.t) : ''} <span class="nm">${esc(r.n || r.c)}</span><span class="muted">(${esc(r.c)})</span></a><button type="button" class="chip-x" data-rm="${esc(r.c)}" title="목록에서 지우기" aria-label="${esc(r.n || r.c)} 지우기">✕</button></span>`).join('')}</div>
+            <div class="recent-foot"><p class="small muted" style="margin:0">보유 종목이 아닌 종목을 조회하면 여기에 최근 ${RECENT_MAX}개까지 저장됩니다(계정에 저장되어 PC·앱 어디서나 보임).</p><button type="button" class="sm secondary" data-rclear>전체 지우기</button></div>
+          </div>` : '';
+      boxes.innerHTML = heldCard + recentCard;
+      makeFoldable(boxes, 'stock.collapsed');
+      const rc = boxes.querySelector('[data-recent]');
       if (rc) {
         rc.addEventListener('click', (e) => {
           const x = e.target.closest('[data-rm]');
           if (x) {
             settings.set('stock.recent', recentStocks().filter((r) => r.c !== x.dataset.rm));
-            render();
+            paintBoxes();
           } else if (e.target.closest('[data-rclear]') && confirm('조회한 종목 목록을 모두 지울까요?')) {
             settings.set('stock.recent', []);
-            render();
+            paintBoxes();
           }
         });
       }
+    }
+    const boxesReady = paintBoxes();
+    if (!cur) {
+      form.code.focus();
       return;
     }
     const resBox = main.querySelector('[data-result]');
     await loadStock(resBox, query.code, query.refresh === '1', main.querySelector('[data-search]'));
-    // 조회에 성공했고 내 보유 종목이 아니면 ‘내가 조회한 종목’에 저장
+    // 조회에 성공했고 내 보유 종목이 아니면 ‘내가 조회한 종목’에 저장하고 상자를 다시 그린다
     if (resBox._q && resBox._q.instrument) {
       const inst = resBox._q.instrument;
-      api('GET', `/holdings?year=${THIS_YEAR}`).then(({ holdings }) => {
-        if (!(holdings || []).some((h) => h.code === inst.code)) rememberStock(inst);
-      }).catch(() => {});
+      await boxesReady;
+      if (!held.some((h) => h.code === inst.code)) {
+        rememberStock(inst);
+        if (location.hash.startsWith('#/stock')) paintBoxes();
+      }
     }
   }
 
@@ -1347,7 +1392,7 @@
           <td class="right">${money(it.purchase_amount, it.currency)}</td>
           <td class="right">${it.quantity > 0 ? money(it.purchase_amount / it.quantity, it.currency) : dash}</td>
           <td class="right"><b>${baseCell(it)}</b></td>
-          <td class="small">${esc(it.memo || '')}</td>
+          <td class="small" data-noi18n>${esc(it.memo || '')}</td>
           <td class="icon-actions"><button class="icon-btn" data-edit title="수정" aria-label="수정">${ICON_EDIT}</button><button class="icon-btn danger" data-del title="삭제" aria-label="삭제">${ICON_DEL}</button></td>
         </tr>`;
       }).join('');
@@ -1450,7 +1495,7 @@
           <td class="right">${qty(it.quantity)}</td>
           <td class="right">${money(it.avg_price, it.currency)}</td>
           <td class="right">${money(it.purchase_amount, it.currency)}</td>
-          <td class="small">${esc(it.memo || '')}</td>
+          <td class="small" data-noi18n>${esc(it.memo || '')}</td>
           <td>${STATUS[it.status] || ''}</td>
         </tr>`;
       }).join('');
@@ -1602,18 +1647,18 @@
       tr.classList.add('on');
     }));
     destroyCharts();
-    const labels = years.map((y) => (y.ongoing ? `${y.year} (진행 중)` : String(y.year)));
+    const labels = years.map((y) => (y.ongoing ? `${y.year} (${tt('진행 중')})` : String(y.year)));
     const baseOpts = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => krw(ctx.parsed.y) } } },
-      scales: { y: { beginAtZero: true, suggestedMax: 1, ticks: { precision: 0, callback: (v) => (v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${nf0.format(v / 1e4)}만` : nf0.format(v)) } }, x: { grid: { display: false } } },
+      scales: { y: { beginAtZero: true, suggestedMax: 1, ticks: { precision: 0, callback: (v) => (isEn() ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${nf0.format(v / 1e4)}만` : nf0.format(v)) } }, x: { grid: { display: false } } },
     };
     // 연도별 자산금액: 한 막대에 국내·해외·해외추종을 층으로 쌓는다 (v0.13.11)
     // 색감은 아래 연도별 배당 증감 그래프(남색·호박색·주황갈색)와 맞춘다 (v0.15.1)
     const pal = chartPalette(); // 테마 색에 맞춘 그래프 색 (v0.18)
     const CAT_COLORS = { DOMESTIC: pal.c1, OVERSEAS: pal.c2, OVERSEAS_TRACK: pal.c3 };
-    const CAT_LABELS = { DOMESTIC: '국내', OVERSEAS: '해외', OVERSEAS_TRACK: '해외추종' };
+    const CAT_LABELS = { DOMESTIC: tt('국내'), OVERSEAS: tt('해외'), OVERSEAS_TRACK: tt('해외추종') };
     state.charts.push(new Chart(main.querySelector('[data-c1]'), {
       type: 'bar',
       data: {
@@ -1621,7 +1666,7 @@
         datasets: [
           // 환율 꺾은선 (v0.14.1): 지난 연도는 연말 환율, 올해는 현재 환율. 막대 위쪽에 그린다
           {
-            type: 'line', label: '환율(USD/KRW)', data: years.map((y) => y.fxRate), yAxisID: 'yFx', order: 0,
+            type: 'line', label: tt('환율(USD/KRW)'), data: years.map((y) => y.fxRate), yAxisID: 'yFx', order: 0,
             borderColor: pal.line, backgroundColor: pal.line, borderWidth: 2, pointRadius: 4, tension: 0.25,
           },
           ...Object.keys(CAT_LABELS).map((id) => ({
@@ -1635,8 +1680,8 @@
         plugins: {
           legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
           tooltip: { callbacks: {
-            label: (ctx) => (ctx.dataset.yAxisID === 'yFx' ? `환율 ${rate(ctx.parsed.y)}${years[ctx.dataIndex].ongoing ? ' (현재)' : ' (연말)'}` : `${ctx.dataset.label} ${krw(ctx.parsed.y)}`),
-            footer: (items) => `총자산 ${krw(years[items[0].dataIndex].valueKrw)}`,
+            label: (ctx) => (ctx.dataset.yAxisID === 'yFx' ? `${tt('환율')} ${rate(ctx.parsed.y)}${years[ctx.dataIndex].ongoing ? ` (${tt('현재')})` : ` (${tt('연말')})`}` : `${ctx.dataset.label} ${krw(ctx.parsed.y)}`),
+            footer: (items) => `${tt('총자산')} ${krw(years[items[0].dataIndex].valueKrw)}`,
           } },
         },
         scales: {
@@ -1712,11 +1757,11 @@
     card._chart = new Chart(card.querySelector('canvas'), {
       type: 'bar',
       data: {
-        labels: shown.map((y) => (y.year === THIS_YEAR ? `${y.year} (진행 중)` : String(y.year))),
+        labels: shown.map((y) => (y.year === THIS_YEAR ? `${y.year} (${tt('진행 중')})` : String(y.year))),
         datasets: [
-          { label: '배당', data: shown.map((y) => y.divKrw), backgroundColor: pal.c1, borderRadius: 4 },
-          { label: '과세표준액', data: shown.map((y) => y.taxKrw), backgroundColor: pal.c2, borderRadius: 4 },
-          { label: '세금', data: shown.map((y) => y.taxKrw * DIV_TAX_RATE), backgroundColor: pal.c3, borderRadius: 4 },
+          { label: tt('배당'), data: shown.map((y) => y.divKrw), backgroundColor: pal.c1, borderRadius: 4 },
+          { label: tt('과세표준액'), data: shown.map((y) => y.taxKrw), backgroundColor: pal.c2, borderRadius: 4 },
+          { label: tt('세금'), data: shown.map((y) => y.taxKrw * DIV_TAX_RATE), backgroundColor: pal.c3, borderRadius: 4 },
         ],
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
@@ -1996,6 +2041,10 @@
   function viewMe() {
     const main = shell('#/me', `
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="card" data-fold="lang">
+        <h2><span data-noi18n>언어 (Language)</span> ${req('FR-COM-07')}</h2>
+        <div class="field-row" style="align-items:center;gap:12px">${langSelectHtml()}<span class="small muted">화면에 보이는 글자를 고른 언어로 표시합니다. 엑셀 파일과 종목명은 원래 언어 그대로입니다.</span></div>
+      </div>
       ${IN_APP ? `<div class="card" data-fold="cloud">
         <h2>클라우드 서버 연결 ${req('FR-CLD-01')}</h2>
         ${REMOTE_APP ? `<p style="margin:0 0 10px">지금 <b>클라우드 서버(${esc(hostOf(appServerUrl() || location.origin))})</b>에 연결되어 있습니다. 다른 기기(PC 브라우저·다른 휴대폰)에서도 같은 주소로 접속하면 같은 데이터를 보고, 화면 공유도 기기에 상관없이 됩니다.</p>
@@ -2060,6 +2109,7 @@
       </div>`);
     makeFoldable(main, 'me.collapsed');
     bindCloudBox(main);
+    bindLang(main);
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
