@@ -341,7 +341,7 @@ window.I18N_EN = {
 "시세 기준": "Price as of",
 "시세 조회 실패": "Price lookup failed",
 "시세·환율은 복원 후 다시 받아옵니다.": "Prices and FX rates are re-downloaded after restoring.",
-"시세는 지연되거나 부정확할 수 있으며, 이 화면의 정보는 투자 권유가 아닌 참고용입니다. (NFR-LGL-01)": "Prices may be delayed or inaccurate. This information is for reference only, not investment advice. (NFR-LGL-01)",
+"시세는 지연되거나 부정확할 수 있으며, 이 화면의 정보는 투자 권유가 아닌 참고용입니다.": "Prices may be delayed or inaccurate. This information is for reference only, not investment advice.",
 "시세를 가져오지 못했습니다.": "Could not fetch prices.",
 "시세와 환율을 불러오는 중… (처음 조회하는 종목은 10년치 종가를 적재해 시간이 걸릴 수 있습니다)": "Loading prices and FX… (first lookups load 10 years of prices and may take a while)",
 "시작 연도": "Start year",
@@ -403,7 +403,7 @@ window.I18N_EN = {
 "예: 10": "e.g. 10",
 "예: 150000 / 손실은 -50000": "e.g. 150000 / loss -50000",
 "예: ISA, 연금저축, IRP, 해외": "e.g. ISA, Pension, IRP, Overseas",
-"예비 출처 · FR-DATA-08)": "backup source · FR-DATA-08)",
+"예비 출처": "backup source",
 "예비 출처(네이버 차트)는 배당 정보를 제공하지 않습니다.": "The backup source (Naver chart) does not provide dividends.",
 "오늘 손익": "Today P/L",
 "오늘 손익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · 오늘 손익률 = 오늘 손익 ÷ 전일 종가 기준 평가금액 (환율 변동은 반영하지 않음) · 합계 오늘 손익": "Today P/L = price change vs prev. close × qty × current FX · Today % = today P/L ÷ value at prev. close (FX changes not reflected) · Total today P/L",
@@ -638,7 +638,6 @@ window.I18N_EN = {
 "폴더나 구글 드라이브 등에 저장하세요.": " folder or Google Drive.",
 "표시된 회차": "rounds shown",
 "프로토타입] 발송된 메일 미리보기": "Prototype] Preview of the sent email",
-"프로토타입에서는 이메일 인증 절차를 생략하고 가입 즉시 계정이 활성화됩니다.": "In the prototype, email verification is skipped and accounts are active immediately.",
 "필수 입력 항목입니다.": "Required.",
 "핑크": "Pink",
 "합계 (원화)": "Total (KRW)",
@@ -683,5 +682,8 @@ window.I18N_EN = {
 "횟수": "Round",
 "횟수 아래 날짜 = 배당락일 · 총 배당금 = 보유수량 × 주당 배당금 · 총 과세표준 = 보유수량 × 주당 과세표준 · 기준종가 = 배당락 전일 종가, 배당수익률 = 주당 배당금 ÷ 기준종가 · 체크한 회차만 저장되며, 이 연도에 저장했던 회차 중 체크를 푼 회차는 지워집니다.": "Date under the round = ex-date · Total dividend = qty × dividend/share · Total taxable base = qty × taxable base/share · Base close = close before ex-date, yield = dividend/share ÷ base close · Only checked rounds are saved; unchecked rounds saved earlier this year are removed.",
 "휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.": "Data on the phone is not deleted, and you can return to ‘phone mode’ anytime.",
-"휴대폰에 있던 데이터를 옮기려면": "To move data from your phone"
+"휴대폰에 있던 데이터를 옮기려면": "To move data from your phone",
+"요구사항 ID 표시": "Show requirement IDs",
+"화면 제목·기능 옆에 요구사항 ID 표시": "Show requirement IDs next to screen titles and features",
+"요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.": "Screen and feature numbers from the requirements document (SC-07, FR-AUTH-01, etc.). Turn off to hide them on every screen. Saved to your account, so it applies on PC and app alike."
 };

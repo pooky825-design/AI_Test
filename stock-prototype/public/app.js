@@ -21,9 +21,17 @@
       api('PUT', `/settings/${encodeURIComponent(key)}`, { value }).catch(() => {});
     },
   };
+  // 요구사항 ID(FR-AUTH-01 등) 표시 여부 (v0.26.4): 계정에 저장, 로그인 화면용으로 이 기기에도 기억
+  function applyReqCodes(show) {
+    document.documentElement.classList.toggle('hide-req', show === false);
+    try { localStorage.setItem('ui.reqcodes', show === false ? '0' : '1'); } catch (_) { /* 무시 */ }
+  }
+  try { applyReqCodes(localStorage.getItem('ui.reqcodes') !== '0'); } catch (_) { /* 무시 */ }
+
   async function loadSettings() {
     try { state.settings = (await api('GET', '/settings')).settings || {}; } catch (_) { state.settings = {}; }
     applyTheme(state.settings['ui.theme'] || null);
+    if (typeof state.settings['ui.reqcodes'] === 'boolean') applyReqCodes(state.settings['ui.reqcodes']);
     // 계정에 저장한 언어가 있으면 그 언어로 (v0.26)
     // 로그인 화면에서 언어를 골랐으면 그 선택을 계정에 저장하고, 아니면 계정에 저장한 언어를 쓴다
     const savedLang = state.settings['ui.lang'];
@@ -227,7 +235,7 @@
   }
   const go = (hash) => { if (location.hash === hash) render(); else location.hash = hash; };
 
-  const DISCLAIMER = '시세는 지연되거나 부정확할 수 있으며, 이 화면의 정보는 투자 권유가 아닌 참고용입니다. (NFR-LGL-01)';
+  const DISCLAIMER = '시세는 지연되거나 부정확할 수 있으며, 이 화면의 정보는 투자 권유가 아닌 참고용입니다. <span class="req-inline">(NFR-LGL-01)</span>';
 
   // ---------------------------------------------------------------------------
   // 레이아웃
@@ -478,7 +486,7 @@
 
   function viewSignup() {
     const form = authPage('사용자 추가', '이메일과 비밀번호로 새 사용자를 추가합니다. <span class="req">FR-AUTH-01</span>', `
-      <div class="notice info small" style="margin-top:14px">${state.server.cloud ? '이 서버는 가입 즉시 계정이 활성화됩니다. 비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.' : '프로토타입에서는 이메일 인증 절차를 생략하고 가입 즉시 계정이 활성화됩니다.'}</div>
+      ${state.server.cloud ? `<div class="notice info small" style="margin-top:14px">이 서버는 가입 즉시 계정이 활성화됩니다. 비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.</div>` : ''}
       <form class="stack" novalidate style="margin-top:4px">
         <div class="field"><label>이메일</label><input name="email" type="email" autocomplete="username" /><span class="err" data-err="email"></span></div>
         <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="password"></span></div>
@@ -1034,7 +1042,7 @@
           <dt>통화</dt><dd>${esc(c)}</dd>
           <dt>상장일</dt><dd>${esc(i.listedDate || '-')}</dd>
           <dt>전일 종가</dt><dd>${money(q.prevClose, c)}</dd>
-          <dt>과거 종가 출처</dt><dd>${esc(i.historySource || '-')}${i.historySource && i.historySource !== i.priceSource ? ' <span class="small muted">(예비 출처 · FR-DATA-08)</span>' : ''}</dd>
+          <dt>과거 종가 출처</dt><dd>${esc(i.historySource || '-')}${i.historySource && i.historySource !== i.priceSource ? ` <span class="small muted">(예비 출처)</span>${req('FR-DATA-08')}` : ''}</dd>
         </dl>
         <div style="margin-top:14px" class="field-row">
           ${state.actAs && state.actAs.perms.holdings !== 'edit' ? '' : `<a href="#/holdings?code=${encodeURIComponent(i.code)}"><button>보유 종목으로 등록</button></a>`}
@@ -2047,6 +2055,11 @@
         <h2><span data-noi18n>언어 (Language)</span> ${req('FR-COM-07')}</h2>
         <div class="field-row" style="align-items:center;gap:12px">${langSelectHtml()}<span class="small muted">화면에 보이는 글자를 고른 언어로 표시합니다. 엑셀 파일과 종목명은 원래 언어 그대로입니다.</span></div>
       </div>
+      <div class="card" data-fold="reqcodes">
+        <h2>요구사항 ID 표시 ${req('FR-UI-02')}</h2>
+        <label class="check-row"><input type="checkbox" data-reqcodes ${document.documentElement.classList.contains('hide-req') ? '' : 'checked'} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
+        <p class="small muted" style="margin:8px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.</p>
+      </div>
       ${IN_APP ? `<div class="card" data-fold="cloud">
         <h2>클라우드 서버 연결 ${req('FR-CLD-01')}</h2>
         ${REMOTE_APP ? `<p style="margin:0 0 10px">지금 <b>클라우드 서버(${esc(hostOf(appServerUrl() || location.origin))})</b>에 연결되어 있습니다. 다른 기기(PC 브라우저·다른 휴대폰)에서도 같은 주소로 접속하면 같은 데이터를 보고, 화면 공유도 기기에 상관없이 됩니다.</p>
@@ -2112,6 +2125,10 @@
     makeFoldable(main, 'me.collapsed');
     bindCloudBox(main);
     bindLang(main);
+    main.querySelector('[data-reqcodes]').addEventListener('change', (e) => {
+      applyReqCodes(e.target.checked);
+      settings.set('ui.reqcodes', e.target.checked);
+    });
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);

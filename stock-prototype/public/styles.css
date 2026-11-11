@@ -497,3 +497,8 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .lang-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .lang-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .lang-switch select { width: auto; min-width: 110px; padding: 5px 8px; }
+
+/* 요구사항 ID 숨김 (v0.26.4): 환경설정의 표시 옵션 — 설정 화면의 예시 배지는 항상 보임 */
+.hide-req .req:not(.req-sample), .hide-req .nav .sc, .hide-req a .sc, .hide-req .req-inline { display: none !important; }
+.check-row { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.check-row input { width: auto; margin: 0; }
