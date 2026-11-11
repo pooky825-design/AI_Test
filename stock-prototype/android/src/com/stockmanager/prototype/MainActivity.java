@@ -1,5 +1,10 @@
 package com.stockmanager.prototype;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.accounts.AccountManagerCallback;
+import android.accounts.AccountManagerFuture;
+import android.accounts.OperationCanceledException;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -107,12 +112,17 @@ public class MainActivity extends Activity {
     // 기기 간 동기화 파일 (v0.26.8): 고른 파일의 권한을 계속 유지해 [동기화] 때마다 같은 파일을 읽고 쓴다
     private static final int REQ_SYNC_CREATE = 7003;
     private static final int REQ_SYNC_OPEN = 7004;
+    private static final int REQ_GOOGLE_ACCOUNT = 7005; // 기기 구글 계정 고르기 (v0.27.1)
+    private static final String KEY_GACCT = "gdriveAccount:";
+    private static final String DRIVE_SCOPE = "oauth2:https://www.googleapis.com/auth/drive.file";
+    private String pendingAcctId;
+    private String pendingAcctKey;
+    private final java.util.Map<String, String> lastDriveToken = new java.util.HashMap<String, String>();
     private static final String KEY_SYNC = "syncUri:";
     private String pendingSyncKey;
     private String pendingDocId;
     private byte[] pendingDocData;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
-    private volatile java.net.ServerSocket oauthServer; // 구글 로그인 결과 받는 곳 (v0.27.0)
     private final Handler main = new Handler(Looper.getMainLooper());
 
     @Override
@@ -173,6 +183,17 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_SYNC_CREATE || requestCode == REQ_SYNC_OPEN) { onSyncPicked(requestCode, resultCode, data); return; }
+        if (requestCode == REQ_GOOGLE_ACCOUNT) {
+            String id = pendingAcctId;
+            String key = pendingAcctKey;
+            pendingAcctId = null;
+            if (id == null) return;
+            String name = resultCode == RESULT_OK && data != null ? data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME) : null;
+            if (name == null || name.isEmpty()) { docDone(id, false, "구글 계정 선택을 취소했습니다."); return; }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GACCT + key, name).apply();
+            docDone(id, true, name);
+            return;
+        }
         if (requestCode != REQ_CREATE_DOC && requestCode != REQ_OPEN_DOC) return;
         final String id = pendingDocId;
         final byte[] bytes = pendingDocData;
@@ -367,73 +388,6 @@ public class MainActivity extends Activity {
             });
         }
 
-        /**
-         * 구글 로그인 결과 받기 (v0.27.0): 이 기기 안(127.0.0.1)의 빈 포트에서 한 번만 기다린다.
-         * 휴대폰 브라우저에서 구글 로그인을 마치면 http://127.0.0.1:포트/?code=... 로 돌아오고,
-         * 그 주소 뒤 값을 window.__gdriveCallback(query) 로 화면에 넘긴다. 포트 번호를 돌려준다(실패하면 0).
-         */
-        @JavascriptInterface
-        public int gdriveListen() {
-            if (!pageIsLocal) return 0;
-            try {
-                if (oauthServer != null) { try { oauthServer.close(); } catch (Exception ignored) { } }
-                final java.net.ServerSocket ss = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
-                ss.setSoTimeout(600000); // 10분
-                oauthServer = ss;
-                pool.execute(new Runnable() {
-                    @Override public void run() {
-                        try {
-                            while (true) {
-                                java.net.Socket sock = ss.accept();
-                                java.io.BufferedReader rd = new java.io.BufferedReader(new java.io.InputStreamReader(sock.getInputStream(), "UTF-8"));
-                                String line = rd.readLine();
-                                String path = line == null ? "" : line.split(" ").length > 1 ? line.split(" ")[1] : "";
-                                if (path.startsWith("/favicon")) { sock.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".getBytes("UTF-8")); sock.close(); continue; }
-                                final String query = path.contains("?") ? path.substring(path.indexOf('?') + 1) : "";
-                                boolean ok = query.contains("code=");
-                                String html = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>K-Stock</title>"
-                                        + "<body style='font-family:sans-serif;padding:32px;text-align:center'><h2>" + (ok ? "구글 드라이브 연결을 마쳤습니다" : "구글 로그인이 완료되지 않았습니다")
-                                        + "</h2><p>K-Stock 앱으로 돌아가세요. 이 창은 닫아도 됩니다.</p></body>";
-                                byte[] hb = html.getBytes("UTF-8");
-                                java.io.OutputStream os = sock.getOutputStream();
-                                os.write(("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + hb.length + "\r\nConnection: close\r\n\r\n").getBytes("UTF-8"));
-                                os.write(hb);
-                                os.flush();
-                                sock.close();
-                                main.post(new Runnable() {
-                                    @Override public void run() {
-                                        if (webView != null) webView.evaluateJavascript("window.__gdriveCallback && window.__gdriveCallback(" + JSONObject.quote(query) + ")", null);
-                                        try {
-                                            Intent back = new Intent(MainActivity.this, MainActivity.class);
-                                            back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                                            startActivity(back); // 앱으로 돌아오기 (안드로이드가 막으면 사용자가 직접 돌아옴)
-                                        } catch (Exception ignored) { }
-                                    }
-                                });
-                                break;
-                            }
-                        } catch (Exception ignored) {
-                        } finally {
-                            try { ss.close(); } catch (Exception ignored) { }
-                        }
-                    }
-                });
-                return ss.getLocalPort();
-            } catch (Exception e) {
-                return 0;
-            }
-        }
-
-        /** 휴대폰 브라우저로 주소 열기 (구글 로그인 화면) */
-        @JavascriptInterface
-        public void openBrowser(final String url) {
-            main.post(new Runnable() {
-                @Override public void run() {
-                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
-                }
-            });
-        }
-
         private void request(final String id, final String url, final String formBody) {
             pool.execute(new Runnable() {
                 @Override
@@ -610,6 +564,84 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return false;
             }
+        }
+
+        /**
+         * 기기 구글 계정으로 구글 드라이브 연결 (v0.27.1)
+         * 휴대폰에 이미 로그인된 구글 계정 목록에서 고르게 한다(비밀번호·클라이언트 ID 입력 없음). 결과는 window.__docDone(계정 이메일)
+         */
+        @JavascriptInterface
+        public void gdriveAccountPick(final String key, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        pendingAcctId = id;
+                        pendingAcctKey = key;
+                        @SuppressWarnings("deprecation")
+                        Intent i = AccountManager.newChooseAccountIntent(null, null, new String[] { "com.google" }, true, null, null, null, null);
+                        startActivityForResult(i, REQ_GOOGLE_ACCOUNT);
+                    } catch (Exception e) {
+                        pendingAcctId = null;
+                        docDone(id, false, "구글 계정 선택 창을 열 수 없습니다: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+        /** 연결한 구글 계정 이메일 (없으면 빈 문자열) */
+        @JavascriptInterface
+        public String gdriveAccount(String key) {
+            return getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_GACCT + key, "");
+        }
+
+        /** 연결 해제: 기억한 계정과 받아 둔 토큰을 지운다 */
+        @JavascriptInterface
+        public void gdriveUnlink(final String key) {
+            final String t = lastDriveToken.remove(key);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_GACCT + key).apply();
+            if (t != null) {
+                main.post(new Runnable() {
+                    @Override public void run() { try { AccountManager.get(MainActivity.this).invalidateAuthToken("com.google", t); } catch (Exception ignored) { } }
+                });
+            }
+        }
+
+        /**
+         * 구글 드라이브 접근 토큰 받기: 처음에는 구글의 권한 허용 화면이 뜨고, 이후에는 바로 받는다.
+         * renew=true 면 만료된 토큰을 버리고 새로 받는다. 결과는 window.__docDone(토큰)
+         */
+        @JavascriptInterface
+        public void gdriveToken(final String key, final boolean renew, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        String name = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_GACCT + key, "");
+                        if (name.isEmpty()) { docDone(id, false, "연결한 구글 계정이 없습니다."); return; }
+                        AccountManager am = AccountManager.get(MainActivity.this);
+                        String old = lastDriveToken.get(key);
+                        if (renew && old != null) { am.invalidateAuthToken("com.google", old); lastDriveToken.remove(key); }
+                        am.getAuthToken(new Account(name, "com.google"), DRIVE_SCOPE, null, MainActivity.this, new AccountManagerCallback<Bundle>() {
+                            @Override public void run(AccountManagerFuture<Bundle> f) {
+                                try {
+                                    String t = f.getResult().getString(AccountManager.KEY_AUTHTOKEN);
+                                    if (t == null || t.isEmpty()) { docDone(id, false, "구글 드라이브 권한을 받지 못했습니다."); return; }
+                                    lastDriveToken.put(key, t);
+                                    docDone(id, true, t);
+                                } catch (OperationCanceledException e) {
+                                    docDone(id, false, "구글 드라이브 권한 허용을 취소했습니다.");
+                                } catch (Exception e) {
+                                    docDone(id, false, "구글 드라이브 권한을 받지 못했습니다: " + e.getMessage()
+                                        + " (구글 클라우드 콘솔에 이 앱의 Android 클라이언트(패키지 이름·SHA-1)가 등록되어 있어야 합니다)");
+                                }
+                            }
+                        }, null);
+                    } catch (Exception e) {
+                        docDone(id, false, "구글 드라이브 권한을 받지 못했습니다: " + e.getMessage());
+                    }
+                }
+            });
         }
 
         /** 동기화 파일 쓰기 (내용 전체를 바꿈) */

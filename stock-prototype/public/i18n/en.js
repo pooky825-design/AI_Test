@@ -791,5 +791,10 @@ window.I18N_EN = {
 "구글 드라이브 연결을 해제했습니다.": "Disconnected Google Drive.",
 "휴대폰 브라우저에서 구글 계정으로 로그인하고 허용한 뒤 K-Stock 앱으로 돌아오세요.": "Sign in with your Google account in the phone browser, allow access, then return to the K-Stock app.",
 "구글 로그인을 취소했습니다.": "Google sign-in was cancelled.",
-"팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.": "The popup was blocked. Allow popups for this site and try again."
+"팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.": "The popup was blocked. Allow popups for this site and try again.",
+"구글 계정 선택해 연결": "Choose a Google account to connect",
+"이 휴대폰에 로그인된 구글 계정을 골라 연결합니다(비밀번호 입력 없음). 구글 드라이브 앱을 켜 두지 않아도 항상 최신 파일로 맞춥니다.": "Pick a Google account already signed in on this phone (no password). The latest file is used even when the Google Drive app is closed.",
+"처음 연결할 때 구글의 권한 허용 화면이 한 번 뜹니다. 이 앱은 자기가 만든 동기화 파일(kstock-sync.json)만 읽고 쓰며, 드라이브의 다른 파일은 볼 수 없습니다.": "Google shows a permission screen once on first connection. This app only reads and writes the sync file it created (kstock-sync.json) and cannot see other files in your Drive.",
+"구글 계정 선택을 취소했습니다.": "Google account selection was cancelled.",
+"구글 드라이브 권한 허용을 취소했습니다.": "Google Drive permission was cancelled."
 };

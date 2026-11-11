@@ -130,11 +130,20 @@ async function accessToken(uid, force) {
   return j.access_token;
 }
 
+// 휴대폰 앱의 기기 구글 계정 방식 (v0.27.1): 앱이 휴대폰에 로그인된 구글 계정으로 받은 접근 토큰을
+// 요청마다 넘겨준다 (클라이언트 ID·갱신 토큰 없음). 토큰이 만료되면 GDRIVE_TOKEN 으로 알려 앱이 새로 받는다.
+function checkToken(token) {
+  if (token == null || token === '') return null;
+  if (typeof token !== 'string' || token.length > 4096 || /\s/.test(token)) throw new DriveError('토큰 형식이 올바르지 않습니다.');
+  return token;
+}
+
 // Drive API 호출 (토큰 만료면 한 번 갱신 후 재시도). raw=true 면 본문 text 그대로
-async function api(uid, method, path, { headers = {}, body, raw = false } = {}) {
+async function api(uid, method, path, { headers = {}, body, raw = false, token: dev = null } = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const token = await accessToken(uid, attempt > 0);
+    const token = dev || await accessToken(uid, attempt > 0);
     const r = await request(API + path, { method, headers: { ...headers, Authorization: `Bearer ${token}` }, body });
+    if (r.status === 401 && dev) throw new DriveError('구글 계정 토큰이 만료되었습니다.', 409, 'GDRIVE_TOKEN');
     if (r.status === 401 && attempt === 0) continue;
     if (!r.ok) {
       let msg = `HTTP ${r.status}`;
@@ -149,42 +158,42 @@ async function api(uid, method, path, { headers = {}, body, raw = false } = {}) 
 }
 
 // 동기화 파일 찾기: 저장한 파일 ID → 없으면 이 앱이 만든 같은 이름 파일 중 최근 것
-async function findFile(uid) {
-  const r = row(uid);
+async function findFile(uid, token) {
+  const r = row(uid) || {};
   if (r.file_id) {
     try {
-      const m = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(r.file_id)}?fields=id,name,modifiedTime,trashed`);
+      const m = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(r.file_id)}?fields=id,name,modifiedTime,trashed`, { token });
       if (!m.trashed) return m;
     } catch (e) { if (e.code !== 'GDRIVE_NOTFOUND') throw e; }
   }
   const q = encodeURIComponent(`name = '${FILE_NAME}' and trashed = false`);
-  const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime)&spaces=drive`);
+  const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime)&spaces=drive`, { token });
   const f = (list.files || [])[0] || null;
   save(uid, { file_id: f ? f.id : null });
   return f;
 }
 
-async function readFile(uid) {
-  const f = await findFile(uid);
+async function readFile(uid, token = null) {
+  const f = await findFile(uid, token);
   if (!f) return { text: '', file: null };
-  const text = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(f.id)}?alt=media`, { raw: true });
+  const text = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(f.id)}?alt=media`, { raw: true, token });
   return { text, file: f };
 }
 
-async function writeFile(uid, text) {
-  const f = await findFile(uid);
+async function writeFile(uid, text, token = null) {
+  const f = await findFile(uid, token);
   let m;
   if (f) {
     // 내용만 바꿈 (HttpURLConnection 은 PATCH 를 못 보내므로 앱에서는 X-HTTP-Method-Override 로 보냄)
     m = await api(uid, 'PATCH', `/upload/drive/v3/files/${encodeURIComponent(f.id)}?uploadType=media&fields=id,name,modifiedTime`, {
-      headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: text,
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: text, token,
     });
   } else {
     const boundary = `kstock${crypto.randomBytes(8).toString('hex')}`;
     const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' })}\r\n`
       + `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
     m = await api(uid, 'POST', '/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime', {
-      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body, token,
     });
   }
   save(uid, { file_id: m.id });
@@ -200,4 +209,8 @@ async function disconnect(uid) {
   return status(uid);
 }
 
-module.exports = { status, setClient, startAuth, finishAuth, readFile, writeFile, disconnect, DriveError, FILE_NAME };
+// 기기 계정 방식: 이 사용자가 쓰는 파일 ID 만 기억 (클라이언트 방식 정보는 건드리지 않음)
+const readFileWith = (uid, token) => readFile(uid, checkToken(token));
+const writeFileWith = (uid, token, text) => writeFile(uid, text, checkToken(token));
+
+module.exports = { status, setClient, startAuth, finishAuth, readFile, writeFile, readFileWith, writeFileWith, disconnect, DriveError, FILE_NAME };

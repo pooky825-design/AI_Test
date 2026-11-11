@@ -1142,10 +1142,11 @@ router.get('/gdrive', driveRoute(async (req) => gdrive.status(req.user.id)));
 router.put('/gdrive/client', driveRoute(async (req) => gdrive.setClient(req.user.id, req.body.clientId, req.body.clientSecret)));
 router.post('/gdrive/auth-start', driveRoute(async (req) => gdrive.startAuth(req.user.id, req.body.redirectUri)));
 router.post('/gdrive/auth-finish', driveRoute(async (req) => gdrive.finishAuth(req.user.id, req.body.code, req.body.state)));
-router.post('/gdrive/read', driveRoute(async (req) => gdrive.readFile(req.user.id)));
+// accessToken 이 있으면 휴대폰의 구글 계정 토큰으로 (v0.27.1), 없으면 클라이언트 ID 방식(PC)
+router.post('/gdrive/read', driveRoute(async (req) => gdrive.readFileWith(req.user.id, req.body.accessToken)));
 router.post('/gdrive/write', driveRoute(async (req) => {
   if (typeof req.body.text !== 'string' || !req.body.text) throw new gdrive.DriveError('저장할 내용이 없습니다.');
-  return { file: await gdrive.writeFile(req.user.id, req.body.text) };
+  return { file: await gdrive.writeFileWith(req.user.id, req.body.accessToken, req.body.text) };
 }));
 router.delete('/gdrive', driveRoute(async (req) => gdrive.disconnect(req.user.id)));
 

@@ -2328,10 +2328,24 @@
   const SYNC_FORMAT = 'kstock-sync';
   const syncKey = () => String((state.user && state.user.email) || '').toLowerCase();
   // 구글 드라이브 직접 연결 (v0.27.0): 앱 안 화면, 또는 PC 의 localhost 로 연 화면에서만 (구글 로그인 결과를 이 기기 주소로 받음)
-  const gdriveAvailable = () => !REMOTE_APP && (IN_APP ? !!(window.AndroidBridge && window.AndroidBridge.gdriveListen) : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
+  const gdriveAvailable = () => !REMOTE_APP && (IN_APP ? !!(window.AndroidBridge && window.AndroidBridge.gdriveAccountPick) : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
+  // 휴대폰 앱 (v0.27.1): 휴대폰에 로그인된 구글 계정을 골라 연결 (클라이언트 ID 입력 없음)
+  const gdDevice = () => (IN_APP && window.AndroidBridge && window.AndroidBridge.gdriveAccount ? window.AndroidBridge.gdriveAccount(syncKey()) || '' : '');
+  // 구글 드라이브 읽기·쓰기: 앱은 기기 계정 토큰을 붙여 보내고, 만료면 새로 받아 한 번 더
+  async function driveCall(path, body = {}) {
+    if (!IN_APP) return api('POST', path, body);
+    let token = await nativeDoc('gdriveToken', syncKey(), false);
+    try {
+      return await api('POST', path, { ...body, accessToken: token });
+    } catch (e) {
+      if (e.code !== 'GDRIVE_TOKEN') throw e;
+      token = await nativeDoc('gdriveToken', syncKey(), true);
+      return api('POST', path, { ...body, accessToken: token });
+    }
+  }
   const syncMode = () => {
     if (REMOTE_APP) return null; // 클라우드 서버 연결 중이면 이미 기기끼리 같은 데이터
-    if (state.gdrive && state.gdrive.connected && gdriveAvailable()) return 'gdrive';
+    if (gdriveAvailable() && (IN_APP ? !!gdDevice() : !!(state.gdrive && state.gdrive.connected))) return 'gdrive';
     if (IN_APP) return window.AndroidBridge.syncPick ? 'android' : null;
     return typeof window.showSaveFilePicker === 'function' && typeof window.showOpenFilePicker === 'function' ? 'web' : null;
   };
@@ -2352,7 +2366,7 @@
   const syncState = () => { try { return JSON.parse(localStorage.getItem(syncStateKey()) || 'null'); } catch (_) { return null; } };
   const saveSyncState = (v) => { try { localStorage.setItem(syncStateKey(), JSON.stringify(v)); } catch (_) { /* 무시 */ } };
   async function syncFileName() {
-    if (gdriveAvailable() && state.user) { try { state.gdrive = await api('GET', '/gdrive'); } catch (_) { state.gdrive = null; } }
+    if (gdriveAvailable() && state.user && !IN_APP) { try { state.gdrive = await api('GET', '/gdrive'); } catch (_) { state.gdrive = null; } }
     const m = syncMode();
     if (m === 'gdrive') return `구글 드라이브 · kstock-sync.json`;
     try {
@@ -2396,7 +2410,7 @@
   //  - version 1(한 사용자만 담던 파일)은 그 파일의 계정 칸으로 읽는다
   async function readSyncFile(h) {
     const mode = syncMode();
-    const text = mode === 'gdrive' ? (await api('POST', '/gdrive/read')).text : mode === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
+    const text = mode === 'gdrive' ? (await driveCall('/gdrive/read')).text : mode === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
     if (!text.trim()) return { format: SYNC_FORMAT, version: 2, users: {} };
     let f;
     try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(JSON 형식 아님).'); }
@@ -2411,7 +2425,7 @@
   async function writeSyncFile(h, file, backup, hash, rev) {
     const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, rev, counts: backup.counts, backup } };
     const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users });
-    if (syncMode() === 'gdrive') await api('POST', '/gdrive/write', { text });
+    if (syncMode() === 'gdrive') await driveCall('/gdrive/write', { text });
     else if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
     else { const w = await h.createWritable(); await w.write(text); await w.close(); }
     file.users = users;
@@ -2534,15 +2548,21 @@
     });
   }
   // 구글 드라이브 연결: 구글 로그인 → 결과(code)를 받아 서버에서 토큰으로 바꾼다
-  async function gdriveConnect(after) {
-    let redirectUri;
-    if (IN_APP) {
-      const port = window.AndroidBridge.gdriveListen();
-      if (!port) throw new Error('로그인 결과를 받을 준비를 하지 못했습니다. 다시 눌러 주세요.');
-      redirectUri = `http://127.0.0.1:${port}`;
-    } else {
-      redirectUri = `${location.origin}/gdrive-callback.html`;
+  // 휴대폰 앱: 기기 구글 계정 고르기 → 드라이브 권한 허용(처음 한 번) → 연결 완료
+  async function gdriveConnectDevice(after) {
+    const name = await nativeDoc('gdriveAccountPick', syncKey());
+    try {
+      await nativeDoc('gdriveToken', syncKey(), false); // 처음이면 구글의 권한 허용 화면
+    } catch (e) {
+      window.AndroidBridge.gdriveUnlink(syncKey());
+      throw e;
     }
+    saveSyncState(null); // 새 연결이면 처음 맞추는 것으로
+    toast(`구글 드라이브에 연결했습니다 (${name}). 이제 지금 동기화를 누르세요.`);
+    if (after) after();
+  }
+  async function gdriveConnect(after) {
+    const redirectUri = `${location.origin}/gdrive-callback.html`; // PC: localhost 팝업으로 결과 받기
     const { authUrl, state: st } = await api('POST', '/gdrive/auth-start', { redirectUri });
     const finish = async (query) => {
       const q = new URLSearchParams(query || '');
@@ -2559,19 +2579,22 @@
     };
     const onMsg = (e) => { if (e.origin === location.origin && e.data && e.data.type === 'kstock-gdrive') finish(e.data.query); };
     const onStore = (e) => { if (e.key === 'gdrive.cb' && e.newValue) { try { finish(JSON.parse(e.newValue).q); } catch (_) { /* 무시 */ } } };
-    const cleanup = () => { window.removeEventListener('message', onMsg); window.removeEventListener('storage', onStore); window.__gdriveCallback = null; };
-    if (IN_APP) {
-      window.__gdriveCallback = finish;
-      window.AndroidBridge.openBrowser(authUrl);
-      toast('휴대폰 브라우저에서 구글 계정으로 로그인하고 허용한 뒤 K-Stock 앱으로 돌아오세요.');
-    } else {
-      window.addEventListener('message', onMsg);
-      window.addEventListener('storage', onStore);
-      const w = window.open(authUrl, 'kstock-gdrive', 'width=520,height=700');
-      if (!w) { cleanup(); throw new Error('팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.'); }
-    }
+    const cleanup = () => { window.removeEventListener('message', onMsg); window.removeEventListener('storage', onStore); };
+    window.addEventListener('message', onMsg);
+    window.addEventListener('storage', onStore);
+    const w = window.open(authUrl, 'kstock-gdrive', 'width=520,height=700');
+    if (!w) { cleanup(); throw new Error('팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.'); }
+  }
+  function gdrivePanelDevice() {
+    return `<div class="gd-box">
+      <div class="gd-title">구글 드라이브 직접 연결 <span class="badge">권장</span></div>
+      <p class="small muted" style="margin:2px 0 8px">이 휴대폰에 로그인된 구글 계정을 골라 연결합니다(비밀번호 입력 없음). 구글 드라이브 앱을 켜 두지 않아도 항상 최신 파일로 맞춥니다.</p>
+      <div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-gd-device>구글 계정 선택해 연결</button></div>
+      <p class="small muted" style="margin:8px 0 0">처음 연결할 때 구글의 권한 허용 화면이 한 번 뜹니다. 이 앱은 자기가 만든 동기화 파일(kstock-sync.json)만 읽고 쓰며, 드라이브의 다른 파일은 볼 수 없습니다.</p>
+    </div>`;
   }
   function gdrivePanel(g) {
+    if (IN_APP) return gdrivePanelDevice();
     const help = `<details class="gd-help"><summary>처음 한 번: 구글 클라우드 콘솔에서 클라이언트 ID 만들기</summary><ol>
       <li><b>console.cloud.google.com</b> 접속 → 새 프로젝트 만들기(예: K-Stock)</li>
       <li>API 및 서비스 → 라이브러리 → <b>Google Drive API</b> 검색 → 사용</li>
@@ -2600,12 +2623,17 @@
       const gdOk = gdriveAvailable();
       const g = state.gdrive;
       if (m === 'gdrive') {
-        box.innerHTML = `<div class="sync-status"><span>구글 드라이브 직접 연결 <b data-noi18n>${esc((g && g.account) || '')}</b></span><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+        box.innerHTML = `<div class="sync-status"><span>구글 드라이브 직접 연결 <b data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b></span><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>`;
         box.querySelector('[data-sync-now]').addEventListener('click', runSync);
         box.querySelector('[data-gd-off]').addEventListener('click', async () => {
           if (!confirm('구글 드라이브 연결을 해제할까요? 드라이브의 파일과 이 기기의 데이터는 지워지지 않습니다.')) return;
-          try { state.gdrive = await api('DELETE', '/gdrive'); saveSyncState(null); toast('구글 드라이브 연결을 해제했습니다.'); } catch (e) { toast(e.message); }
+          try {
+            if (IN_APP) window.AndroidBridge.gdriveUnlink(syncKey());
+            else state.gdrive = await api('DELETE', '/gdrive');
+            saveSyncState(null);
+            toast('구글 드라이브 연결을 해제했습니다.');
+          } catch (e) { toast(e.message); }
           paint();
           renderSyncButtons();
         });
@@ -2622,6 +2650,10 @@
             toast('클라이언트 ID를 저장했습니다. 이제 [구글 로그인으로 연결]을 누르세요.');
           } catch (e) { toast(e.message); }
           paint();
+        });
+        const gdv = box.querySelector('[data-gd-device]');
+        if (gdv) gdv.addEventListener('click', async () => {
+          try { await gdriveConnectDevice(() => { paint(); renderSyncButtons(); }); } catch (e) { toast(e.message); }
         });
         const gc = box.querySelector('[data-gd-connect]');
         if (gc) gc.addEventListener('click', async () => {
