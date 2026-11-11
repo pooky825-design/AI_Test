@@ -4,40 +4,128 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>K-Stock 주식 자산 관리</title>
-<meta name="description" content="K-Stock: 국내·미국 주식과 ETF의 보유 종목, 배당, 연도별 자산을 관리하는 개인용 앱" />
+<meta name="description" content="K-Stock: 국내·미국 주식과 ETF의 보유 종목, 배당, 연도별 자산을 관리하는 개인용 앱. 데이터는 내 기기와 내 구글 드라이브에만 저장됩니다." />
 <link rel="stylesheet" href="site.css" />
 </head>
 <body>
 <header class="top">
   <div class="wrap">
     <a class="brand" href="./" aria-current="page">K-Stock</a>
-    <nav><a href="./">소개</a><a href="privacy.html">개인정보처리방침</a></nav>
+    <nav><a href="#features">기능</a><a href="#privacy">데이터와 보안</a><a href="#start">시작하기</a><a href="privacy.html">개인정보처리방침</a></nav>
   </div>
 </header>
-<main class="wrap">
-  <section class="hero">
-    <h1>K-Stock 주식 자산 관리</h1>
-    <p class="lead">국내·미국 주식과 ETF의 보유 종목, 배당, 연도별 자산을 한곳에서 관리하는 개인용 앱입니다. 데이터는 내 기기와 내 구글 드라이브에만 저장됩니다.</p>
+
+<main>
+  <section class="hero wrap">
+    <div class="hero-text">
+      <p class="eyebrow">개인용 주식 자산 관리 앱</p>
+      <h1>흩어진 증권 계좌를<br />한 화면에서 관리하세요</h1>
+      <p class="lead">국내(KOSPI·KOSDAQ)와 미국 주식·ETF를 그룹별로 모아 평가금액과 손익, 배당, 연도별 자산 변화를 원화 기준으로 보여 줍니다. 데이터는 내 기기와 내 구글 드라이브에만 저장됩니다.</p>
+      <div class="cta">
+        <a class="btn primary" href="#start">시작하기</a>
+        <a class="btn" href="#features">기능 둘러보기</a>
+      </div>
+      <ul class="chips">
+        <li>Android 앱</li><li>PC 버전</li><li>광고 없음</li><li>개발자 서버 없음</li>
+      </ul>
+    </div>
+    <figure class="phone"><img src="img/m-assets.webp" width="390" height="844" alt="휴대폰에서 본 나의 자산 화면: 총자산, 금년 손익, 전체기간 손익, 환율 요약" /></figure>
   </section>
 
-  <section class="grid">
-    <div class="card"><h2>나의 자산</h2><p>그룹·분류별 평가금액, 금년·전체 손익, 오늘 손익을 원화 기준으로 봅니다.</p></div>
-    <div class="card"><h2>종목 조회</h2><p>시세, 투자지표(PER·PBR·시가총액), 연간·분기 실적, 날짜별 종가를 조회합니다.</p></div>
-    <div class="card"><h2>보유 종목 관리</h2><p>연도별 보유 수량·매입 금액을 기록합니다. 숫자 칸에서 사칙연산 수식을 쓸 수 있습니다.</p></div>
-    <div class="card"><h2>배당 관리</h2><p>배당 회차를 골라 저장하고 월·누적 배당액과 과세표준액을 확인합니다.</p></div>
-    <div class="card"><h2>연도별 자산 · 배당</h2><p>연도별 자산과 배당의 변화를 그래프와 표로 봅니다.</p></div>
-    <div class="card"><h2>기기 간 동기화</h2><p>휴대폰에 로그인된 구글 계정으로 구글 드라이브에 연결해 여러 기기의 데이터를 맞춥니다.</p></div>
+  <section id="features" class="wrap features">
+    <h2 class="section-title">주요 기능</h2>
+
+    <article class="feature">
+      <div class="feature-text">
+        <h3>나의 자산</h3>
+        <p>선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화로 환산해 보여 줍니다.</p>
+        <ul>
+          <li>일반·ISA·연금처럼 계좌를 그룹으로 나눠 그룹별·분류(국내·해외·해외추종)별 합계</li>
+          <li>금년 손익, 전체기간 손익, 오늘 손익과 적용 환율</li>
+          <li>엑셀 내보내기, 보고 싶은 열만 고르는 열 선택</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/pc-assets.webp" width="1280" height="800" alt="PC 나의 자산 화면: 요약 카드와 그룹별 합계 표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature rev">
+      <div class="feature-text">
+        <h3>종목 조회</h3>
+        <p>종목명이나 코드를 입력하면 시세와 기업 정보를 한 번에 확인합니다.</p>
+        <ul>
+          <li>종목명 일부로 검색, 코드를 넣으면 종목명 자동 표시</li>
+          <li>시가총액·PER·PBR, 연간·분기 실적과 전년·전분기 대비</li>
+          <li>배당금 지급내역, 날짜별 종가, 기간 수익률</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/pc-stock.webp" width="1280" height="1100" alt="PC 종목 조회 화면: 보유 종목 목록, 삼성전자 시세, 투자지표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature">
+      <div class="feature-text">
+        <h3>배당 관리</h3>
+        <p>보유 종목의 배당 회차를 골라 저장하면 그해 월 배당과 누적 배당이 자동으로 계산됩니다.</p>
+        <ul>
+          <li>배당 내역 자동 불러오기, 회차별 수량 조정</li>
+          <li>월 배당액·과세표준액, 기간 누적 합계를 제목 옆에 요약</li>
+          <li>국내 ETF는 운용사 공시의 주당 과세표준액 반영</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/pc-divmgmt.webp" width="1280" height="800" alt="PC 배당 관리 화면: 종목별 월 배당액과 누적 배당액 표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature rev">
+      <div class="feature-text">
+        <h3>연도별 자산 · 배당</h3>
+        <p>연도별로 입력한 연말 보유 수량으로 자산과 배당이 어떻게 늘었는지 그래프와 표로 비교합니다.</p>
+        <ul>
+          <li>국내·해외·해외추종 비중과 전년 대비 증감</li>
+          <li>연도별 환율 추이 함께 표시</li>
+          <li>연도를 누르면 종목별 내역 펼침</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="img/pc-yearly.webp" width="1280" height="800" alt="PC 연도별 자산 화면: 연도별 자산 막대그래프와 환율 꺾은선, 연도별 표" loading="lazy" /></figure>
+    </article>
+
+    <div class="mini-grid">
+      <div class="card"><h3>보유 종목 관리</h3><p>연도별 보유 수량·매입 금액을 기록하고, 숫자 칸에 <code>= 10+30</code> 같은 수식을 쓸 수 있습니다.</p></div>
+      <div class="card"><h3>기기 간 동기화</h3><p>휴대폰에 로그인된 구글 계정을 골라 구글 드라이브에 연결하면 휴대폰·PC의 데이터를 버튼 한 번으로 맞춥니다.</p></div>
+      <div class="card"><h3>화면 공유</h3><p>가족 등 다른 사용자에게 화면별로 조회·수정 권한을 나눠 줄 수 있습니다.</p></div>
+      <div class="card"><h3>백업 · 복원</h3><p>모든 데이터를 파일 하나로 저장하고 되살립니다.</p></div>
+      <div class="card"><h3>테마 · 언어</h3><p>여러 색상 테마와 한국어·영어 화면을 지원합니다.</p></div>
+      <div class="card"><h3>휴대폰 화면</h3><p>휴대폰 세로 화면에 맞춘 배치와 접기·펴기 상자로 필요한 정보만 봅니다.</p></div>
+    </div>
   </section>
 
-  <section class="doc">
-    <h2>구글 드라이브 사용</h2>
-    <p>K-Stock은 동기화를 위해 구글 드라이브의 <code>drive.file</code> 권한만 요청합니다. 앱이 만든 동기화 파일(<code>kstock-sync.json</code>)만 읽고 쓰며, 드라이브의 다른 파일에는 접근하지 않습니다. 자세한 내용은 <a href="privacy.html">개인정보처리방침</a>을 참고하세요.</p>
-    <h2>제공 형태</h2>
-    <p>Android 앱(APK)과 PC용 버전이 있습니다. 개발자가 운영하는 서버나 광고, 사용 통계 수집이 없습니다.</p>
-    <h2>문의</h2>
-    <p><a href="https://github.com/pooky825-design/AI_Test/issues">GitHub 이슈</a>로 남겨 주세요.</p>
+  <section id="privacy" class="band">
+    <div class="wrap privacy-grid">
+      <div>
+        <h2 class="section-title">내 데이터는 내 기기와 내 드라이브에만</h2>
+        <ul class="checks">
+          <li><b>개발자 서버가 없습니다.</b> 입력한 자산·배당 데이터는 앱이 설치된 기기 안에 저장됩니다.</li>
+          <li><b>동기화는 내 구글 드라이브로.</b> 앱이 만든 파일 <code>kstock-sync.json</code> 하나만 읽고 씁니다(<code>drive.file</code> 권한). 드라이브의 다른 파일은 볼 수 없습니다.</li>
+          <li><b>광고·사용 통계 수집이 없습니다.</b> 시세 조회 때는 종목코드만 금융 정보 사이트로 보냅니다.</li>
+          <li><b>언제든 삭제·연결 해제.</b> 앱에서 사용자 삭제, 구글 계정에서 권한 취소가 가능합니다.</li>
+        </ul>
+        <p><a href="privacy.html">개인정보처리방침 전문 보기 →</a></p>
+      </div>
+      <figure class="phone small"><img src="img/m-divmgmt.webp" width="390" height="844" alt="휴대폰 배당 관리 화면" loading="lazy" /></figure>
+    </div>
+  </section>
+
+  <section id="start" class="wrap start">
+    <h2 class="section-title">시작하기</h2>
+    <ol class="steps">
+      <li><h3>설치</h3><p>Android 6.0 이상 휴대폰에 APK를 설치합니다. PC는 Node.js로 실행하는 버전을 씁니다.</p></li>
+      <li><h3>사용자 추가</h3><p>앱에서 이메일과 비밀번호로 사용자를 만듭니다. 이 정보는 기기 안에만 저장됩니다.</p></li>
+      <li><h3>보유 종목 입력</h3><p>보유 종목 관리에서 그룹과 연도별 보유 수량·매입 금액을 입력하면 나머지 화면이 채워집니다.</p></li>
+      <li><h3>동기화(선택)</h3><p>환경설정 → 기기 간 동기화에서 구글 계정을 골라 연결하면 다른 기기와 데이터를 맞출 수 있습니다.</p></li>
+    </ol>
+    <p class="note">시세는 지연되거나 부정확할 수 있으며, 앱의 정보는 투자 권유가 아닌 참고용입니다. 시세 출처: Yahoo Finance, 네이버 증권 등.</p>
+    <p class="note">문의: <a href="https://github.com/pooky825-design/AI_Test/issues">GitHub 이슈</a></p>
   </section>
 </main>
-<footer class="wrap foot">© 2026 K-Stock · <a href="./">소개</a> · <a href="privacy.html">개인정보처리방침</a> · <span lang="en">Personal stock portfolio manager. <a href="privacy.html#en">Privacy Policy</a></span></footer>
+
+<footer class="wrap foot">© 2026 K-Stock · <a href="./">소개</a> · <a href="privacy.html">개인정보처리방침</a> · <span lang="en">K-Stock is a personal stock portfolio manager that stores data only on your device and your own Google Drive. <a href="privacy.html#en">Privacy Policy</a></span></footer>
 </body>
 </html>
