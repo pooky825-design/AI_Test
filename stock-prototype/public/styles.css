@@ -580,3 +580,10 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 .refresh-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--t-700); }
 .refresh-btn:hover { background: var(--t-50); }
 @media (max-width: 640px) { .year-ctrl { border-right: none; padding-right: 0; } }
+
+/* v0.26.15 실적 상자: 연간/분기 선택, 매출액·영업이익 줄 강조 / 투자지표 값 가운데 */
+.fin-period { width: auto; font-size: 13px; padding: 4px 8px; margin-left: 6px; }
+.fund-table tr.hl-row th, .fund-table tr.hl-row td { background: var(--t-100); }
+.fund-table tr.hl-row td.est { background: color-mix(in srgb, var(--t-100) 70%, var(--t-200)); }
+.fund-kpis .kpi .value, .fund-kpis .kpi .sub { text-align: center; }
+.fund-kpis .kpi .value.small-v { line-height: 1.5; }

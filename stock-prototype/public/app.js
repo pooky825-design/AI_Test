@@ -1331,30 +1331,46 @@
       const g = (cur - prev) / Math.abs(prev);
       return `<span class="${g > 0 ? 'up' : g < 0 ? 'down' : ''}">${g > 0 ? '+' : ''}${(g * 100).toFixed(1)}%</span>`;
     };
-    // 분기·연간 실적은 각각 별도 상자 (v0.26.8), 제목 옆에 단위
-    const finTable = (title, list, vsLabel, foldKey) => {
-      if (!list.length) return '';
+    // 실적 표 (v0.26.15): 연간·분기를 한 상자에서 골라 본다. 매출액·영업이익 줄은 굵게·조금 진한 배경
+    const finTable = (list, vsLabel) => {
+      if (!list.length) return '<div class="empty">실적 자료가 없습니다.</div>';
       const head = list.map((x) => `<th class="num${x.estimate ? ' est' : ''}">${esc(x.period)}${x.estimate ? '<br/><small>(추정)</small>' : ''}</th>`).join('');
-      const row = (label, fn) => `<tr><th class="left">${label}</th>${list.map((x) => `<td class="num${x.estimate ? ' est' : ''}">${fn(x)}</td>`).join('')}</tr>`;
+      const row = (label, fn, cls = '') => `<tr${cls ? ` class="${cls}"` : ''}><th class="left">${label}</th>${list.map((x) => `<td class="num${x.estimate ? ' est' : ''}">${fn(x)}</td>`).join('')}</tr>`;
       const vsRow = (k) => `<tr class="vs-row"><th class="left">${vsLabel}</th>${list.map((x, j) => `<td class="num${x.estimate ? ' est' : ''}">${j ? growth(x[k], list[j - 1][k]) : '<span class="muted">-</span>'}</td>`).join('')}</tr>`;
-      return `<div class="card" data-fold="${foldKey}"><h2>${title} <span class="unit-note">(단위: 억원, 영업이익률 %)</span></h2><div class="table-wrap"><table class="fund-table">
+      return `<div class="table-wrap"><table class="fund-table">
         <thead><tr><th class="left">항목</th>${head}</tr></thead>
-        <tbody>${row('매출액', (x) => n(x.revenue))}${vsRow('revenue')}${row('영업이익', (x) => `<b>${n(x.op)}</b>`)}${vsRow('op')}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}${vsRow('net')}</tbody>
+        <tbody>${row('매출액', (x) => `<b>${n(x.revenue)}</b>`, 'hl-row')}${vsRow('revenue')}${row('영업이익', (x) => `<b>${n(x.op)}</b>`, 'hl-row')}${vsRow('op')}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}${vsRow('net')}</tbody>
       </table></div>
-      <p class="small muted" style="margin:8px 0 0">${vsLabel} = 바로 앞 ${vsLabel === '전분기 대비' ? '분기' : '해'}보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스</p></div>`;
+      <p class="small muted" style="margin:8px 0 0">${vsLabel} = 바로 앞 ${vsLabel === '전분기 대비' ? '분기' : '해'}보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스</p>`;
     };
+    // 매출 / 영업이익 (작년 연말 기준): 연간 실적에서 작년 12월 결산(없으면 가장 최근 확정 연도)
+    const lastYear = new Date().getFullYear() - 1;
+    const actual = (f.annual || []).filter((x) => !x.estimate);
+    const base = actual.find((x) => x.period.startsWith(`${lastYear}.`)) || actual[actual.length - 1] || null;
+    const eokText = (v) => (v == null ? '-' : v < 0 ? `-${capText(-v)}` : capText(v));
+    const per0 = settings.get('stock.finPeriod') === 'quarter' ? 'quarter' : 'annual';
     card.hidden = false;
     card.innerHTML = `<div class="card" data-fold="fund"><h2>투자지표 ${req('FR-STK-09')}</h2>
       <div class="fund-kpis">
         <div class="kpi"><div class="label">시가총액</div><div class="value" data-noi18n>${capText(f.marketCap)}</div></div>
-        <div class="kpi"><div class="label">PER</div><div class="value">${ratio(f.per, '배')}</div>${asOf(f.per)}${f.estPer && f.estPer.value != null ? `<small class="muted"> · 추정 ${ratio(f.estPer, '배')}</small>` : ''}</div>
-        <div class="kpi"><div class="label">PBR</div><div class="value">${ratio(f.pbr, '배')}</div>${asOf(f.pbr)}</div>
-        <div class="kpi"><div class="label">EPS · BPS</div><div class="value small-v">${ratio(f.eps, '원')} · ${ratio(f.bps, '원')}</div></div>
+        <div class="kpi"><div class="label">PER</div><div class="value">${ratio(f.per, '배')}</div><div class="sub">${asOf(f.per)}${f.estPer && f.estPer.value != null ? `<small class="muted"> · 추정 ${ratio(f.estPer, '배')}</small>` : ''}</div></div>
+        <div class="kpi"><div class="label">PBR</div><div class="value">${ratio(f.pbr, '배')}</div><div class="sub">${asOf(f.pbr)}</div></div>
+        <div class="kpi"><div class="label">매출 / 영업이익</div><div class="value small-v" data-noi18n>${eokText(base && base.revenue)}<br/>${eokText(base && base.op)}</div><div class="sub">${base ? `<small class="muted">${esc(base.period)} 기준(작년 연말)</small>` : '<small class="muted">자료 없음</small>'}</div></div>
       </div>
       ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : ''}
       <p class="small muted" style="margin:8px 0 0">출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p></div>
-      ${f.reason === 'noFinance' ? '' : `${finTable('분기 실적', f.quarters, '전분기 대비', 'quarter')}${finTable('연간 실적', f.annual, '전년 대비', 'annual')}`}`;
-    makeFoldable(card, 'stock.collapsed', ['quarter', 'annual']);
+      ${f.reason === 'noFinance' ? '' : `<div class="card" data-fold="earnings"><h2>실적 <span class="unit-note">(단위: 억원, 영업이익률 %)</span>
+          <select class="fin-period" data-finper aria-label="실적 기간"><option value="annual" ${per0 === 'annual' ? 'selected' : ''}>연간</option><option value="quarter" ${per0 === 'quarter' ? 'selected' : ''}>분기</option></select></h2>
+        <div data-fin-body></div></div>`}`;
+    const fin = card.querySelector('[data-fin-body]');
+    if (fin) {
+      const paint = (per) => { fin.innerHTML = per === 'quarter' ? finTable(f.quarters, '전분기 대비') : finTable(f.annual, '전년 대비'); };
+      paint(per0);
+      const sel = card.querySelector('[data-finper]');
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', () => { settings.set('stock.finPeriod', sel.value); paint(sel.value); });
+    }
+    makeFoldable(card, 'stock.collapsed', ['earnings']);
   }
 
   function drawPriceChart(canvas, prices, cur) {

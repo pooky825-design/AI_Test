@@ -767,5 +767,12 @@ window.I18N_EN = {
 "의 자료만 비교합니다.": "— only this user's data is compared.",
 "⋮ 열 선택": "⋮ Columns",
 "보일 열 선택": "Choose columns to show",
-"모두 보기": "Show all"
+"모두 보기": "Show all",
+"실적": "Earnings",
+"연간": "Annual",
+"분기": "Quarterly",
+"매출 / 영업이익": "Revenue / Op. profit",
+"기준(작년 연말)": "basis (last year-end)",
+"자료 없음": "No data",
+"실적 자료가 없습니다.": "No earnings data."
 };
