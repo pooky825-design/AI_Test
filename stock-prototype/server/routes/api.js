@@ -348,6 +348,27 @@ router.get('/stocks/:code/prices', async (req, res) => {
   res.json({ from, to, ...(await market.getPeriod(req.params.code, from, to)) });
 });
 
+// 투자지표·분기 실적 (v0.26.6, FR-STK-09): 국내 상장 기업만. 6시간 캐시
+const fundCache = new Map();
+router.get('/stocks/:code/fundamentals', async (req, res) => {
+  const code = String(req.params.code || '').toUpperCase();
+  if (!/^[0-9][0-9A-Z]{5}$/.test(code) || !providers.fundamentals) return res.json({ available: false, reason: 'notDomestic' });
+  const hit = fundCache.get(code);
+  if (hit && Date.now() - hit.at < 6 * 3600 * 1000 && req.query.refresh !== '1') return res.json(hit.data);
+  let data;
+  try {
+    const f = await providers.fundamentals(code);
+    const hasFin = f.quarters.length || f.annual.length;
+    data = { available: true, ...f, reason: hasFin ? null : 'noFinance', fetchedAt: new Date().toISOString() };
+  } catch (e) {
+    if (hit) return res.json({ ...hit.data, stale: true });
+    return res.json({ available: false, reason: 'source', message: e.message });
+  }
+  if (fundCache.size > 300) fundCache.delete(fundCache.keys().next().value);
+  fundCache.set(code, { at: Date.now(), data });
+  res.json(data);
+});
+
 // 배당금 지급내역 팝업 (FR-STK-08)
 router.get('/stocks/:code/dividends', async (req, res) => {
   res.json(await portfolio.getStockDividends(req.user.id, req.params.code, { force: req.query.refresh === '1' }));

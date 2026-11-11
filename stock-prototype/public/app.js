@@ -1050,6 +1050,7 @@
           <button class="secondary" data-refresh>현재가 새로고침</button>
         </div>
       </div>
+      <div class="card fund-card" data-fund hidden></div>
       <div class="card">
         <h2>날짜별 종가 ${req('FR-STK-04 · FR-CHT-01')}</h2>
         <div class="field-row" style="margin-bottom:12px">
@@ -1068,6 +1069,7 @@
       </div>`;
     box.querySelector('[data-refresh]').addEventListener('click', () => loadStock(box, i.code, true, form));
     box.querySelector('[data-divs]').addEventListener('click', () => openDividendModal(i.code));
+    if (c === 'KRW' && i.type === '주식') loadFundamentals(box.querySelector('[data-fund]'), i.code, refresh);
     const fromI = box.querySelector('input[name=from]');
     const toI = box.querySelector('input[name=to]');
     const loadPeriod = async (from, to) => {
@@ -1110,6 +1112,52 @@
       const r = periodRange(['1M', '3M', '1Y', '5Y'].includes(saved.p) ? saved.p : '3M');
       loadPeriod(r.from, r.to);
     }
+  }
+
+  // 투자지표·실적 (v0.26.6, FR-STK-09): 시가총액·PER·PBR + 최근 분기·연간 매출·영업이익 (네이버 증권, 단위 억원)
+  // 시가총액(억원) 표기: 한국어 ‘1,189조 7,177억원’, 영어 ‘₩1,189.7T’·‘₩870.5B’
+  function capText(eok) {
+    if (eok == null) return '-';
+    if (isEn()) return eok >= 10000 ? `₩${(eok / 10000).toLocaleString('en-US', { maximumFractionDigits: 1 })}T` : `₩${(eok / 10).toLocaleString('en-US', { maximumFractionDigits: 1 })}B`;
+    const jo = Math.floor(eok / 10000);
+    const rest = Math.round(eok % 10000);
+    return `${jo ? `${nf0.format(jo)}조 ` : ''}${rest || !jo ? `${nf0.format(rest)}억` : ''}원`.replace(' 원', '원');
+  }
+  async function loadFundamentals(card, code, refresh) {
+    if (!card) return;
+    let f;
+    try { f = await api('GET', `/stocks/${encodeURIComponent(code)}/fundamentals${refresh ? '?refresh=1' : ''}`); } catch (_) { f = { available: false, reason: 'source' }; }
+    if (!card.isConnected) return;
+    if (!f.available) {
+      if (f.reason === 'source') {
+        card.hidden = false;
+        card.innerHTML = `<h2>투자지표 · 실적 ${req('FR-STK-09')}</h2><div class="notice warn small"><div>투자지표·실적을 가져오지 못했습니다. 잠시 뒤 <b>현재가 새로고침</b>으로 다시 시도하세요.</div></div>`;
+      }
+      return;
+    }
+    const n = (v) => (v == null ? '<span class="muted">-</span>' : `<span class="${v < 0 ? 'down' : ''}">${nf0.format(v)}</span>`);
+    const p2 = (v) => (v == null ? '<span class="muted">-</span>' : `${v.toFixed(2)}%`);
+    const ratio = (r, unit) => (r && r.value != null ? `${r.value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${unit}` : '-');
+    const asOf = (r) => (r && r.asOf ? `<small class="muted">${esc(r.asOf)} 기준</small>` : '');
+    const finTable = (title, list) => {
+      if (!list.length) return '';
+      const head = list.map((x) => `<th class="num${x.estimate ? ' est' : ''}">${esc(x.period)}${x.estimate ? '<br/><small>(추정)</small>' : ''}</th>`).join('');
+      const row = (label, fn) => `<tr><th class="left">${label}</th>${list.map((x) => `<td class="num${x.estimate ? ' est' : ''}">${fn(x)}</td>`).join('')}</tr>`;
+      return `<h3 class="fund-sub">${title}</h3><div class="table-wrap"><table class="fund-table">
+        <thead><tr><th class="left">항목</th>${head}</tr></thead>
+        <tbody>${row('매출액', (x) => n(x.revenue))}${row('영업이익', (x) => `<b>${n(x.op)}</b>`)}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}</tbody>
+      </table></div>`;
+    };
+    card.hidden = false;
+    card.innerHTML = `<h2>투자지표 · 실적 ${req('FR-STK-09')}</h2>
+      <div class="fund-kpis">
+        <div class="kpi"><div class="label">시가총액</div><div class="value" data-noi18n>${capText(f.marketCap)}</div></div>
+        <div class="kpi"><div class="label">PER</div><div class="value">${ratio(f.per, '배')}</div>${asOf(f.per)}${f.estPer && f.estPer.value != null ? `<small class="muted"> · 추정 ${ratio(f.estPer, '배')}</small>` : ''}</div>
+        <div class="kpi"><div class="label">PBR</div><div class="value">${ratio(f.pbr, '배')}</div>${asOf(f.pbr)}</div>
+        <div class="kpi"><div class="label">EPS · BPS</div><div class="value small-v">${ratio(f.eps, '원')} · ${ratio(f.bps, '원')}</div></div>
+      </div>
+      ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : `${finTable('분기 실적', f.quarters)}${finTable('연간 실적', f.annual)}`}
+      <p class="small muted" style="margin:8px 0 0">단위: 억원(영업이익률은 %) · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p>`;
   }
 
   function drawPriceChart(canvas, prices, cur) {

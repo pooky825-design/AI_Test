@@ -685,5 +685,22 @@ window.I18N_EN = {
 "휴대폰에 있던 데이터를 옮기려면": "To move data from your phone",
 "요구사항 ID 표시": "Show requirement IDs",
 "화면 제목·기능 옆에 요구사항 ID 표시": "Show requirement IDs next to screen titles and features",
-"요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.": "Screen and feature numbers from the requirements document (SC-07, FR-AUTH-01, etc.). Turn off to hide them on every screen. Saved to your account, so it applies on PC and app alike."
+"요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.": "Screen and feature numbers from the requirements document (SC-07, FR-AUTH-01, etc.). Turn off to hide them on every screen. Saved to your account, so it applies on PC and app alike.",
+"투자지표 · 실적": "Valuation · Earnings",
+"시가총액": "Market cap",
+"분기 실적": "Quarterly results",
+"연간 실적": "Annual results",
+"항목": "Item",
+"매출액": "Revenue",
+"영업이익": "Operating profit",
+"영업이익률": "Operating margin",
+"당기순이익": "Net income",
+"(추정)": "(est.)",
+"· 추정": "· est.",
+"이 종목은 실적 자료가 없습니다.": "No earnings data for this stock.",
+"투자지표·실적을 가져오지 못했습니다. 잠시 뒤": "Couldn't load valuation and earnings. Try again later with",
+"으로 다시 시도하세요.": ".",
+"단위: 억원(영업이익률은 %) · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처": "Unit: 100M KRW (margin in %) · consolidated statements · est. = analyst consensus · Source",
+"(최신 값이 아닐 수 있음)": "(may be outdated)",
+"· 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.": "· cached 6 hours · for reference only."
 };

@@ -52,7 +52,8 @@ public class MainActivity extends Activity {
     private static final Set<String> ALLOWED_HOSTS = new HashSet<String>(Arrays.asList(
             "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com", "www.funetf.co.kr",
             "www.soletf.com", "investments.miraeasset.com",
-            "ac.stock.naver.com")); // 종목명 검색 (v0.21.1)
+            "ac.stock.naver.com", // 종목명 검색 (v0.21.1)
+            "m.stock.naver.com")); // 투자지표·분기 실적 (v0.26.6)
 
     private WebView webView;
 

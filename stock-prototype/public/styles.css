@@ -141,13 +141,14 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .tip { cursor: pointer; border-bottom: 1px dotted #94a3b8; }
 .tip:hover, .tip:focus { border-bottom-color: var(--primary-2); outline: none; }
 .tip-bubble { position: absolute; z-index: 60; max-width: 300px; background: #1e293b; color: #fff; font-size: 12px; line-height: 1.5; padding: 7px 10px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, .2); white-space: normal; }
-.today-col { background: #fbfaf3; }
-th.today-col { background: #f3f0de; }
+/* 오늘 손익 열 (v0.26.6): 테마 색의 아주 연한 단계 — 테마를 바꾸면 함께 바뀜 */
+.today-col { background: var(--t-50); }
+th.today-col { background: var(--t-100); }
 /* 자산 현황: 표 제목(머리글)은 모두 가운데 정렬 */
 .card[data-ckey] th, .card[data-ckey] th.num { text-align: center; }
 /* 자산 현황 합계·소계 행: 다른 행과 같은 선(1px 연한 회색), 배경은 조금 연하게 */
 .card[data-ckey] tfoot td { background: var(--t-100); color: var(--t-900); font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.card[data-ckey] tfoot td.today-col { background: #f1edd6; }
+.card[data-ckey] tfoot td.today-col { background: var(--t-200); }
 .card[data-ckey] tfoot td.up { color: #c62a22; }
 .card[data-ckey] tfoot td.down { color: #1c5bb8; }
 .badge.carry { background: #eef2f7; color: #334155; border-color: #cbd5e1; }
@@ -502,3 +503,19 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .hide-req .req:not(.req-sample), .hide-req .nav .sc, .hide-req a .sc, .hide-req .req-inline { display: none !important; }
 .check-row { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .check-row input { width: auto; margin: 0; }
+
+/* 투자지표·실적 (v0.26.6) */
+.fund-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 6px; }
+.fund-kpis .kpi { background: var(--t-50); border: 1px solid var(--t-200); border-radius: 10px; padding: 10px 12px; }
+.fund-kpis .label { font-size: 12px; color: var(--muted); }
+.fund-kpis .value { font-size: 18px; font-weight: 700; color: var(--t-900); margin: 2px 0; }
+.fund-kpis .value.small-v { font-size: 14px; }
+@media (max-width: 640px) { .fund-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fund-sub { margin: 14px 0 6px; font-size: 14px; }
+.fund-table th, .fund-table td { white-space: nowrap; }
+.fund-table thead th { text-align: center; }
+.fund-table th.left { text-align: left; }
+.fund-table .est { background: var(--t-50); color: var(--muted); }
+.fund-table tbody th { font-weight: 600; }
+.fund-table th.left { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); }
+@media (max-width: 640px) { .fund-kpis .value { font-size: 15px; } .fund-kpis .value.small-v { font-size: 13px; } }

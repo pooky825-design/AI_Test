@@ -84,4 +84,53 @@ async function search(q) {
     .map((it) => ({ code: String(it.code).toUpperCase(), name: it.name, market: it.typeName || it.typeCode || '', nation: NATION[it.nationCode], source: 'naver' }));
 }
 
-module.exports = { NAME, load, koreanName, search };
+// 투자지표·실적 (v0.26.6): 네이버 증권 모바일. 국내 상장 기업만 (ETF·ETN은 실적이 없어 null)
+// 금액 단위: 억원 (네이버 표기 그대로)
+function num(v) {
+  if (v == null) return null;
+  const t = String(v).replace(/,/g, '').trim();
+  if (!t || t === '-' || t === 'N/A') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+function pickFinance(info) {
+  if (!info || !Array.isArray(info.trTitleList)) return [];
+  const row = (title) => (info.rowList || []).find((r) => r.title === title);
+  const rows = { revenue: row('매출액'), op: row('영업이익'), net: row('당기순이익'), opm: row('영업이익률') };
+  return info.trTitleList.map((t) => {
+    const v = (r) => (r && r.columns && r.columns[t.key] ? num(r.columns[t.key].value) : null);
+    return { period: String(t.title || '').replace(/\.$/, ''), estimate: t.isConsensus === 'Y', revenue: v(rows.revenue), op: v(rows.op), net: v(rows.net), opMargin: v(rows.opm) };
+  });
+}
+function eok(text) {
+  const t = String(text || '').replace(/,/g, '');
+  const jo = /(\d+(?:\.\d+)?)조/.exec(t);
+  const ek = /(\d+(?:\.\d+)?)억/.exec(t);
+  if (!jo && !ek) return null;
+  return (jo ? Number(jo[1]) * 10000 : 0) + (ek ? Number(ek[1]) : 0);
+}
+async function getJson(url) {
+  const res = await fetchRaw(url, { timeoutMs: 8000 });
+  if (!res.ok) throw new SourceError(`네이버 증권 응답 오류 (HTTP ${res.status})`);
+  return res.json();
+}
+async function fundamentals(code) {
+  const base = `https://m.stock.naver.com/api/stock/${encodeURIComponent(code)}`;
+  const [integ, quarter, annual] = await Promise.all([
+    getJson(`${base}/integration`),
+    getJson(`${base}/finance/quarter`).catch(() => null),
+    getJson(`${base}/finance/annual`).catch(() => null),
+  ]);
+  const info = {};
+  for (const x of (integ && integ.totalInfos) || []) info[x.code] = x;
+  const ratio = (k) => (info[k] ? { value: num(String(info[k].value).replace(/[배원%]/g, '')), asOf: (info[k].valueDesc || '').replace(/\.$/, '') || null } : null);
+  return {
+    source: NAME,
+    marketCap: info.marketValue ? eok(info.marketValue.value) : null, // 억원 (예: '1,189조 7,177억' → 11897177)
+    per: ratio('per'), pbr: ratio('pbr'), eps: ratio('eps'), bps: ratio('bps'), estPer: ratio('cnsPer'),
+    quarters: pickFinance(quarter && quarter.financeInfo),
+    annual: pickFinance(annual && annual.financeInfo),
+  };
+}
+
+module.exports = { NAME, load, koreanName, search, fundamentals };
