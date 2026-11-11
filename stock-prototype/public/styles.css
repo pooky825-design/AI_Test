@@ -572,3 +572,11 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 .range-sep { color: var(--muted); font-weight: 700; }
 .head-ctrl select { width: auto; }
 .range-group { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+
+/* v0.26.14 그룹 선택 상자 왼쪽에 기준 연도(·월) */
+.group-left { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; min-width: 0; }
+.year-ctrl { padding-right: 16px; border-right: 1px solid var(--border); }
+.year-ctrl select { width: auto; }
+.refresh-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--t-700); }
+.refresh-btn:hover { background: var(--t-50); }
+@media (max-width: 640px) { .year-ctrl { border-right: none; padding-right: 0; } }
