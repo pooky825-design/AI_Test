@@ -555,7 +555,8 @@ router.get('/divmgmt/rounds', async (req, res) => {
 });
 
 // 배당 내역 조회 (v0.14): 배당금 관리에서 저장한 회차를 지급일(없으면 배당락일) 기간으로 조회
-router.get('/divmgmt/history', (req, res) => {
+router.get('/divmgmt/history', async (req, res) => {
+  await portfolio.ensureDividendRefs(req.user.id);
   const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
   const ty = thisYear();
   const from = isDate(req.query.from) ? req.query.from : `${ty}-01-01`;
@@ -948,7 +949,8 @@ async function validateDividend(body) {
   return { code, payDate, amount: a.value, currency, memo: memo || null };
 }
 
-router.get('/dividends', (req, res) => {
+router.get('/dividends', async (req, res) => {
+  await portfolio.ensureDividendRefs(req.user.id);
   const where = ['d.user_id = ?'];
   const params = [req.user.id];
   if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '')) { where.push('d.pay_date >= ?'); params.push(req.query.from); }
@@ -962,8 +964,9 @@ router.get('/dividends', (req, res) => {
   res.json({ dividends: list });
 });
 
-router.get('/dividends/yearly', (req, res) => {
+router.get('/dividends/yearly', async (req, res) => {
   const { from, to } = yearRange({ from: req.query.from || new Date().getFullYear() - 9, to: req.query.to });
+  await portfolio.ensureDividendRefs(req.user.id);
   res.json({ years: portfolio.dividendsByYear(req.user.id, from, to) });
 });
 

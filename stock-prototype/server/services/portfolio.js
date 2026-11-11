@@ -314,6 +314,17 @@ function dividendKrw(d) {
   return fx ? { krw: d.amount * fx.rate, fxRate: fx.rate } : { krw: null, fxRate: null };
 }
 
+// 배당을 원화로 바꾸려면 종목 통화(종목 정보)와 그날 환율이 필요하다.
+// 동기화·복원으로 막 받은 기기에는 아직 없을 수 있어(해외 배당이 원화로 잘못 계산됨) 먼저 채운다 (v0.26.17)
+async function ensureDividendRefs(userId) {
+  const codes = db.all(
+    `SELECT DISTINCT code FROM (SELECT code FROM holding_dividends WHERE user_id = ? UNION SELECT code FROM dividends WHERE user_id = ?)
+     WHERE code NOT IN (SELECT code FROM instruments)`, [userId, userId]
+  ).map((r) => r.code);
+  await mapLimit(codes, 4, async (c) => { try { await market.ensureInstrument(c); } catch (_) { /* 종목 정보 없으면 원화로 표시 */ } });
+  try { await market.getCurrentFx(); } catch (_) { /* 저장된 환율 사용 */ }
+}
+
 function dividendsByYear(userId, fromYear, toYear) {
   const list = db.all('SELECT * FROM dividends WHERE user_id = ? AND pay_date BETWEEN ? AND ?', [
     userId, `${fromYear}-01-01`, `${toYear}-12-31`,
@@ -439,6 +450,7 @@ async function getYearly(userId, fromYear, toYear) {
     }
   });
 
+  await ensureDividendRefs(userId);
   const divs = dividendsByYear(userId, fromYear, toYear);
   years.forEach((y) => {
     const d = divs.find((x) => x.year === y.year);
@@ -554,4 +566,4 @@ async function getStockDividends(userId, code, opts) {
   };
 }
 
-module.exports = { getStockDividends, getAssets, getYearly, dividendsByYear, dividendKrw, mapLimit };
+module.exports = { getStockDividends, getAssets, getYearly, dividendsByYear, dividendKrw, mapLimit, ensureDividendRefs };

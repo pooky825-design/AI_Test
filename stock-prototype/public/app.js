@@ -2441,17 +2441,19 @@
       const others = Object.keys(whole.users).filter((k) => k !== syncKey());
       const localHash = dataHash(local);
       const st = syncState();
+      // 무엇이 옮겨졌는지 알림에 함께 표시 (v0.26.17)
+      const what = (c) => { c = c || {}; return isEn() ? ` (holdings ${c.items || 0} · dividend rounds ${c.holdingDividends || 0} · dividend records ${c.dividends || 0} · shares ${c.shares || 0})` : ` (보유 종목 ${c.items || 0}건 · 배당 회차 ${c.holdingDividends || 0}건 · 배당 내역 ${c.dividends || 0}건 · 화면 공유 ${c.shares || 0}건)`; };
       const push = async (msg) => {
         await writeSyncFile(h, whole, local, localHash);
         saveSyncState({ lastHash: localHash, fileHash: localHash, at: new Date().toISOString() });
-        toast(msg || '이 기기의 데이터를 동기화 파일에 저장했습니다.');
+        toast((msg || '이 기기의 데이터를 동기화 파일에 저장했습니다.') + what(local.counts));
       };
       const pull = async (msg) => {
         await api('POST', '/restore', { backup: file.backup });
         const fresh = await api('GET', '/backup');
         saveSyncState({ lastHash: dataHash(fresh), fileHash: file.hash, at: new Date().toISOString() });
         await loadSettings();
-        toast(msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`);
+        toast((msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`) + what(fresh.counts));
         render();
       };
       if (!file) await push(others.length ? `동기화 파일에 이 사용자(${state.user.email})의 자료가 없어 새로 저장했습니다. 다른 사용자 자료 ${others.length}명분은 그대로 둡니다.` : '동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
@@ -2485,6 +2487,7 @@
           <tr><td class="left">그룹</td><td class="right">${lc.groups || 0}개</td><td class="right">${fc.groups || 0}개</td></tr>
           <tr><td class="left">주식 항목(연도별)</td><td class="right">${lc.items || 0}건</td><td class="right">${fc.items || 0}건</td></tr>
           <tr><td class="left">배당 관리 회차</td><td class="right">${lc.holdingDividends || 0}건</td><td class="right">${fc.holdingDividends || 0}건</td></tr>
+          <tr><td class="left" data-noi18n>${isEn() ? 'Dividend records' : '배당 내역'}</td><td class="right">${lc.dividends || 0}건</td><td class="right">${fc.dividends || 0}건</td></tr>
           <tr><td class="left">화면 공유</td><td class="right">${lc.shares || 0}건</td><td class="right">${fc.shares || 0}건</td></tr>
         </tbody></table>
         <div class="field-row" style="justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">
