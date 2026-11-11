@@ -310,7 +310,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // SC-01 로그인·회원가입·비밀번호 재설정
+  // SC-01 로그인·사용자 추가·비밀번호 재설정
   // ---------------------------------------------------------------------------
   // 언어 선택 (v0.26): 로그인 화면과 환경설정에서 한국어 / English 중 선택. 이 기기에 기억하고, 로그인 중이면 계정에도 저장
   function langSelectHtml() {
@@ -356,7 +356,7 @@
     body.innerHTML = `<p style="margin:0 0 10px">다른 기기와 화면을 공유하려면, 직접 만든 K-Stock 클라우드 서버(예: Oracle Cloud)에 연결하세요. 연결하면 이 앱은 그 서버의 화면과 데이터를 사용합니다.</p>
       <form class="stack" data-cform novalidate>
         <div class="field"><label>서버 주소</label><input name="url" placeholder="https://kstock.duckdns.org" value="${esc(cur)}" autocomplete="off" inputmode="url" /><span class="err" data-err="url"></span></div>
-        <div class="notice info small"><div><b>휴대폰에 있던 데이터를 옮기려면</b><br/>① 연결 전에 환경설정 → <b>백업 파일 저장</b> ② 연결 후 서버에서 회원가입·로그인 ③ 환경설정 → <b>백업 파일로 복원</b><br/>휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.</div></div>
+        <div class="notice info small"><div><b>휴대폰에 있던 데이터를 옮기려면</b><br/>① 연결 전에 환경설정 → <b>백업 파일 저장</b> ② 연결 후 서버에서 사용자 추가·로그인 ③ 환경설정 → <b>백업 파일로 복원</b><br/>휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.</div></div>
         <div class="field-row" style="justify-content:flex-end"><button type="button" class="secondary" data-close>취소</button><button type="submit">연결</button></div>
       </form>`;
     const f = body.querySelector('[data-cform]');
@@ -412,7 +412,7 @@
         <div class="notice error" data-msg hidden></div>
         <button type="submit">로그인</button>
       </form>
-      <div class="links"><a href="#/signup">회원가입</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
+      <div class="links"><a href="#/signup">사용자 추가</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
       ${state.server.demo ? '<div class="demo-box">데모 계정: <b>demo@example.com</b> / <b>demo1234</b><br/>보유 종목 5개와 배당 내역이 미리 들어 있습니다.</div>' : ''}
       ${cloudLoginBox(query)}`);
     bindCloudBox($app);
@@ -477,14 +477,14 @@
   }
 
   function viewSignup() {
-    const form = authPage('회원가입', '이메일과 비밀번호로 가입합니다. <span class="req">FR-AUTH-01</span>', `
+    const form = authPage('사용자 추가', '이메일과 비밀번호로 새 사용자를 추가합니다. <span class="req">FR-AUTH-01</span>', `
       <div class="notice info small" style="margin-top:14px">${state.server.cloud ? '이 서버는 가입 즉시 계정이 활성화됩니다. 비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.' : '프로토타입에서는 이메일 인증 절차를 생략하고 가입 즉시 계정이 활성화됩니다.'}</div>
       <form class="stack" novalidate style="margin-top:4px">
         <div class="field"><label>이메일</label><input name="email" type="email" autocomplete="username" /><span class="err" data-err="email"></span></div>
         <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="password"></span></div>
         <div class="field"><label>비밀번호 확인</label><input name="password2" type="password" autocomplete="new-password" /><span class="err" data-err="password2"></span></div>
         ${state.server.signupCode ? '<div class="field"><label>가입 코드</label><input name="signupCode" autocomplete="off" /><span class="hint">서버 관리자에게 받은 코드</span><span class="err" data-err="signupCode"></span></div>' : ''}
-        <button type="submit">가입하기</button>
+        <button type="submit">사용자 추가</button>
       </form>
       <div class="links"><a href="#/login">← 로그인으로</a></div>`);
     form.addEventListener('submit', async (e) => {
@@ -494,7 +494,7 @@
       try {
         const r = await api('POST', '/auth/signup', { email: d.email, password: d.password, signupCode: d.signupCode });
         state.user = r.user;
-        toast('가입이 완료되었습니다.');
+        toast('사용자를 추가했습니다.');
         go('#/assets');
       } catch (err) {
         showFieldErrors(form, err.fields || {});
@@ -2054,7 +2054,7 @@
           <p class="small muted" style="margin:10px 0 0">이 휴대폰 모드로 바꾸면 휴대폰 안에 저장된 데이터를 씁니다. 서버의 데이터는 그대로 남습니다.</p>`
         : `<p style="margin:0 0 10px">지금은 <b>이 휴대폰 모드</b>입니다(데이터가 휴대폰 안에만 있어 같은 휴대폰의 계정끼리만 공유 가능). 다른 기기와 공유하려면 직접 만든 K-Stock 클라우드 서버(Oracle Cloud 등)에 연결하세요.</p>
           <div class="field-row"><button data-cloud>클라우드 서버에 연결</button></div>
-          <p class="small muted" style="margin:10px 0 0">데이터 옮기기: 연결 전에 아래 <b>백업 파일 저장</b> → 연결 후 서버에서 회원가입·로그인 → <b>백업 파일로 복원</b>. 서버 만드는 방법은 README의 ‘클라우드 서버(Oracle Cloud)’ 안내를 보세요.</p>`}
+          <p class="small muted" style="margin:10px 0 0">데이터 옮기기: 연결 전에 아래 <b>백업 파일 저장</b> → 연결 후 서버에서 사용자 추가·로그인 → <b>백업 파일로 복원</b>. 서버 만드는 방법은 README의 ‘클라우드 서버(Oracle Cloud)’ 안내를 보세요.</p>`}
       </div>` : ''}
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
@@ -2101,11 +2101,11 @@
           </form>
         </div>
         <div class="card" data-fold="withdraw">
-          <h2>회원 탈퇴</h2>
-          <div class="notice warn"><div>탈퇴하면 계정, 보유 종목, 배당 내역이 모두 삭제되며 복구할 수 없습니다. ${req('NFR-PRI-01')}</div></div>
+          <h2>사용자 삭제</h2>
+          <div class="notice warn"><div>사용자를 삭제하면 계정, 보유 종목, 배당 내역이 모두 삭제되며 복구할 수 없습니다. ${req('NFR-PRI-01')}</div></div>
           <form data-del novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
             <div class="field"><label>비밀번호 확인</label><input type="password" name="password" autocomplete="current-password" /><span class="err" data-err="password"></span></div>
-            <div><button type="submit" class="danger">회원 탈퇴</button></div>
+            <div><button type="submit" class="danger">사용자 삭제</button></div>
           </form>
         </div>
       </div>`);
@@ -2131,12 +2131,12 @@
     const del = main.querySelector('[data-del]');
     del.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!confirm('정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
+      if (!confirm('정말 이 사용자를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
       try {
         await api('DELETE', '/auth/account', formData(del));
         state.user = null;
         resetShareState();
-        toast('탈퇴가 완료되었습니다.');
+        toast('사용자를 삭제했습니다.');
         go('#/login');
       } catch (err) {
         showFieldErrors(del, err.fields);

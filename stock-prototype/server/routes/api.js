@@ -230,7 +230,7 @@ router.post('/shares', (req, res) => {
   const emailErr = validateEmail(email);
   if (emailErr) return res.status(400).json({ error: emailErr, code: 'VALIDATION', fields: { email: emailErr } });
   const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
-  if (!viewer) return res.status(400).json({ error: '가입하지 않은 이메일입니다. 상대방이 먼저 회원가입해야 공유할 수 있습니다.', code: 'VALIDATION', fields: { email: '가입하지 않은 이메일입니다.' } });
+  if (!viewer) return res.status(400).json({ error: '등록되지 않은 이메일입니다. 상대방을 먼저 사용자로 추가해야 공유할 수 있습니다.', code: 'VALIDATION', fields: { email: '가입하지 않은 이메일입니다.' } });
   if (viewer.id === req.user.id) return res.status(400).json({ error: '본인에게는 공유할 수 없습니다.', code: 'VALIDATION', fields: { email: '본인 이메일입니다.' } });
   const perms = cleanPerms(req.body.perms);
   if (!Object.keys(perms).length) return res.status(400).json({ error: '공유할 화면을 하나 이상 고르세요.', code: 'VALIDATION' });
@@ -273,7 +273,7 @@ router.post('/auth/change-password', async (req, res) => {
   res.json({ ok: true });
 });
 
-// 회원 탈퇴: 계정·보유 종목·배당 내역 삭제 (FR-AUTH-04, NFR-PRI-01)
+// 사용자 삭제(회원 탈퇴): 계정·보유 종목·배당 내역 삭제 (FR-AUTH-04, NFR-PRI-01)
 router.delete('/auth/account', async (req, res) => {
   const user = db.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
   if (!(await bcrypt.compare(String(req.body.password || ''), user.password_hash))) {
