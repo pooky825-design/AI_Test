@@ -155,10 +155,10 @@ router.use(auth.requireAuth);
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
   { id: 'assets', label: '나의 자산', edit: false },
-  { id: 'yearly', label: '연도별 자산 (요약)', edit: false },
-  { id: 'stock', label: '종목 정보 조회', edit: false },
+  { id: 'stock', label: '종목 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
-  { id: 'divmgmt', label: '배당 내역 관리', edit: true },
+  { id: 'divmgmt', label: '배당 관리', edit: true },
+  { id: 'yearly', label: '연도별 자산 · 배당', edit: false },
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
