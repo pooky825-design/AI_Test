@@ -36,7 +36,9 @@
       const lead = str.slice(0, str.indexOf(core));
       return lead + DICT[core] + str.slice(lead.length + core.length);
     }
-    let out = BIG ? str.replace(BIG, (m) => DICT[m]) : str;
+    // 숫자 뒤에 붙는 단어 중 사전보다 먼저 바꿔야 하는 것
+    let out = str.replace(/(\d[\d,]*)\s?종목/g, '$1 stocks');
+    out = BIG ? out.replace(BIG, (m) => DICT[m]) : out;
     for (const [re, to] of RULES) out = out.replace(re, to);
     return out;
   }
