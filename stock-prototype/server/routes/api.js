@@ -387,6 +387,12 @@ function instInfo(code) {
 
 // 그 해의 주식 항목 (그룹 선택 가능) + 연말 보유 종목 합계(배당 화면 종목 목록 등에 사용) (v0.8)
 // 각 항목: 수량·평균 매입단가(그 해 말), 이월 여부(전년 말에도 보유), 평가금액(올해 현재가 / 지난 연도 연말 종가)
+// 그 해 항목에 저장한 숫자 칸 계산식 (v0.26.7)
+function parseFormulas(userId, groupId, code, year) {
+  const r = db.get('SELECT formulas FROM holding_items WHERE user_id = ? AND group_id = ? AND code = ? AND year = ?', [userId, groupId, code, year]);
+  if (!r || !r.formulas) return null;
+  try { return JSON.parse(r.formulas); } catch (_) { return null; }
+}
 router.get('/holdings', async (req, res) => {
   const ty = thisYear();
   const year = Math.min(Number(req.query.year) || ty, ty);
@@ -418,6 +424,7 @@ router.get('/holdings', async (req, res) => {
       name: inst.name, market: inst.market, type: inst.type, currency: inst.currency,
       quantity: p.quantity, avg_price: p.avgPrice, purchase_amount: p.quantity * p.avgPrice,
       memo: p.memo, created_at: p.createdAt, updated_at: p.lastTradeAt,
+      formulas: p.itemYear === year ? parseFormulas(req.user.id, p.groupId, p.code, year) : null,
       carried: p.carried, carry_mode: p.carryMode, item_year: p.itemYear, category: c.id, category_label: c.label,
     };
   });
@@ -614,6 +621,15 @@ async function validateItem(body, userId) {
   const cqRaw = String(body.carriedQty ?? '').trim().replace(/,/g, '');
   const cq = !cqRaw || cqRaw === '-' ? { value: null } : /^\d+(\.\d{1,6})?$/.test(cqRaw) ? { value: Number(cqRaw) } : { error: '0 이상의 숫자를 입력해 주세요(소수 6자리까지).' };
   const memo = String(body.memo || '');
+  // 숫자 칸 계산식 (v0.26.7): '=' 로 시작하고 숫자·사칙연산·괄호만, 칸마다 100자 이내. 계산은 화면에서 하고 결과값을 함께 보낸다
+  const FORMULA_FIELDS = ['quantity', 'purchaseAmount', 'carryAmount', 'carriedQty'];
+  const formulas = {};
+  if (body.formulas && typeof body.formulas === 'object') {
+    for (const k of FORMULA_FIELDS) {
+      const f = String(body.formulas[k] ?? '').trim();
+      if (/^=[\d\s.,+\-*/()×÷]{1,99}$/.test(f)) formulas[k] = f;
+    }
+  }
   fieldErrors({
     groupId: group ? null : '그룹을 선택해 주세요.',
     code: codeErr,
@@ -629,7 +645,7 @@ async function validateItem(body, userId) {
     memo: memo.length > 200 ? '메모는 200자 이내로 입력해 주세요.' : null,
   });
   const inst = await market.ensureInstrument(code); // 없는 코드면 NOT_FOUND
-  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null, realizedPnl: realized.value, carryAmount: carry.value, carryQty: cq.value };
+  return { code: inst.code, groupId, category, carryMode, year, quantity: q.value, avgPrice: p.value, memo: memo || null, realizedPnl: realized.value, carryAmount: carry.value, carryQty: cq.value, formulas: Object.keys(formulas).length ? JSON.stringify(formulas) : null };
 }
 
 // 이월액 결정 (v0.11): 이월이면 입력값 → 기존 고정값 → (처음) 전년 말 수량 × 전년 마지막 종가로 계산해 고정. 신규면 없음
@@ -666,11 +682,11 @@ function upsertItem(userId, v) {
     realized = ex ? ex.realized_pnl : null;
   }
   db.run(
-    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, carry_qty, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, carry_qty, formulas, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = excluded.quantity, avg_price = excluded.avg_price,
-       memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, carry_amount = excluded.carry_amount, carry_qty = excluded.carry_qty, updated_at = excluded.updated_at`,
-    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, realized, carry, carryQty, now(), now()]
+       memo = excluded.memo, carry_mode = excluded.carry_mode, realized_pnl = excluded.realized_pnl, carry_amount = excluded.carry_amount, carry_qty = excluded.carry_qty, formulas = excluded.formulas, updated_at = excluded.updated_at`,
+    [userId, v.groupId, v.code, v.year, v.quantity, v.avgPrice, v.memo, v.carryMode, realized, carry, carryQty, v.formulas ?? null, now(), now()]
   );
   categories.setCategory(userId, v.code, v.category); // 종목 분류는 회원·종목별로 하나
 }
@@ -712,7 +728,7 @@ router.delete('/holdings/items', (req, res) => {
     db.run(
       `INSERT INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, realized_pnl, created_at, updated_at)
        VALUES (?, ?, ?, ?, 0, NULL, '전량 매도', ?, ?, ?)
-       ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = 0, avg_price = NULL, memo = '전량 매도', realized_pnl = excluded.realized_pnl, updated_at = excluded.updated_at`,
+       ON CONFLICT(user_id, group_id, code, year) DO UPDATE SET quantity = 0, avg_price = NULL, memo = '전량 매도', formulas = NULL, realized_pnl = excluded.realized_pnl, updated_at = excluded.updated_at`,
       [req.user.id, groupId, code, year, realized.value, now(), now()]
     );
   } else {
@@ -966,7 +982,7 @@ const BACKUP_VERSION = 1;
 const pick = (row, cols) => Object.fromEntries(cols.map((c) => [c, row[c] ?? null]));
 const COLS = {
   groups: ['id', 'name', 'sort_order', 'created_at'],
-  items: ['group_id', 'code', 'year', 'quantity', 'avg_price', 'memo', 'carry_mode', 'realized_pnl', 'carry_amount', 'carry_qty', 'created_at', 'updated_at'],
+  items: ['group_id', 'code', 'year', 'quantity', 'avg_price', 'memo', 'carry_mode', 'realized_pnl', 'carry_amount', 'carry_qty', 'formulas', 'created_at', 'updated_at'],
   categories: ['code', 'category', 'updated_at'],
   settings: ['key', 'value', 'updated_at'],
   dividends: ['code', 'pay_date', 'amount', 'currency', 'memo', 'created_at'],
@@ -1014,9 +1030,9 @@ router.post('/restore', (req, res) => {
     let n = 0;
     for (const r of arr('items')) {
       if (!gid(r.group_id) || !r.code || !Number.isInteger(Number(r.year))) continue;
-      db.run(`INSERT OR REPLACE INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, carry_qty, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [uid, gid(r.group_id), String(r.code), Number(r.year), Number(r.quantity) || 0, r.avg_price, r.memo, r.carry_mode, r.realized_pnl, r.carry_amount, r.carry_qty, r.created_at || t, r.updated_at || t]);
+      db.run(`INSERT OR REPLACE INTO holding_items (user_id, group_id, code, year, quantity, avg_price, memo, carry_mode, realized_pnl, carry_amount, carry_qty, formulas, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uid, gid(r.group_id), String(r.code), Number(r.year), Number(r.quantity) || 0, r.avg_price, r.memo, r.carry_mode, r.realized_pnl, r.carry_amount, r.carry_qty, typeof r.formulas === 'string' && r.formulas.length <= 600 ? r.formulas : null, r.created_at || t, r.updated_at || t]);
       n++;
     }
     counts.items = n;

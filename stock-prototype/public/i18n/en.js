@@ -700,7 +700,17 @@ window.I18N_EN = {
 "이 종목은 실적 자료가 없습니다.": "No earnings data for this stock.",
 "투자지표·실적을 가져오지 못했습니다. 잠시 뒤": "Couldn't load valuation and earnings. Try again later with",
 "으로 다시 시도하세요.": ".",
-"단위: 억원(영업이익률은 %) · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처": "Unit: 100M KRW (margin in %) · consolidated statements · est. = analyst consensus · Source",
+"단위: 억원(영업이익률은 %) · 전분기·전년 대비 = 바로 앞 기간보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처": "Unit: 100M KRW (margin in %) · QoQ/YoY = change vs the previous period · consolidated statements · est. = analyst consensus · Source",
 "(최신 값이 아닐 수 있음)": "(may be outdated)",
-"· 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.": "· cached 6 hours · for reference only."
+"· 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.": "· cached 6 hours · for reference only.",
+"숫자 칸(이월 수량·총 수량·총 매입금액·이월 금액)은": "Number fields (carried qty, total qty, total cost, carry amount) accept formulas: start with",
+"처럼": "like",
+"로 시작하면 사칙연산(+ − × ÷, 괄호)으로 계산합니다. 칸을 벗어나면 결과가 보이고, 다시 누르면 계산식을 고칠 수 있습니다.": "to calculate (+ − × ÷, parentheses). The result shows when you leave the field; tap it again to edit the formula.",
+"계산식을 확인해 주세요. 예: = 10+30": "Check the formula. e.g. = 10+30",
+"전분기 대비": "QoQ",
+"흑자 전환": "Turned profit",
+"적자 전환": "Turned loss",
+"적자 지속": "Loss continued",
+"적자 축소": "Loss narrowed",
+"적자 확대": "Loss widened"
 };

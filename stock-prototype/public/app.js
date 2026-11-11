@@ -1139,13 +1139,23 @@
     const p2 = (v) => (v == null ? '<span class="muted">-</span>' : `${v.toFixed(2)}%`);
     const ratio = (r, unit) => (r && r.value != null ? `${r.value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}${unit}` : '-');
     const asOf = (r) => (r && r.asOf ? `<small class="muted">${esc(r.asOf)} 기준</small>` : '');
-    const finTable = (title, list) => {
+    // 증감 (v0.26.7): 분기는 전분기 대비, 연간은 전년 대비. 적자가 끼면 전환·지속으로 표시
+    const growth = (cur, prev) => {
+      if (cur == null || prev == null) return '<span class="muted">-</span>';
+      if (prev > 0 && cur < 0) return '<span class="down">적자 전환</span>';
+      if (prev <= 0 && cur > 0) return prev === 0 ? '<span class="muted">-</span>' : '<span class="up">흑자 전환</span>';
+      if (prev < 0 && cur <= 0) return cur > prev ? '<span class="up">적자 축소</span>' : cur < prev ? '<span class="down">적자 확대</span>' : '<span class="muted">적자 지속</span>';
+      const g = (cur - prev) / Math.abs(prev);
+      return `<span class="${g > 0 ? 'up' : g < 0 ? 'down' : ''}">${g > 0 ? '+' : ''}${(g * 100).toFixed(1)}%</span>`;
+    };
+    const finTable = (title, list, vsLabel) => {
       if (!list.length) return '';
       const head = list.map((x) => `<th class="num${x.estimate ? ' est' : ''}">${esc(x.period)}${x.estimate ? '<br/><small>(추정)</small>' : ''}</th>`).join('');
       const row = (label, fn) => `<tr><th class="left">${label}</th>${list.map((x) => `<td class="num${x.estimate ? ' est' : ''}">${fn(x)}</td>`).join('')}</tr>`;
+      const vsRow = (k) => `<tr class="vs-row"><th class="left">${vsLabel}</th>${list.map((x, j) => `<td class="num${x.estimate ? ' est' : ''}">${j ? growth(x[k], list[j - 1][k]) : '<span class="muted">-</span>'}</td>`).join('')}</tr>`;
       return `<h3 class="fund-sub">${title}</h3><div class="table-wrap"><table class="fund-table">
         <thead><tr><th class="left">항목</th>${head}</tr></thead>
-        <tbody>${row('매출액', (x) => n(x.revenue))}${row('영업이익', (x) => `<b>${n(x.op)}</b>`)}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}</tbody>
+        <tbody>${row('매출액', (x) => n(x.revenue))}${vsRow('revenue')}${row('영업이익', (x) => `<b>${n(x.op)}</b>`)}${vsRow('op')}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}${vsRow('net')}</tbody>
       </table></div>`;
     };
     card.hidden = false;
@@ -1156,8 +1166,8 @@
         <div class="kpi"><div class="label">PBR</div><div class="value">${ratio(f.pbr, '배')}</div>${asOf(f.pbr)}</div>
         <div class="kpi"><div class="label">EPS · BPS</div><div class="value small-v">${ratio(f.eps, '원')} · ${ratio(f.bps, '원')}</div></div>
       </div>
-      ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : `${finTable('분기 실적', f.quarters)}${finTable('연간 실적', f.annual)}`}
-      <p class="small muted" style="margin:8px 0 0">단위: 억원(영업이익률은 %) · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p>`;
+      ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : `${finTable('분기 실적', f.quarters, '전분기 대비')}${finTable('연간 실적', f.annual, '전년 대비')}`}
+      <p class="small muted" style="margin:8px 0 0">단위: 억원(영업이익률은 %) · 전분기·전년 대비 = 바로 앞 기간보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p>`;
   }
 
   function drawPriceChart(canvas, prices, cur) {
@@ -1187,6 +1197,84 @@
   // ---------------------------------------------------------------------------
   // SC-04 보유 종목 관리
   // ---------------------------------------------------------------------------
+  // 숫자 칸 사칙연산 (v0.26.7): '= 10+30' 처럼 = 로 시작하면 계산한다. 칸을 벗어나면 결과(40)를 보여 주고,
+  // 다시 칸을 누르면 입력한 계산식을 그대로 보여 준다. 허용: 숫자·소수점·쉼표, + − × ÷ (* / 도 가능), 괄호
+  function evalFormula(text) {
+    const src = String(text || '').trim().replace(/^=/, '').replace(/,/g, '').replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+    if (!src || /[^\d\s.+\-*/()]/.test(src)) return null;
+    let i = 0;
+    const peek = () => { while (src[i] === ' ') i++; return src[i]; };
+    const factor = () => {
+      const c = peek();
+      if (c === '+') { i++; return factor(); }
+      if (c === '-') { i++; return -factor(); }
+      if (c === '(') { i++; const v = expr(); if (peek() !== ')') throw new Error('paren'); i++; return v; }
+      const m = /^(\d+(\.\d*)?|\.\d+)/.exec(src.slice(i));
+      if (!m) throw new Error('num');
+      i += m[0].length;
+      return Number(m[0]);
+    };
+    const term = () => {
+      let v = factor();
+      for (;;) {
+        const c = peek();
+        if (c === '*') { i++; v *= factor(); } else if (c === '/') { i++; const dv = factor(); if (dv === 0) throw new Error('div0'); v /= dv; } else return v;
+      }
+    };
+    function expr() {
+      let v = term();
+      for (;;) {
+        const c = peek();
+        if (c === '+') { i++; v += term(); } else if (c === '-') { i++; v -= term(); } else return v;
+      }
+    }
+    try {
+      const v = expr();
+      return peek() === undefined && Number.isFinite(v) ? v : null;
+    } catch (_) { return null; }
+  }
+  const isFormula = (v) => /^\s*=/.test(String(v || ''));
+  // 칸의 숫자 값: 계산식이면 계산 결과, 아니면 쉼표를 뺀 숫자
+  const calcValue = (input) => (isFormula(input.value) ? evalFormula(input.value) : Number(String(input.value || '').replace(/,/g, '')));
+  function mountCalcInput(input, { decimals = 4 } = {}) {
+    const err = () => input.closest('.field') && input.closest('.field').querySelector(`[data-err="${input.name}"]`);
+    const mark = () => {
+      const f = input.dataset.formula;
+      input.classList.toggle('has-formula', !!f);
+      input.title = f ? `계산식 ${f} (칸을 누르면 고칠 수 있음)` : '';
+    };
+    input._commit = () => {
+      if (input.readOnly) return true;
+      const v = input.value.trim();
+      // 결과값이 그대로 보이는 상태면 계산식 유지, 숫자를 직접 고쳤으면 계산식 지움
+      if (!isFormula(v)) { if (v !== input.dataset.shown) { delete input.dataset.formula; delete input.dataset.shown; } mark(); return true; }
+      const r = evalFormula(v);
+      const e = err();
+      if (r == null) { if (e) e.textContent = '계산식을 확인해 주세요. 예: = 10+30'; input.classList.add('invalid'); return false; }
+      input.dataset.formula = v.replace(/^\s*=\s*/, '= ');
+      input.value = String(Number(r.toFixed(decimals)));
+      input.dataset.shown = input.value;
+      if (e) e.textContent = '';
+      input.classList.remove('invalid');
+      mark();
+      return true;
+    };
+    input._setFormula = (f) => {
+      if (f && isFormula(f)) { input.dataset.formula = f; input.dataset.shown = input.value.trim(); } else { delete input.dataset.formula; delete input.dataset.shown; }
+      mark();
+    };
+    input.addEventListener('focus', () => {
+      if (input.readOnly || !input.dataset.formula) return;
+      // Tab 으로 들어와 전체가 선택된 상태였으면 계산식도 전체 선택 (바로 덮어쓰기 가능)
+      const wasAll = input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length;
+      input.value = input.dataset.formula;
+      if (wasAll) input.select();
+    });
+    input.addEventListener('blur', () => { input._commit(); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && isFormula(input.value)) input._commit(); });
+    mark();
+  }
+
   async function viewHoldings(query) {
     // 종목 조회에서 ‘보유 종목으로 등록’으로 들어오면 올해, 아니면 마지막으로 본 연도·그룹
     const year = Math.min(Number(query.year) || (query.code ? THIS_YEAR : Number(settings.get('holdings.year')) || THIS_YEAR), THIS_YEAR);
@@ -1209,14 +1297,15 @@
           <div class="field" data-f="code" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" data-f="category" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
-          <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" inputmode="decimal" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
-          <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" inputmode="decimal" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
-          <div class="field" data-f="amount" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" inputmode="decimal" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
+          <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
+          <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" data-f="amount" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" autocomplete="off" spellcheck="false" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" data-f="avg" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
-          <div class="field" data-f="carry" style="width:160px" data-basis-field><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" inputmode="decimal" placeholder="비우면 자동 계산" /><span class="hint" data-basis-hint>비우면 이월 수량 × 전년 종가</span><span class="err" data-err="carryAmount"></span></div>
+          <div class="field" data-f="carry" style="width:160px" data-basis-field><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" autocomplete="off" spellcheck="false" placeholder="비우면 자동 계산" /><span class="hint" data-basis-hint>비우면 이월 수량 × 전년 종가</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" data-f="memo" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field" data-f="buttons"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
+        <p class="small muted calc-tip" style="margin:6px 0 0">숫자 칸(이월 수량·총 수량·총 매입금액·이월 금액)은 <b>= 10+30</b>처럼 <b>=</b>로 시작하면 사칙연산(+ − × ÷, 괄호)으로 계산합니다. 칸을 벗어나면 결과가 보이고, 다시 누르면 계산식을 고칠 수 있습니다.</p>
         <div data-msg></div>
       </div>
       <div class="card" data-fold="list"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
@@ -1265,17 +1354,18 @@
     form.code.addEventListener('change', lookup);
     // 평균 매입단가 자동 계산 = 매입금액 ÷ 보유 수량
     const calcAvg = () => {
-      const q = Number(String(form.quantity.value).replace(/,/g, ''));
-      const a = Number(String(form.purchaseAmount.value).replace(/,/g, ''));
+      const q = calcValue(form.quantity);
+      const a = calcValue(form.purchaseAmount);
       form.avgPrice.value = q > 0 && a > 0 ? String(Number((a / q).toFixed(4))) : '';
     };
     form.quantity.addEventListener('input', calcAvg);
     form.purchaseAmount.addEventListener('input', calcAvg);
+    const CALC_FIELDS = { quantity: 6, purchaseAmount: 4, carryAmount: 4, carriedQty: 6 };
+    Object.entries(CALC_FIELDS).forEach(([k, dec]) => mountCalcInput(form[k], { decimals: dec }));
     // 이월 여부 (v0.12.3): 화면에 칸을 두지 않고, 이월 금액 또는 (입력 가능한) 이월 수량이 있으면 이월, 없으면 신규
     const decideCarryMode = () => {
-      const num = (v) => Number(String(v || '').replace(/,/g, ''));
-      const qtyTyped = !form.carriedQty.readOnly && num(form.carriedQty.value) > 0;
-      form.carryMode.value = num(form.carryAmount.value) > 0 || qtyTyped ? 'CARRIED' : 'NEW';
+      const qtyTyped = !form.carriedQty.readOnly && calcValue(form.carriedQty) > 0;
+      form.carryMode.value = calcValue(form.carryAmount) > 0 || qtyTyped ? 'CARRIED' : 'NEW';
     };
     const carryHintPlain = (it) => (it.basis_carried_qty > 1e-9 && it.basis_start_close != null
       ? `자동값 ${money(it.carry_auto, it.currency)} = ${qty(it.basis_carried_qty)}주 × ${money(it.basis_start_close, it.currency)}`
@@ -1287,6 +1377,7 @@
     };
     const resetForm = () => {
       form.reset();
+      Object.keys(CALC_FIELDS).forEach((k) => form[k]._setFormula(null));
       // 등록 화면: 수정 화면과 같은 배치, 이월 수량·이월 금액은 전년부터 보유한 종목만 입력
       form.carriedQty.readOnly = false;
       form.carriedQty.classList.remove('auto-calc');
@@ -1312,8 +1403,13 @@
       msg.innerHTML = '';
       // 종목코드를 입력하고 바로 등록을 누른 경우: 종목 확인(분류 추천값 채우기)을 먼저 끝낸다
       if (!form.code.disabled && form.code.value.trim() && form.code.value.trim().toUpperCase() !== lookedUp) await lookup();
+      // 계산식 칸: 아직 칸을 벗어나지 않았으면 여기서 계산 (잘못된 계산식이면 저장하지 않음)
+      if (!Object.keys(CALC_FIELDS).every((k) => form[k]._commit())) return;
+      calcAvg();
       decideCarryMode();
-      const d = { ...formData(form), code: form.code.value, groupId: form.groupId.value, year };
+      const formulas = {};
+      Object.keys(CALC_FIELDS).forEach((k) => { if (form[k].dataset.formula) formulas[k] = form[k].dataset.formula; });
+      const d = { ...formData(form), code: form.code.value, groupId: form.groupId.value, year, formulas };
       const btn = form.querySelector('[data-submit]');
       btn.disabled = true;
       try {
@@ -1436,6 +1532,8 @@
         ? `<span class="tip" data-tip="이월 금액(전년) 기준" tabindex="0">${money(it.carry_amount, it.currency)}</span>`
         : `<span class="tip" data-tip="이월 금액이 없어 총 매입금액 기준" tabindex="0">${money(it.purchase_amount, it.currency)}</span>`);
       const dash = '<span class="muted">-</span>';
+      // 계산식으로 입력한 칸 표시 (v0.26.7): 작은 ƒ 표시를 누르면 계산식을 보여 준다
+      const fx = (it, k) => (it.formulas && it.formulas[k] ? `<span class="fx-mark tip" data-tip="계산식 ${esc(it.formulas[k])}" tabindex="0" data-noi18n>ƒ</span>` : '');
       const rows = d.items.map((it, idx) => {
         let head = '';
         if (!groupId && it.group_id !== lastGroup) {
@@ -1446,8 +1544,8 @@
           <td class="left"><div class="name-cell"><span>${ud(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
           <td class="right">${hasCarry(it) ? qty(it.basis_carried_qty) : dash}</td>
           <td class="right">${hasCarry(it) ? basisCell(it) : dash}</td>
-          <td class="right">${qty(it.quantity)}</td>
-          <td class="right">${money(it.purchase_amount, it.currency)}</td>
+          <td class="right">${fx(it, 'quantity')}${qty(it.quantity)}</td>
+          <td class="right">${fx(it, 'purchaseAmount')}${money(it.purchase_amount, it.currency)}</td>
           <td class="right">${it.quantity > 0 ? money(it.purchase_amount / it.quantity, it.currency) : dash}</td>
           <td class="right"><b>${baseCell(it)}</b></td>
           <td class="small" data-noi18n>${esc(it.memo || '')}</td>
@@ -1509,6 +1607,8 @@
           form.carriedQty.value = carriedNow ? String(it.basis_carried_qty) : (it.carry_has_prev ? '-' : '');
           main.querySelector('[data-cqty-hint]').textContent = it.carry_has_prev ? '전년 말 보유 수량' : '전년부터 보유 시 입력';
           form.querySelector('[data-carry]').hidden = true;
+          // 저장한 계산식 (v0.26.7): 칸에는 결과값, 칸을 누르면 계산식
+          Object.keys(CALC_FIELDS).forEach((k) => form[k]._setFormula(it.formulas && it.formulas[k]));
           lookup();
           main.querySelector('[data-form-title]').innerHTML = `${year}년 종목 수정 · ${ud(it.group_name)} ${req('FR-HLD-02')}`;
           const formCard = main.querySelector('[data-fold="form"]');

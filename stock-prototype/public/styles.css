@@ -519,3 +519,9 @@ body.ro .ro-hide, body.ro [data-edit], body.ro [data-del], body.ro [data-manage]
 .fund-table tbody th { font-weight: 600; }
 .fund-table th.left { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); }
 @media (max-width: 640px) { .fund-kpis .value { font-size: 15px; } .fund-kpis .value.small-v { font-size: 13px; } }
+
+/* 숫자 칸 계산식 (v0.26.7) */
+input.has-formula { background-image: linear-gradient(transparent, transparent); box-shadow: inset 3px 0 0 var(--t-400, var(--primary)); }
+.fx-mark { display: inline-block; font-style: italic; font-weight: 700; font-size: 11px; color: var(--t-700); background: var(--t-100); border-radius: 4px; padding: 0 4px; margin-right: 4px; border-bottom: none; vertical-align: 1px; }
+.fund-table tr.vs-row th, .fund-table tr.vs-row td { font-size: 12px; padding-top: 4px; padding-bottom: 6px; }
+.fund-table tr.vs-row th.left { padding-left: 22px; font-weight: 500; color: var(--muted); }
