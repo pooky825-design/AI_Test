@@ -79,6 +79,7 @@ router.post('/auth/signup', async (req, res) => {
   const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
   // 프로토타입: 이메일 인증 절차 생략 → 가입 즉시 활성화
   const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [email, hash, now()]);
+  applyPendingShares(lastId, email);
   auth.createSession(res, lastId);
   res.json({ user: { id: lastId, email } });
 });
@@ -208,6 +209,17 @@ router.use((req, res, next) => {
   next();
 });
 
+// 대기 중인 공유(동기화로 받았지만 상대가 이 기기에 없던 것)를 새 사용자에게 적용 (v0.26.9)
+function applyPendingShares(userId, email) {
+  const rows = db.all('SELECT * FROM pending_shares WHERE lower(viewer_email) = ?', [String(email).toLowerCase()]);
+  for (const r of rows) {
+    if (r.owner_id === userId) continue;
+    db.run(`INSERT INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`, [r.owner_id, userId, r.perms, r.created_at, r.updated_at]);
+  }
+  db.run('DELETE FROM pending_shares WHERE lower(viewer_email) = ?', [String(email).toLowerCase()]);
+}
+
 const shareOut = (r, emailKey) => {
   let perms = {};
   try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ }
@@ -222,7 +234,9 @@ router.get('/shares', (req, res) => {
     `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.owner_id
      WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'))
     .filter((r) => Object.keys(r.perms).length);
-  res.json({ screens: SHARE_SCREENS, given, received });
+  const pending = db.all('SELECT viewer_email AS email, perms, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY viewer_email', [req.user.id])
+    .map((r) => { let perms = {}; try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ } return { email: r.email, perms, updated_at: r.updated_at }; });
+  res.json({ screens: SHARE_SCREENS, given, received, pending });
 });
 
 router.post('/shares', (req, res) => {
@@ -239,6 +253,7 @@ router.post('/shares', (req, res) => {
      ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`,
     [req.user.id, viewer.id, JSON.stringify(perms), now(), now()]
   );
+  db.run('DELETE FROM pending_shares WHERE owner_id = ? AND lower(viewer_email) = ?', [req.user.id, email]);
   res.json({ ok: true });
 });
 
@@ -251,6 +266,12 @@ router.put('/shares/:id', (req, res) => {
     return res.json({ ok: true, removed: true });
   }
   db.run('UPDATE screen_shares SET perms = ?, updated_at = ? WHERE id = ?', [JSON.stringify(perms), now(), row.id]);
+  res.json({ ok: true });
+});
+
+// 대기 중인 공유 해제 (v0.26.9)
+router.delete('/shares/pending', (req, res) => {
+  db.run('DELETE FROM pending_shares WHERE owner_id = ? AND lower(viewer_email) = ?', [req.user.id, String(req.query.email || '').toLowerCase()]);
   res.json({ ok: true });
 });
 
@@ -289,6 +310,7 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM stock_categories WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM screen_shares WHERE owner_id = ? OR viewer_id = ?', [user.id, user.id]);
+    db.run('DELETE FROM pending_shares WHERE owner_id = ?', [user.id]);
     db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM users WHERE id = ?', [user.id]);
@@ -998,6 +1020,9 @@ router.get('/backup', (req, res) => {
     settings: db.all('SELECT * FROM user_settings WHERE user_id = ?', [uid]).map((r) => pick(r, COLS.settings)),
     dividends: db.all('SELECT * FROM dividends WHERE user_id = ? ORDER BY pay_date, id', [uid]).map((r) => pick(r, COLS.dividends)),
     holdingDividends: db.all('SELECT * FROM holding_dividends WHERE user_id = ? ORDER BY ex_date, id', [uid]).map((r) => pick(r, COLS.holdingDividends)),
+    // 화면 공유 (v0.26.9): 내가 준 공유를 상대 이메일로 저장(기기마다 사용자 번호가 다르므로). 대기 중인 공유 포함
+    shares: db.all(`SELECT lower(u.email) AS viewer_email, s.perms, s.created_at, s.updated_at FROM screen_shares s JOIN users u ON u.id = s.viewer_id WHERE s.owner_id = ?
+      UNION SELECT lower(viewer_email), perms, created_at, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY 1`, [uid, uid]),
   };
   const counts = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length]));
   res.json({ format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now(), account: req.user.email, counts, data });
@@ -1067,6 +1092,31 @@ router.post('/restore', (req, res) => {
     }
     counts.dividends = n;
     counts.groups = groups.length;
+    // 화면 공유 (v0.26.9): 백업에 shares 가 있을 때만 바꾼다(예전 백업이면 지금 공유 유지)
+    if (Array.isArray(d.shares)) {
+      db.run('DELETE FROM screen_shares WHERE owner_id = ?', [uid]);
+      db.run('DELETE FROM pending_shares WHERE owner_id = ?', [uid]);
+      let given = 0;
+      let waiting = 0;
+      for (const r of d.shares) {
+        const email = String(r.viewer_email || '').trim().toLowerCase();
+        if (validateEmail(email) || email === String(req.user.email).toLowerCase()) continue;
+        let perms = {};
+        try { perms = cleanPerms(typeof r.perms === 'string' ? JSON.parse(r.perms) : r.perms); } catch (_) { /* 무시 */ }
+        if (!Object.keys(perms).length) continue;
+        const pj = JSON.stringify(perms);
+        const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
+        if (viewer) {
+          db.run('INSERT OR REPLACE INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, viewer.id, pj, r.created_at || t, r.updated_at || t]);
+          given++;
+        } else {
+          db.run('INSERT OR REPLACE INTO pending_shares (owner_id, viewer_email, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, email, pj, r.created_at || t, r.updated_at || t]);
+          waiting++;
+        }
+      }
+      counts.shares = given;
+      counts.pendingShares = waiting;
+    }
   });
   res.json({ ok: true, counts, account: b.account || null, exportedAt: b.exportedAt || null });
 });

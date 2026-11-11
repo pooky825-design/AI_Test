@@ -2074,6 +2074,7 @@
         <tr><td class="left">주식 항목(연도별)</td><td class="right">${c.items || 0}건</td></tr>
         <tr><td class="left">배당 관리 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
         <tr><td class="left">종목 분류 · 화면 설정</td><td class="right">${c.categories || 0}건 · ${c.settings || 0}건</td></tr>
+        ${c.shares != null ? `<tr><td class="left">화면 공유</td><td class="right">${c.shares}건</td></tr>` : ''}
       </tbody></table>
       ${backup.account && backup.account !== state.user.email ? '<div class="notice warn" style="margin-top:10px"><div>다른 계정에서 만든 백업입니다. 복원하면 지금 계정에 그 데이터가 들어갑니다.</div></div>' : ''}
       <div class="field-row" style="justify-content:flex-end;margin-top:14px"><button class="secondary" data-close>취소</button><button class="danger" data-go>복원</button></div>`;
@@ -2136,7 +2137,8 @@
     const strip = (rows) => (rows || []).map((r) => { const o = { ...r }; delete o.created_at; delete o.updated_at; return o; });
     const gname = new Map((d.groups || []).map((g) => [g.id, g.name]));
     const withG = (rows) => strip(rows).map((r) => ({ ...r, group_id: gname.get(r.group_id) || r.group_id }));
-    const text = JSON.stringify([(d.groups || []).map((g) => [g.name, g.sort_order]), withG(d.items), strip(d.categories), strip(d.dividends), withG(d.holdingDividends)]);
+    const shares = (d.shares || []).map((x) => [String(x.viewer_email || '').toLowerCase(), typeof x.perms === 'string' ? x.perms : JSON.stringify(x.perms)]).sort();
+    const text = JSON.stringify([(d.groups || []).map((g) => [g.name, g.sort_order]), withG(d.items), strip(d.categories), strip(d.dividends), withG(d.holdingDividends), shares]);
     let h1 = 0xdeadbeef;
     let h2 = 0x41c6ce57;
     for (let i = 0; i < text.length; i++) {
@@ -2158,18 +2160,28 @@
     }
     return h;
   }
+  // 동기화 파일 (v0.26.9): 사용자(이메일)별 칸으로 나눠 저장 { format, version: 2, users: { 이메일: { savedAt, device, hash, counts, backup } } }
+  //  - 로그인한 사용자는 자기 칸만 읽고 쓰며, 다른 사용자의 칸은 그대로 둔다
+  //  - version 1(한 사용자만 담던 파일)은 그 파일의 계정 칸으로 읽는다
   async function readSyncFile(h) {
     const text = syncMode() === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
-    if (!text.trim()) return null;
+    if (!text.trim()) return { format: SYNC_FORMAT, version: 2, users: {} };
     let f;
     try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(JSON 형식 아님).'); }
-    if (!f || f.format !== SYNC_FORMAT || !f.backup) throw new Error('K-Stock 동기화 파일이 아닙니다. 다른 파일을 연결해 주세요.');
+    if (!f || f.format !== SYNC_FORMAT) throw new Error('K-Stock 동기화 파일이 아닙니다. 다른 파일을 연결해 주세요.');
+    if (!f.users && f.backup) {
+      const acc = String(f.account || (f.backup && f.backup.account) || '').toLowerCase();
+      f = { format: SYNC_FORMAT, version: 2, users: acc ? { [acc]: { savedAt: f.savedAt, device: f.device, hash: f.hash, counts: f.counts, backup: f.backup } } : {} };
+    }
+    if (!f.users || typeof f.users !== 'object') f.users = {};
     return f;
   }
-  async function writeSyncFile(h, backup, hash) {
-    const text = JSON.stringify({ format: SYNC_FORMAT, version: 1, savedAt: new Date().toISOString(), device: deviceLabel(), account: state.user.email, hash, counts: backup.counts, backup });
+  async function writeSyncFile(h, file, backup, hash) {
+    const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, counts: backup.counts, backup } };
+    const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users });
     if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
     else { const w = await h.createWritable(); await w.write(text); await w.close(); }
+    file.users = users;
   }
   async function linkSyncFile(create) {
     const m = syncMode();
@@ -2198,11 +2210,13 @@
     document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = true; });
     try {
       const h = syncMode() === 'web' ? await webHandle(true) : null;
-      const [local, file] = await Promise.all([api('GET', '/backup'), readSyncFile(h)]);
+      const [local, whole] = await Promise.all([api('GET', '/backup'), readSyncFile(h)]);
+      const file = whole.users[syncKey()] || null; // 로그인한 사용자의 칸만
+      const others = Object.keys(whole.users).filter((k) => k !== syncKey());
       const localHash = dataHash(local);
       const st = syncState();
       const push = async (msg) => {
-        await writeSyncFile(h, local, localHash);
+        await writeSyncFile(h, whole, local, localHash);
         saveSyncState({ lastHash: localHash, fileHash: localHash, at: new Date().toISOString() });
         toast(msg || '이 기기의 데이터를 동기화 파일에 저장했습니다.');
       };
@@ -2214,7 +2228,7 @@
         toast(msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`);
         render();
       };
-      if (!file) await push('동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
+      if (!file) await push(others.length ? `동기화 파일에 이 사용자(${state.user.email})의 자료가 없어 새로 저장했습니다. 다른 사용자 자료 ${others.length}명분은 그대로 둡니다.` : '동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
       else if (file.hash === localHash) { saveSyncState({ lastHash: localHash, fileHash: file.hash, at: new Date().toISOString() }); toast('이미 최신입니다. 바뀐 내용이 없습니다.'); }
       else {
         const localChanged = !st || st.lastHash !== localHash;
@@ -2239,12 +2253,13 @@
       const fc = file.counts || {};
       const lc = local.counts || {};
       const body = openModal('동기화 · 어느 데이터를 남길까요?');
-      body.innerHTML = `<p style="margin:0 0 10px">${first ? '이 기기에서 처음 동기화합니다. 이 기기의 데이터와 동기화 파일의 데이터가 다릅니다.' : '마지막 동기화 뒤에 이 기기와 다른 기기(동기화 파일) 양쪽에서 데이터가 바뀌었습니다.'} 남길 쪽을 고르세요. 고르지 않은 쪽의 바뀐 내용은 사라집니다.</p>
+      body.innerHTML = `<p class="small muted" style="margin:0 0 6px">사용자 <b data-noi18n>${esc(state.user.email)}</b>의 자료만 비교합니다.</p><p style="margin:0 0 10px">${first ? '이 기기에서 처음 동기화합니다. 이 기기의 데이터와 동기화 파일의 데이터가 다릅니다.' : '마지막 동기화 뒤에 이 기기와 다른 기기(동기화 파일) 양쪽에서 데이터가 바뀌었습니다.'} 남길 쪽을 고르세요. 고르지 않은 쪽의 바뀐 내용은 사라집니다.</p>
         <table><thead><tr><th></th><th class="num">이 기기</th><th class="num">동기화 파일</th></tr></thead><tbody>
           <tr><td class="left">저장 일시</td><td class="right">지금</td><td class="right">${esc(fmtTime(file.savedAt))}<br/><small class="muted">${esc(file.device || '')}</small></td></tr>
           <tr><td class="left">그룹</td><td class="right">${lc.groups || 0}개</td><td class="right">${fc.groups || 0}개</td></tr>
           <tr><td class="left">주식 항목(연도별)</td><td class="right">${lc.items || 0}건</td><td class="right">${fc.items || 0}건</td></tr>
           <tr><td class="left">배당 관리 회차</td><td class="right">${lc.holdingDividends || 0}건</td><td class="right">${fc.holdingDividends || 0}건</td></tr>
+          <tr><td class="left">화면 공유</td><td class="right">${lc.shares || 0}건</td><td class="right">${fc.shares || 0}건</td></tr>
         </tbody></table>
         <div class="field-row" style="justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">
           <button class="secondary" data-close>취소</button>
@@ -2270,7 +2285,7 @@
         return;
       }
       box.innerHTML = name
-        ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+        ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-relink>다른 파일 연결</button><button class="secondary" data-unlink>연결 해제</button></div>`
         : `<div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-create>새 동기화 파일 만들기</button><button class="secondary" data-open>기존 동기화 파일 연결</button></div>
           <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`;
@@ -2350,6 +2365,7 @@
       const r = await loadReceived();
       if (!r) { body.innerHTML = '<div class="notice error">공유 정보를 불러오지 못했습니다.</div>'; return; }
       const { screens, given, received } = r;
+      const pending = r.pending || [];
       const head = screens.map((sc) => `<th class="center">${esc(sc.label)}</th>`).join('');
       body.innerHTML = `
         <form class="field-row share-add" data-add novalidate>
@@ -2364,6 +2380,8 @@
             ${screens.map((sc) => `<td class="center">${permSelect(sc, g.perms[sc.id])}</td>`).join('')}
             <td class="center"><button class="icon-btn danger" data-unshare title="공유 해제" aria-label="공유 해제">${ICON_DEL}</button></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">아직 공유한 회원이 없습니다.</div>'}
+        ${pending.length ? `<div class="notice info small" style="margin-top:10px"><div class="grow"><b>대기 중인 공유 ${pending.length}건</b> · 동기화(또는 복원)로 받았지만 이 기기에 아직 없는 사용자입니다. 그 이메일로 이 기기에 사용자를 추가하면 자동으로 공유됩니다.
+          <ul class="pending-list">${pending.map((g) => `<li><b data-noi18n>${esc(g.email)}</b> <span class="muted">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}`).join(', ')}</span> <button class="sm secondary" data-unpend="${esc(g.email)}">해제</button></li>`).join('')}</ul></div></div>` : ''}
         <h3 style="margin:16px 0 8px">나에게 공유된 화면 <span class="muted small">${received.length}명</span></h3>
         ${received.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>공유한 회원</th><th>화면 · 권한</th><th class="center">작업</th></tr></thead><tbody>
           ${received.map((g) => `<tr data-id="${g.id}" data-uid="${g.user_id}">
@@ -2372,6 +2390,10 @@
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
         <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산·종목 조회는 조회만 공유됩니다(종목 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
+      body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
+        try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
+        load();
+      }));
       const add = body.querySelector('[data-add]');
       add.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -2439,9 +2461,9 @@
       </div>` : ''}
       <div class="card" data-sync-card data-fold="sync">
         <h2>기기 간 동기화 ${req('FR-BAK-03')}</h2>
-        <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다.</p>
+        <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한을 맞추며, 파일 안에서 로그인한 사용자(이메일)별로 따로 저장되어 같은 이메일로 로그인한 기기끼리만 맞춰집니다.</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
-        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다).' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 내 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 나만 쓰는 폴더에 두세요. 같은 이메일 계정끼리 쓰는 것을 권장합니다.</p>
+        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다).' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 믿을 수 있는 사람만 쓰는 폴더에 두세요.</p>
       </div>
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>

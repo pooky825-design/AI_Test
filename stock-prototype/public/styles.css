@@ -536,3 +536,5 @@ input.has-formula { background-image: linear-gradient(transparent, transparent);
 .side .sync-btn { color: #fff; font-weight: 700; margin-bottom: 6px; }
 .mtop-actions { display: inline-flex; align-items: center; gap: 10px; }
 .mobile-top .sync-btn { color: #fff; font-weight: 700; }
+.pending-list { margin: 6px 0 0; padding-left: 18px; }
+.pending-list li { margin: 4px 0; }

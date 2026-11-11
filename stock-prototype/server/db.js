@@ -140,6 +140,17 @@ CREATE TABLE IF NOT EXISTS screen_shares (
   UNIQUE (owner_id, viewer_id)
 );
 
+-- 동기화·복원으로 받은 화면 공유 중, 이 기기에 아직 없는 사용자(이메일)에게 준 공유 (v0.26.9)
+-- 그 이메일이 이 기기에 사용자로 추가되면 screen_shares 로 옮긴다
+CREATE TABLE IF NOT EXISTS pending_shares (
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  viewer_email TEXT NOT NULL,
+  perms TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (owner_id, viewer_email)
+);
+
 -- 보유 종목을 삭제해도 배당 내역은 유지(FR-DIV-05) → holdings FK 없음
 CREATE TABLE IF NOT EXISTS dividends (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
