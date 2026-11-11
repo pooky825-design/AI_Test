@@ -787,11 +787,20 @@
   // 상자(카드) 접기·펴기: 제목 오른쪽 −/+ 버튼. 접은 상자는 settingKey 에 저장해 다음에도 유지
   // v0.23: 나의 자산(data-ckey) 외 화면은 data-fold 로 지정. 버튼은 상자 오른쪽 위에 두어 제목이 다시 그려져도 유지
   // defaults (v0.26.10): 그 화면을 처음 열 때(접기 설정을 한 번도 저장하지 않았을 때) 접어 둘 상자. 배열 또는 'all'
+  //  상자마다 한 번만 적용(ui.foldInit 에 기록) → 이미 쓰던 화면에 새로 생긴 상자도 처음엔 접힘 (v0.26.11)
   function makeFoldable(root, settingKey, defaults) {
     const cards = [...root.querySelectorAll('.card[data-ckey], .card[data-fold]')];
-    if (defaults && settings.get(settingKey) === undefined) {
+    if (defaults) {
       const keys = defaults === 'all' ? cards.map((c) => c.dataset.ckey || c.dataset.fold) : defaults;
-      settings.set(settingKey, keys);
+      const seen = new Set(settings.get('ui.foldInit') || []);
+      const present = new Set(cards.map((c) => c.dataset.ckey || c.dataset.fold));
+      const fresh = keys.filter((k) => present.has(k) && !seen.has(`${settingKey}:${k}`));
+      if (fresh.length) {
+        const cur = new Set(settings.get(settingKey) || []);
+        fresh.forEach((k) => { cur.add(k); seen.add(`${settingKey}:${k}`); });
+        settings.set(settingKey, [...cur]);
+        settings.set('ui.foldInit', [...seen]);
+      }
     }
     // 같은 설정 키를 여러 번 붙여도 서로 덮어쓰지 않도록, 누를 때마다 저장된 값을 다시 읽는다 (v0.26.8)
     const current = () => new Set(settings.get(settingKey) || []);
@@ -937,11 +946,16 @@
       const ncols = rowCells(table.tHead.rows[0]).length;
       if (!table.dataset.colKey && ncols >= 4) {
         table.dataset.colKey = tableKey(table);
+        // 버튼과 표를 한 묶음(.col-wrap)으로 감싸 원래 표 자리에 둔다: 표가 그래프 옆(grid) 등에 있어도 배치가 깨지지 않게 (v0.26.11)
         const anchor = table.closest('.table-wrap') || table;
+        const wrap = document.createElement('div');
+        wrap.className = 'col-wrap';
+        anchor.parentNode.insertBefore(wrap, anchor);
         const tools = document.createElement('div');
         tools.className = 'col-tools';
         tools.innerHTML = '<button type="button" class="col-btn" data-col-btn title="보일 열 선택">⋮ 열 선택</button>';
-        anchor.parentNode.insertBefore(tools, anchor);
+        wrap.appendChild(tools);
+        wrap.appendChild(anchor);
         tools.querySelector('[data-col-btn]').addEventListener('click', (e) => { e.stopPropagation(); openColPicker(table, e.currentTarget); });
         table._colTools = tools;
       }
@@ -952,12 +966,30 @@
       if (table.dataset.colKey) applyHiddenCols(table);
     });
   }
+  // 불러오는 중 표시 (v0.26.11): '…' 로 끝나는 안내(불러오는 중…·조회 중… 등)에 돌아가는 아이콘을 붙인다
+  function decorateLoading() {
+    document.querySelectorAll('.is-loading').forEach((el) => { if (!el.querySelector(':scope > .spinner')) el.classList.remove('is-loading'); });
+    document.querySelectorAll('.empty, .boot, #toast, [data-hint], [data-sync-body] > .small').forEach((el) => {
+      if (el.hidden || el.querySelector(':scope > .spinner')) return;
+      const text = el.textContent || '';
+      if (!text.includes('…') || text.length > 160) return;
+      const sp = document.createElement('span');
+      sp.className = 'spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      el.prepend(sp);
+      el.classList.add('is-loading');
+    });
+  }
   let enhanceQueued = false;
   new MutationObserver(() => {
     if (enhanceQueued) return;
     enhanceQueued = true;
-    requestAnimationFrame(() => { enhanceQueued = false; try { enhanceTables(); } catch (_) { /* 무시 */ } });
-  }).observe(document.body, { childList: true, subtree: true });
+    requestAnimationFrame(() => {
+      enhanceQueued = false;
+      try { enhanceTables(); } catch (_) { /* 무시 */ }
+      try { decorateLoading(); } catch (_) { /* 무시 */ }
+    });
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
 
   // ---------------------------------------------------------------------------
   // SC-03 종목 조회
@@ -1320,7 +1352,7 @@
       ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : ''}
       <p class="small muted" style="margin:8px 0 0">출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p></div>
       ${f.reason === 'noFinance' ? '' : `${finTable('분기 실적', f.quarters, '전분기 대비', 'quarter')}${finTable('연간 실적', f.annual, '전년 대비', 'annual')}`}`;
-    makeFoldable(card, 'stock.collapsed');
+    makeFoldable(card, 'stock.collapsed', ['quarter', 'annual']);
   }
 
   function drawPriceChart(canvas, prices, cur) {

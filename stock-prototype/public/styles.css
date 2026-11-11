@@ -273,7 +273,7 @@ body.modal-open { overflow: hidden; }
 .modal-title { margin-bottom: 10px; font-size: 15px; }
 .modal.wide { max-width: 980px; }
 .modal-body.stock-modal { background: var(--bg); }
-.modal-body.stock-modal .card:last-child { margin-bottom: 0; }
+.modal-body.stock-modal > .card:last-child { margin-bottom: 0; } /* 팝업 맨 아래 상자만 (안쪽 묶음의 마지막 상자는 다른 상자와 같은 간격) */
 
 /* ---------- responsive (NFR-UX-01) ---------- */
 @media (max-width: 1100px) {
@@ -553,3 +553,13 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 /* 상자 묶음(grid) 안의 상자는 아래 여백 대신 grid 간격만: 휴대폰 세로에서 상자 간격이 두 배가 되지 않게 */
 .grid > .card { margin-bottom: 0; }
 .grid:has(> .card) { margin-bottom: 16px; }
+
+/* v0.26.11 열 선택 묶음, 불러오는 중 아이콘 */
+.col-wrap { min-width: 0; }
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2.5px solid var(--t-200); border-top-color: var(--primary); border-radius: 50%; animation: kspin .8s linear infinite; vertical-align: -3px; margin-right: 8px; flex: none; }
+.empty.is-loading, .boot.is-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.empty.is-loading > .spinner, .boot.is-loading > .spinner { width: 30px; height: 30px; border-width: 3px; margin: 0; }
+#toast.is-loading { display: flex; align-items: center; }
+#toast .spinner { border-color: rgba(255,255,255,.35); border-top-color: #fff; }
+@keyframes kspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
