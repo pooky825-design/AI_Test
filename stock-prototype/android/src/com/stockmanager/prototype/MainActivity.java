@@ -233,6 +233,18 @@ public class MainActivity extends Activity {
         return uri.getLastPathSegment();
     }
 
+    /**
+     * 읽기 전에 클라우드 앱에 서버의 최신 파일을 받아 달라고 요청 (Android 8.0+ ContentResolver.refresh, v0.26.18).
+     * 구글 드라이브 앱이 꺼져 있으면 기기에 남은 예전 사본을 주는 경우가 있어서. 지원하지 않는 앱이면 그냥 넘어간다.
+     */
+    private void refreshDoc(Uri u) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        try {
+            java.lang.reflect.Method m = ContentResolver.class.getMethod("refresh", Uri.class, Bundle.class, Class.forName("android.os.CancellationSignal"));
+            m.invoke(getContentResolver(), u, null, null);
+        } catch (Throwable ignored) { }
+    }
+
     private Uri syncUri(String key) {
         String u = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SYNC + key, "");
         return u.isEmpty() ? null : Uri.parse(u);
@@ -446,6 +458,7 @@ public class MainActivity extends Activity {
                     try {
                         Uri u = syncUri(key);
                         if (u == null) throw new Exception("연결된 동기화 파일이 없습니다.");
+                        refreshDoc(u);
                         InputStream in = getContentResolver().openInputStream(u);
                         ByteArrayOutputStream buf = new ByteArrayOutputStream();
                         byte[] b = new byte[8192];
@@ -458,6 +471,25 @@ public class MainActivity extends Activity {
                     }
                 }
             });
+        }
+
+        /** 동기화 파일을 제공하는 클라우드 앱(구글 드라이브 등)을 연다 → 그 앱이 서버와 동기화 (v0.26.18) */
+        @JavascriptInterface
+        public boolean syncOpenApp(String key) {
+            try {
+                Uri u = syncUri(key);
+                if (u == null) return false;
+                android.content.pm.ProviderInfo pi = getPackageManager().resolveContentProvider(u.getAuthority(), 0);
+                String pkg = pi != null ? pi.packageName
+                    : (String.valueOf(u.getAuthority()).startsWith("com.google.android.apps.docs") ? "com.google.android.apps.docs" : null);
+                if (pkg == null) return false;
+                Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i == null) return false;
+                startActivity(i);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         /** 동기화 파일 쓰기 (내용 전체를 바꿈) */

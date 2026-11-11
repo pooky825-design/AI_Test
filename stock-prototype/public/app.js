@@ -205,7 +205,7 @@
     t.textContent = msg;
     t.hidden = false;
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => (t.hidden = true), 2600);
+    toast._t = setTimeout(() => (t.hidden = true), Math.min(7000, Math.max(2600, String(msg).length * 55))); // 긴 알림은 더 오래
   }
 
   function destroyCharts() {
@@ -2402,8 +2402,8 @@
     if (!f.users || typeof f.users !== 'object') f.users = {};
     return f;
   }
-  async function writeSyncFile(h, file, backup, hash) {
-    const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, counts: backup.counts, backup } };
+  async function writeSyncFile(h, file, backup, hash, rev) {
+    const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, rev, counts: backup.counts, backup } };
     const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users });
     if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
     else { const w = await h.createWritable(); await w.write(text); await w.close(); }
@@ -2443,21 +2443,26 @@
       const st = syncState();
       // 무엇이 옮겨졌는지 알림에 함께 표시 (v0.26.17)
       const what = (c) => { c = c || {}; return isEn() ? ` (holdings ${c.items || 0} · dividend rounds ${c.holdingDividends || 0} · dividend records ${c.dividends || 0} · shares ${c.shares || 0})` : ` (보유 종목 ${c.items || 0}건 · 배당 회차 ${c.holdingDividends || 0}건 · 배당 내역 ${c.dividends || 0}건 · 화면 공유 ${c.shares || 0}건)`; };
+      // 저장 번호(rev, v0.26.18): 저장할 때마다 1씩 올린다. 이 기기가 아는 번호보다 작은 파일은 클라우드 앱이 준 예전 사본
+      const fileRev = file ? Number(file.rev) || 0 : 0;
+      const knownRev = st ? Number(st.rev) || 0 : 0;
       const push = async (msg) => {
-        await writeSyncFile(h, whole, local, localHash);
-        saveSyncState({ lastHash: localHash, fileHash: localHash, at: new Date().toISOString() });
+        const rev = Math.max(fileRev, knownRev) + 1;
+        await writeSyncFile(h, whole, local, localHash, rev);
+        saveSyncState({ lastHash: localHash, fileHash: localHash, rev, at: new Date().toISOString() });
         toast((msg || '이 기기의 데이터를 동기화 파일에 저장했습니다.') + what(local.counts));
       };
       const pull = async (msg) => {
         await api('POST', '/restore', { backup: file.backup });
         const fresh = await api('GET', '/backup');
-        saveSyncState({ lastHash: dataHash(fresh), fileHash: file.hash, at: new Date().toISOString() });
+        saveSyncState({ lastHash: dataHash(fresh), fileHash: file.hash, rev: fileRev, at: new Date().toISOString() });
         await loadSettings();
         toast((msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`) + what(fresh.counts));
         render();
       };
-      if (!file) await push(others.length ? `동기화 파일에 이 사용자(${state.user.email})의 자료가 없어 새로 저장했습니다. 다른 사용자 자료 ${others.length}명분은 그대로 둡니다.` : '동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
-      else if (file.hash === localHash) { saveSyncState({ lastHash: localHash, fileHash: file.hash, at: new Date().toISOString() }); toast('이미 최신입니다. 바뀐 내용이 없습니다.'); }
+      if (file && knownRev && fileRev < knownRev) await staleSync(file, knownRev);
+      else if (!file) await push(others.length ? `동기화 파일에 이 사용자(${state.user.email})의 자료가 없어 새로 저장했습니다. 다른 사용자 자료 ${others.length}명분은 그대로 둡니다.` : '동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
+      else if (file.hash === localHash) { saveSyncState({ lastHash: localHash, fileHash: file.hash, rev: fileRev, at: new Date().toISOString() }); toast(`이미 최신입니다. 바뀐 내용이 없습니다. (파일: ${fmtTime(file.savedAt)} · ${file.device || '다른 기기'} 저장)`); }
       else {
         const localChanged = !st || st.lastHash !== localHash;
         const fileChanged = !st || st.fileHash !== file.hash;
@@ -2474,6 +2479,26 @@
       const card = document.querySelector('[data-sync-card]');
       if (card && card._paint) card._paint();
     }
+  }
+  // 클라우드 앱(구글 드라이브 등)이 아직 최신 파일을 받지 않아 예전 사본을 준 경우 (v0.26.18)
+  //  - 그대로 가져오면 최근 입력이 사라지고, 저장하면 다른 기기 내용을 덮을 수 있어 아무것도 하지 않는다
+  function staleSync(file, knownRev) {
+    return new Promise((resolve) => {
+      const canOpen = IN_APP && window.AndroidBridge.syncOpenApp;
+      const body = openModal('동기화 파일이 아직 최신이 아닙니다');
+      body.innerHTML = `<p style="margin:0 0 10px">이 기기가 마지막으로 맞춘 파일(저장 번호 ${knownRev})보다 <b>예전 파일</b>(저장 번호 ${Number(file.rev) || 0} · ${esc(fmtTime(file.savedAt))} · ${esc(file.device || '')})을 받았습니다. 클라우드 앱(구글 드라이브 등)이 아직 서버에서 최신 파일을 내려받지 않은 상태입니다.</p>
+        <p class="small muted" style="margin:0 0 12px">데이터를 지키기 위해 이번에는 가져오기·저장을 하지 않았습니다. ${canOpen ? '[클라우드 앱 열기]로 구글 드라이브 앱을 잠깐 열어 동기화되게 한 뒤 돌아와 [다시 동기화]를 누르세요.' : '클라우드 폴더가 동기화된 뒤 다시 누르세요.'}</p>
+        <div class="field-row" style="justify-content:flex-end;gap:8px;flex-wrap:wrap">
+          <button class="secondary" data-close>닫기</button>
+          ${canOpen ? '<button class="secondary" data-openapp>클라우드 앱 열기</button>' : ''}
+          <button data-retry>다시 동기화</button>
+        </div>`;
+      const done = (again) => { closeModal(); resolve(); if (again) setTimeout(runSync, 50); };
+      body.querySelector('[data-close]').addEventListener('click', () => done(false));
+      body.querySelector('[data-retry]').addEventListener('click', () => done(true));
+      const ob = body.querySelector('[data-openapp]');
+      if (ob) ob.addEventListener('click', () => { if (!window.AndroidBridge.syncOpenApp(syncKey())) toast('클라우드 앱을 열 수 없습니다. 직접 열어 주세요.'); });
+    });
   }
   // 이 기기와 파일이 둘 다 바뀌었거나(또는 처음 맞출 때 서로 다르면) 어느 쪽을 남길지 고른다
   function chooseSync(file, local, push, pull, first) {
@@ -2692,7 +2717,7 @@
         <h2>기기 간 동기화 ${req('FR-BAK-03')}</h2>
         <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한을 맞추며, 파일 안에서 로그인한 사용자(이메일)별로 따로 저장되어 같은 이메일로 로그인한 기기끼리만 맞춰집니다.</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
-        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다).' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 믿을 수 있는 사람만 쓰는 폴더에 두세요.</p>
+        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다). 클라우드 앱이 꺼져 있어 예전 파일을 받으면 가져오지 않고 알려 드립니다.' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 믿을 수 있는 사람만 쓰는 폴더에 두세요.</p>
       </div>
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
