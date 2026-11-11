@@ -2327,8 +2327,11 @@
   // ---------------------------------------------------------------------------
   const SYNC_FORMAT = 'kstock-sync';
   const syncKey = () => String((state.user && state.user.email) || '').toLowerCase();
+  // 구글 드라이브 직접 연결 (v0.27.0): 앱 안 화면, 또는 PC 의 localhost 로 연 화면에서만 (구글 로그인 결과를 이 기기 주소로 받음)
+  const gdriveAvailable = () => !REMOTE_APP && (IN_APP ? !!(window.AndroidBridge && window.AndroidBridge.gdriveListen) : /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
   const syncMode = () => {
     if (REMOTE_APP) return null; // 클라우드 서버 연결 중이면 이미 기기끼리 같은 데이터
+    if (state.gdrive && state.gdrive.connected && gdriveAvailable()) return 'gdrive';
     if (IN_APP) return window.AndroidBridge.syncPick ? 'android' : null;
     return typeof window.showSaveFilePicker === 'function' && typeof window.showOpenFilePicker === 'function' ? 'web' : null;
   };
@@ -2349,7 +2352,9 @@
   const syncState = () => { try { return JSON.parse(localStorage.getItem(syncStateKey()) || 'null'); } catch (_) { return null; } };
   const saveSyncState = (v) => { try { localStorage.setItem(syncStateKey(), JSON.stringify(v)); } catch (_) { /* 무시 */ } };
   async function syncFileName() {
+    if (gdriveAvailable() && state.user) { try { state.gdrive = await api('GET', '/gdrive'); } catch (_) { state.gdrive = null; } }
     const m = syncMode();
+    if (m === 'gdrive') return `구글 드라이브 · kstock-sync.json`;
     try {
       if (m === 'android') return window.AndroidBridge.syncName(syncKey()) || '';
       if (m === 'web') { const h = await idb('get', `sync:${syncKey()}`); return h ? h.name : ''; }
@@ -2390,7 +2395,8 @@
   //  - 로그인한 사용자는 자기 칸만 읽고 쓰며, 다른 사용자의 칸은 그대로 둔다
   //  - version 1(한 사용자만 담던 파일)은 그 파일의 계정 칸으로 읽는다
   async function readSyncFile(h) {
-    const text = syncMode() === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
+    const mode = syncMode();
+    const text = mode === 'gdrive' ? (await api('POST', '/gdrive/read')).text : mode === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
     if (!text.trim()) return { format: SYNC_FORMAT, version: 2, users: {} };
     let f;
     try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(JSON 형식 아님).'); }
@@ -2405,7 +2411,8 @@
   async function writeSyncFile(h, file, backup, hash, rev) {
     const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, rev, counts: backup.counts, backup } };
     const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users });
-    if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
+    if (syncMode() === 'gdrive') await api('POST', '/gdrive/write', { text });
+    else if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
     else { const w = await h.createWritable(); await w.write(text); await w.close(); }
     file.users = users;
   }
@@ -2484,7 +2491,7 @@
   //  - 그대로 가져오면 최근 입력이 사라지고, 저장하면 다른 기기 내용을 덮을 수 있어 아무것도 하지 않는다
   function staleSync(file, knownRev) {
     return new Promise((resolve) => {
-      const canOpen = IN_APP && window.AndroidBridge.syncOpenApp;
+      const canOpen = syncMode() === 'android' && window.AndroidBridge.syncOpenApp;
       const body = openModal('동기화 파일이 아직 최신이 아닙니다');
       body.innerHTML = `<p style="margin:0 0 10px">이 기기가 마지막으로 맞춘 파일(저장 번호 ${knownRev})보다 <b>예전 파일</b>(저장 번호 ${Number(file.rev) || 0} · ${esc(fmtTime(file.savedAt))} · ${esc(file.device || '')})을 받았습니다. 클라우드 앱(구글 드라이브 등)이 아직 서버에서 최신 파일을 내려받지 않은 상태입니다.</p>
         <p class="small muted" style="margin:0 0 12px">데이터를 지키기 위해 이번에는 가져오기·저장을 하지 않았습니다. ${canOpen ? '[클라우드 앱 열기]로 구글 드라이브 앱을 잠깐 열어 동기화되게 한 뒤 돌아와 [다시 동기화]를 누르세요.' : '클라우드 폴더가 동기화된 뒤 다시 누르세요.'}</p>
@@ -2526,23 +2533,113 @@
       body.querySelector('[data-pull]').addEventListener('click', () => done(() => pull()));
     });
   }
+  // 구글 드라이브 연결: 구글 로그인 → 결과(code)를 받아 서버에서 토큰으로 바꾼다
+  async function gdriveConnect(after) {
+    let redirectUri;
+    if (IN_APP) {
+      const port = window.AndroidBridge.gdriveListen();
+      if (!port) throw new Error('로그인 결과를 받을 준비를 하지 못했습니다. 다시 눌러 주세요.');
+      redirectUri = `http://127.0.0.1:${port}`;
+    } else {
+      redirectUri = `${location.origin}/gdrive-callback.html`;
+    }
+    const { authUrl, state: st } = await api('POST', '/gdrive/auth-start', { redirectUri });
+    const finish = async (query) => {
+      const q = new URLSearchParams(query || '');
+      if (q.get('state') !== st) return; // 다른 요청의 결과
+      cleanup();
+      if (!q.get('code')) { toast(q.get('error') === 'access_denied' ? '구글 로그인을 취소했습니다.' : `구글 로그인이 완료되지 않았습니다. (${q.get('error') || '알 수 없음'})`); return; }
+      try {
+        const s2 = await api('POST', '/gdrive/auth-finish', { code: q.get('code'), state: st });
+        state.gdrive = s2;
+        saveSyncState(null); // 새 연결이면 처음 맞추는 것으로
+        toast(`구글 드라이브에 연결했습니다${s2.account ? ` (${s2.account})` : ''}. 이제 지금 동기화를 누르세요.`);
+      } catch (e) { toast(e.message); }
+      if (after) after();
+    };
+    const onMsg = (e) => { if (e.origin === location.origin && e.data && e.data.type === 'kstock-gdrive') finish(e.data.query); };
+    const onStore = (e) => { if (e.key === 'gdrive.cb' && e.newValue) { try { finish(JSON.parse(e.newValue).q); } catch (_) { /* 무시 */ } } };
+    const cleanup = () => { window.removeEventListener('message', onMsg); window.removeEventListener('storage', onStore); window.__gdriveCallback = null; };
+    if (IN_APP) {
+      window.__gdriveCallback = finish;
+      window.AndroidBridge.openBrowser(authUrl);
+      toast('휴대폰 브라우저에서 구글 계정으로 로그인하고 허용한 뒤 K-Stock 앱으로 돌아오세요.');
+    } else {
+      window.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStore);
+      const w = window.open(authUrl, 'kstock-gdrive', 'width=520,height=700');
+      if (!w) { cleanup(); throw new Error('팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.'); }
+    }
+  }
+  function gdrivePanel(g) {
+    const help = `<details class="gd-help"><summary>처음 한 번: 구글 클라우드 콘솔에서 클라이언트 ID 만들기</summary><ol>
+      <li><b>console.cloud.google.com</b> 접속 → 새 프로젝트 만들기(예: K-Stock)</li>
+      <li>API 및 서비스 → 라이브러리 → <b>Google Drive API</b> 검색 → 사용</li>
+      <li>OAuth 동의 화면(Google 인증 플랫폼): 외부(External) 선택, 앱 이름·이메일 입력 → 데이터 액세스(범위)에 <b>…/auth/drive.file</b> 추가 → 대상(Audience)에서 <b>앱 게시(프로덕션)</b> <span class="muted">(테스트 상태로 두면 7일마다 다시 로그인해야 함)</span></li>
+      <li>클라이언트 → 클라이언트 만들기 → 애플리케이션 유형 <b>데스크톱 앱</b> → 만들기</li>
+      <li>나온 <b>클라이언트 ID</b>와 <b>클라이언트 보안 비밀</b>을 아래에 입력(휴대폰·PC 모두 같은 값)</li>
+      <li>[구글 로그인으로 연결] → 구글 계정 선택 → “확인되지 않은 앱” 화면이 나오면 고급 → 이동 → 허용</li></ol>
+      <p class="small muted" style="margin:6px 0 0">이 앱은 <b>drive.file</b> 권한만 써서, 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다. 같은 구글 계정·같은 클라이언트 ID로 연결한 기기끼리 같은 파일을 씁니다.</p></details>`;
+    return `<div class="gd-box">
+      <div class="gd-title">구글 드라이브 직접 연결 <span class="badge">권장</span></div>
+      <p class="small muted" style="margin:2px 0 8px">구글 드라이브 앱을 켜 두지 않아도 앱이 구글 드라이브에 직접 접속해 항상 최신 파일로 맞춥니다.</p>
+      <div class="gd-form">
+        <label class="field"><span>클라이언트 ID</span><input data-gd-id placeholder="1234…-abc….apps.googleusercontent.com" value="${esc((g && g.clientId) || '')}" autocomplete="off" spellcheck="false" /></label>
+        <label class="field"><span>클라이언트 보안 비밀</span><input data-gd-secret type="password" placeholder="${g && g.hasSecret ? '저장됨 (바꿀 때만 입력)' : 'GOCSPX-…'}" autocomplete="off" /></label>
+      </div>
+      <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button class="secondary" data-gd-save>저장</button><button data-gd-connect ${g && g.configured ? '' : 'disabled'}>구글 로그인으로 연결</button></div>
+      ${help}
+    </div>`;
+  }
   function mountSyncCard(card) {
-    const m = syncMode();
     const paint = async () => {
       const name = await refreshSyncName();
+      const m = syncMode();
       const st = syncState();
       const box = card.querySelector('[data-sync-body]');
+      const gdOk = gdriveAvailable();
+      const g = state.gdrive;
+      if (m === 'gdrive') {
+        box.innerHTML = `<div class="sync-status"><span>구글 드라이브 직접 연결 <b data-noi18n>${esc((g && g.account) || '')}</b></span><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>`;
+        box.querySelector('[data-sync-now]').addEventListener('click', runSync);
+        box.querySelector('[data-gd-off]').addEventListener('click', async () => {
+          if (!confirm('구글 드라이브 연결을 해제할까요? 드라이브의 파일과 이 기기의 데이터는 지워지지 않습니다.')) return;
+          try { state.gdrive = await api('DELETE', '/gdrive'); saveSyncState(null); toast('구글 드라이브 연결을 해제했습니다.'); } catch (e) { toast(e.message); }
+          paint();
+          renderSyncButtons();
+        });
+        return;
+      }
+      // 구글 드라이브 패널 + (아래) 기존 동기화 파일 방식
+      const gdHtml = gdOk ? gdrivePanel(g) : (!REMOTE_APP && !IN_APP ? '<div class="notice small"><div>구글 드라이브 직접 연결은 이 PC에서 <b>http://localhost:포트</b> 로 연 화면 또는 휴대폰 앱에서 쓸 수 있습니다.</div></div>' : '');
+      const mount = (inner) => {
+        box.innerHTML = gdHtml + (inner ? `<div class="gd-or">${gdOk ? '또는 동기화 파일 직접 고르기' : ''}</div>${inner}` : '');
+        const gs = box.querySelector('[data-gd-save]');
+        if (gs) gs.addEventListener('click', async () => {
+          try {
+            state.gdrive = await api('PUT', '/gdrive/client', { clientId: box.querySelector('[data-gd-id]').value, clientSecret: box.querySelector('[data-gd-secret]').value });
+            toast('클라이언트 ID를 저장했습니다. 이제 [구글 로그인으로 연결]을 누르세요.');
+          } catch (e) { toast(e.message); }
+          paint();
+        });
+        const gc = box.querySelector('[data-gd-connect]');
+        if (gc) gc.addEventListener('click', async () => {
+          try { await gdriveConnect(() => { paint(); renderSyncButtons(); }); } catch (e) { toast(e.message); }
+        });
+      };
       if (!m) {
+        if (gdOk) { mount(''); return; }
         box.innerHTML = REMOTE_APP
           ? '<p class="small muted" style="margin:0">지금은 클라우드 서버에 연결되어 있어 기기끼리 이미 같은 데이터를 봅니다. 동기화 파일은 이 휴대폰 모드에서 쓸 수 있습니다.</p>'
           : '<div class="notice warn small"><div>이 브라우저는 동기화 파일 기능을 지원하지 않습니다. PC의 Chrome·Edge 또는 휴대폰 앱에서 쓰거나, 아래 백업 파일 저장·복원으로 옮기세요.</div></div>';
         return;
       }
-      box.innerHTML = name
+      mount(name
         ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-relink>다른 파일 연결</button><button class="secondary" data-unlink>연결 해제</button></div>`
         : `<div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-create>새 동기화 파일 만들기</button><button class="secondary" data-open>기존 동기화 파일 연결</button></div>
-          <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`;
+          <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`);
       const on = (sel, fn) => { const b = box.querySelector(sel); if (b) b.addEventListener('click', fn); };
       const link = (create) => async () => {
         try { await linkSyncFile(create); toast('동기화 파일을 연결했습니다. 이제 지금 동기화를 눌러 맞추세요.'); } catch (err) { toast(err && err.name === 'AbortError' ? '취소했습니다.' : err.message); }

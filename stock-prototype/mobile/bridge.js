@@ -52,4 +52,17 @@ function httpPost(url, body) {
   });
 }
 
-module.exports = { Native, toBase64, fromBase64, httpGet, httpPost };
+// 일반 요청 (v0.27.0): 메서드·헤더·본문 지정 (구글 드라이브 API)
+function httpRequest(method, url, headers, body) {
+  if (!Native || !Native.httpRequest) {
+    return fetch(url, { method, headers, body }).then(async (r) => ({ status: r.status, bytes: new Uint8Array(await r.arrayBuffer()) }));
+  }
+  return new Promise((resolve, reject) => {
+    const id = String(++seq);
+    pending.set(id, { resolve, reject });
+    const b64 = body == null ? '' : toBase64(new TextEncoder().encode(String(body)));
+    Native.httpRequest(id, method, url, JSON.stringify(headers || {}), b64);
+  });
+}
+
+module.exports = { Native, toBase64, fromBase64, httpGet, httpPost, httpRequest };

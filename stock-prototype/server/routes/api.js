@@ -5,6 +5,7 @@ const db = require('../db');
 const auth = require('../auth');
 const market = require('../services/market');
 const portfolio = require('../services/portfolio');
+const gdrive = require('../services/gdrive');
 const excel = require('../services/excel');
 const { ValidationError } = market;
 const categories = require('../services/categories');
@@ -306,6 +307,7 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM holding_items WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_dividends WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM user_settings WHERE user_id = ?', [user.id]);
+    db.run('DELETE FROM gdrive_auth WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM holding_groups WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM stock_categories WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM dividends WHERE user_id = ?', [user.id]);
@@ -1123,6 +1125,29 @@ router.post('/restore', (req, res) => {
   });
   res.json({ ok: true, counts, account: b.account || null, exportedAt: b.exportedAt || null });
 });
+
+// ---------------------------------------------------------------------------
+// 구글 드라이브 직접 연결 (v0.27.0): 동기화 파일을 Drive API 로 읽고 쓴다 (토큰은 이 기기 DB 에만)
+// ---------------------------------------------------------------------------
+const driveRoute = (fn) => async (req, res) => {
+  if (req.viewer) return res.status(403).json({ error: "공유받은 화면에서는 사용할 수 없습니다.", code: "FORBIDDEN" });
+  try {
+    res.json(await fn(req));
+  } catch (e) {
+    if (e instanceof gdrive.DriveError || e.code === 'SOURCE_ERROR') return res.status(e.status || 502).json({ error: e.message, code: e.code });
+    throw e;
+  }
+};
+router.get('/gdrive', driveRoute(async (req) => gdrive.status(req.user.id)));
+router.put('/gdrive/client', driveRoute(async (req) => gdrive.setClient(req.user.id, req.body.clientId, req.body.clientSecret)));
+router.post('/gdrive/auth-start', driveRoute(async (req) => gdrive.startAuth(req.user.id, req.body.redirectUri)));
+router.post('/gdrive/auth-finish', driveRoute(async (req) => gdrive.finishAuth(req.user.id, req.body.code, req.body.state)));
+router.post('/gdrive/read', driveRoute(async (req) => gdrive.readFile(req.user.id)));
+router.post('/gdrive/write', driveRoute(async (req) => {
+  if (typeof req.body.text !== 'string' || !req.body.text) throw new gdrive.DriveError('저장할 내용이 없습니다.');
+  return { file: await gdrive.writeFile(req.user.id, req.body.text) };
+}));
+router.delete('/gdrive', driveRoute(async (req) => gdrive.disconnect(req.user.id)));
 
 function sendXlsx(res, buf, name) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

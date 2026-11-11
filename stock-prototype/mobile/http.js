@@ -25,4 +25,19 @@ async function fetchRaw(url, { timeoutMs = 12000, form } = {}) {
   };
 }
 
-module.exports = { fetchRaw };
+
+// 일반 요청 (v0.27.0, 구글 드라이브용): 네이티브 httpRequest 브리지
+async function request(url, { method = 'GET', headers = {}, body, timeoutMs = 20000 } = {}) {
+  let r;
+  try {
+    r = await Promise.race([
+      bridge.httpRequest(method, url, headers, body),
+      new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { name: 'AbortError' })), timeoutMs + 2000)),
+    ]);
+  } catch (e) {
+    throw new SourceError(e.name === 'AbortError' ? '응답 시간이 초과되었습니다.' : `인터넷에 연결할 수 없습니다. 연결을 확인해 주세요. (${e.message})`);
+  }
+  return { ok: r.status >= 200 && r.status < 300, status: r.status, text: new TextDecoder('utf-8').decode(r.bytes) };
+}
+
+module.exports = { fetchRaw, request };

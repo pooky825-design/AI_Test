@@ -592,3 +592,17 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 .code-name { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--t-900); }
 .modal-head .code-name { font-size: 15px; font-weight: 500; margin-left: 4px; }
+
+/* v0.27.0 구글 드라이브 직접 연결 */
+.gd-box { border: 1px solid var(--t-200); background: var(--t-50); border-radius: 10px; padding: 12px 14px; }
+.gd-title { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.gd-title .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--primary); color: #fff; }
+.gd-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.gd-form .field { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 13px; }
+.gd-form input { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 12.5px; }
+.gd-help { margin-top: 10px; font-size: 13px; }
+.gd-help summary { cursor: pointer; color: var(--primary); font-weight: 600; }
+.gd-help ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; }
+.gd-or { margin: 14px 0 8px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.gd-or:empty { display: none; }
+@media (max-width: 640px) { .gd-form { grid-template-columns: 1fr; } }

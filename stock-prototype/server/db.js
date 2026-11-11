@@ -151,6 +151,19 @@ CREATE TABLE IF NOT EXISTS pending_shares (
   PRIMARY KEY (owner_id, viewer_email)
 );
 
+-- 구글 드라이브 직접 연결 (v0.27.0): 기기·사용자별 OAuth 정보. 백업·동기화 파일에는 넣지 않는다
+CREATE TABLE IF NOT EXISTS gdrive_auth (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT,
+  client_secret TEXT,
+  refresh_token TEXT,
+  access_token TEXT,
+  expires_at INTEGER,
+  account TEXT,
+  file_id TEXT,
+  updated_at TEXT NOT NULL
+);
+
 -- 보유 종목을 삭제해도 배당 내역은 유지(FR-DIV-05) → holdings FK 없음
 CREATE TABLE IF NOT EXISTS dividends (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

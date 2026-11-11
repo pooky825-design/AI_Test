@@ -53,7 +53,8 @@ public class MainActivity extends Activity {
             "query1.finance.yahoo.com", "query2.finance.yahoo.com", "fchart.stock.naver.com", "www.funetf.co.kr",
             "www.soletf.com", "investments.miraeasset.com",
             "ac.stock.naver.com", // 종목명 검색 (v0.21.1)
-            "m.stock.naver.com")); // 투자지표·분기 실적 (v0.26.6)
+            "m.stock.naver.com", // 투자지표·분기 실적 (v0.26.6)
+            "oauth2.googleapis.com", "www.googleapis.com")); // 구글 드라이브 직접 연결 (v0.27.0)
 
     private WebView webView;
 
@@ -111,6 +112,7 @@ public class MainActivity extends Activity {
     private String pendingDocId;
     private byte[] pendingDocData;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
+    private volatile java.net.ServerSocket oauthServer; // 구글 로그인 결과 받는 곳 (v0.27.0)
     private final Handler main = new Handler(Looper.getMainLooper());
 
     @Override
@@ -312,6 +314,124 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void httpPost(final String id, final String url, final String formBody) {
             request(id, url, formBody == null ? "" : formBody);
+        }
+
+        /**
+         * 일반 HTTPS 요청 (v0.27.0, 구글 드라이브): 메서드·헤더(JSON)·본문(base64). 결과 전달은 httpGet 과 같다.
+         * HttpURLConnection 은 PATCH 를 못 보내므로 POST + X-HTTP-Method-Override 로 보낸다(구글 API 지원).
+         */
+        @JavascriptInterface
+        public void httpRequest(final String id, final String method, final String url, final String headersJson, final String bodyB64) {
+            pool.execute(new Runnable() {
+                @Override
+                public void run() {
+                    int status = 0;
+                    String b64 = "";
+                    String error = null;
+                    HttpURLConnection c = null;
+                    try {
+                        if (!pageIsLocal) throw new Exception("서버 화면에서는 사용할 수 없습니다.");
+                        URL u = new URL(url);
+                        if (!"https".equals(u.getProtocol()) || !ALLOWED_HOSTS.contains(u.getHost())) throw new Exception("허용되지 않은 주소입니다.");
+                        c = (HttpURLConnection) u.openConnection();
+                        c.setConnectTimeout(15000);
+                        c.setReadTimeout(30000);
+                        String m = method == null ? "GET" : method.toUpperCase();
+                        if ("PATCH".equals(m)) { c.setRequestProperty("X-HTTP-Method-Override", "PATCH"); m = "POST"; }
+                        c.setRequestMethod(m);
+                        JSONObject h = new JSONObject(headersJson == null || headersJson.isEmpty() ? "{}" : headersJson);
+                        java.util.Iterator<String> it = h.keys();
+                        while (it.hasNext()) { String k = it.next(); c.setRequestProperty(k, h.getString(k)); }
+                        byte[] body = bodyB64 == null || bodyB64.isEmpty() ? null : Base64.decode(bodyB64, Base64.DEFAULT);
+                        if (body != null || "POST".equals(m)) {
+                            c.setDoOutput(true);
+                            OutputStream os = c.getOutputStream();
+                            if (body != null) os.write(body);
+                            os.close();
+                        }
+                        status = c.getResponseCode();
+                        InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+                        byte[] out = in == null ? new byte[0] : readAll(in);
+                        b64 = Base64.encodeToString(out, Base64.NO_WRAP);
+                    } catch (Exception e) {
+                        error = e.getMessage() == null ? e.toString() : e.getMessage();
+                    } finally {
+                        if (c != null) c.disconnect();
+                    }
+                    final String js = "window.__mobileHttpDone(" + JSONObject.quote(id) + "," + status + ","
+                            + JSONObject.quote(b64) + "," + (error == null ? "null" : JSONObject.quote(error)) + ")";
+                    main.post(new Runnable() {
+                        @Override public void run() { if (webView != null) webView.evaluateJavascript(js, null); }
+                    });
+                }
+            });
+        }
+
+        /**
+         * 구글 로그인 결과 받기 (v0.27.0): 이 기기 안(127.0.0.1)의 빈 포트에서 한 번만 기다린다.
+         * 휴대폰 브라우저에서 구글 로그인을 마치면 http://127.0.0.1:포트/?code=... 로 돌아오고,
+         * 그 주소 뒤 값을 window.__gdriveCallback(query) 로 화면에 넘긴다. 포트 번호를 돌려준다(실패하면 0).
+         */
+        @JavascriptInterface
+        public int gdriveListen() {
+            if (!pageIsLocal) return 0;
+            try {
+                if (oauthServer != null) { try { oauthServer.close(); } catch (Exception ignored) { } }
+                final java.net.ServerSocket ss = new java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
+                ss.setSoTimeout(600000); // 10분
+                oauthServer = ss;
+                pool.execute(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            while (true) {
+                                java.net.Socket sock = ss.accept();
+                                java.io.BufferedReader rd = new java.io.BufferedReader(new java.io.InputStreamReader(sock.getInputStream(), "UTF-8"));
+                                String line = rd.readLine();
+                                String path = line == null ? "" : line.split(" ").length > 1 ? line.split(" ")[1] : "";
+                                if (path.startsWith("/favicon")) { sock.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".getBytes("UTF-8")); sock.close(); continue; }
+                                final String query = path.contains("?") ? path.substring(path.indexOf('?') + 1) : "";
+                                boolean ok = query.contains("code=");
+                                String html = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>K-Stock</title>"
+                                        + "<body style='font-family:sans-serif;padding:32px;text-align:center'><h2>" + (ok ? "구글 드라이브 연결을 마쳤습니다" : "구글 로그인이 완료되지 않았습니다")
+                                        + "</h2><p>K-Stock 앱으로 돌아가세요. 이 창은 닫아도 됩니다.</p></body>";
+                                byte[] hb = html.getBytes("UTF-8");
+                                java.io.OutputStream os = sock.getOutputStream();
+                                os.write(("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + hb.length + "\r\nConnection: close\r\n\r\n").getBytes("UTF-8"));
+                                os.write(hb);
+                                os.flush();
+                                sock.close();
+                                main.post(new Runnable() {
+                                    @Override public void run() {
+                                        if (webView != null) webView.evaluateJavascript("window.__gdriveCallback && window.__gdriveCallback(" + JSONObject.quote(query) + ")", null);
+                                        try {
+                                            Intent back = new Intent(MainActivity.this, MainActivity.class);
+                                            back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                                            startActivity(back); // 앱으로 돌아오기 (안드로이드가 막으면 사용자가 직접 돌아옴)
+                                        } catch (Exception ignored) { }
+                                    }
+                                });
+                                break;
+                            }
+                        } catch (Exception ignored) {
+                        } finally {
+                            try { ss.close(); } catch (Exception ignored) { }
+                        }
+                    }
+                });
+                return ss.getLocalPort();
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
+        /** 휴대폰 브라우저로 주소 열기 (구글 로그인 화면) */
+        @JavascriptInterface
+        public void openBrowser(final String url) {
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
+                }
+            });
         }
 
         private void request(final String id, final String url, final String formBody) {

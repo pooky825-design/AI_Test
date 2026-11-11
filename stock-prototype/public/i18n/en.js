@@ -774,5 +774,22 @@ window.I18N_EN = {
 "매출 / 영업이익": "Revenue / Op. profit",
 "기준(작년 연말)": "basis (last year-end)",
 "자료 없음": "No data",
-"실적 자료가 없습니다.": "No earnings data."
+"실적 자료가 없습니다.": "No earnings data.",
+"구글 드라이브 직접 연결": "Google Drive direct connection",
+"권장": "Recommended",
+"구글 드라이브 앱을 켜 두지 않아도 앱이 구글 드라이브에 직접 접속해 항상 최신 파일로 맞춥니다.": "Connects to Google Drive directly, so the latest file is used even when the Google Drive app is closed.",
+"클라이언트 ID": "Client ID",
+"클라이언트 보안 비밀": "Client secret",
+"저장됨 (바꿀 때만 입력)": "Saved (enter only to change)",
+"구글 로그인으로 연결": "Connect with Google sign-in",
+"구글 드라이브 연결 해제": "Disconnect Google Drive",
+"또는 동기화 파일 직접 고르기": "Or pick a sync file yourself",
+"처음 한 번: 구글 클라우드 콘솔에서 클라이언트 ID 만들기": "First time only: create a client ID in Google Cloud Console",
+"파일 kstock-sync.json (구글 드라이브 내 드라이브)": "File kstock-sync.json (Google Drive · My Drive)",
+"구글 드라이브 · kstock-sync.json": "Google Drive · kstock-sync.json",
+"클라이언트 ID를 저장했습니다. 이제 [구글 로그인으로 연결]을 누르세요.": "Client ID saved. Now tap [Connect with Google sign-in].",
+"구글 드라이브 연결을 해제했습니다.": "Disconnected Google Drive.",
+"휴대폰 브라우저에서 구글 계정으로 로그인하고 허용한 뒤 K-Stock 앱으로 돌아오세요.": "Sign in with your Google account in the phone browser, allow access, then return to the K-Stock app.",
+"구글 로그인을 취소했습니다.": "Google sign-in was cancelled.",
+"팝업이 막혔습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.": "The popup was blocked. Allow popups for this site and try again."
 };

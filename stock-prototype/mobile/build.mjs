@@ -21,6 +21,11 @@ const swap = {
       if (args.path === './http' && dir === 'providers') return { path: path.join(here, 'http.js') };
       return undefined;
     });
+    // services/gdrive.js 등 다른 폴더에서 부르는 providers/http 도 앱용으로 (v0.27.0)
+    b.onResolve({ filter: /\/providers\/http$/ }, (args) => {
+      if (path.basename(args.resolveDir) === 'services') return { path: path.join(here, 'http.js') };
+      return undefined;
+    });
   },
 };
 

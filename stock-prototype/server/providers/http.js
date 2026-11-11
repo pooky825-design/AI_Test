@@ -25,4 +25,18 @@ async function fetchRaw(url, { timeoutMs = 12000, form } = {}) {
     clearTimeout(t);
   }
 }
-module.exports = { fetchRaw };
+
+// 일반 요청 (v0.27.0, 구글 드라이브용): 메서드·헤더·본문(text)을 자유롭게. 응답은 { ok, status, text }
+async function request(url, { method = 'GET', headers = {}, body, timeoutMs = 20000 } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal, method, headers, body });
+    return { ok: r.ok, status: r.status, text: await r.text() };
+  } catch (e) {
+    throw new SourceError(e.name === 'AbortError' ? '응답 시간이 초과되었습니다.' : '인터넷에 연결할 수 없습니다. 연결을 확인해 주세요.');
+  } finally {
+    clearTimeout(t);
+  }
+}
+module.exports = { fetchRaw, request };
