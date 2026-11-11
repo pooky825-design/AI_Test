@@ -2343,7 +2343,7 @@
         </div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
-      <div class="card"><h2 data-title>${year}년 ${fromM}~${toM}월 배당금</h2><div data-list><div class="empty">불러오는 중…</div></div></div>`);
+      <div class="card"><div class="divm-head"><h2 data-title>${year}년 ${fromM}~${toM}월 배당금</h2><div class="divhist-sum" data-dsum hidden></div></div><div data-list><div class="empty">불러오는 중…</div></div></div>`);
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('divmgmt.year', Number(e.target.value));
       go(`#/divmgmt?${qsOf({ year: e.target.value, from: '', to: '' })}`); // 연도를 바꾸면 기간은 기본값
@@ -2370,6 +2370,8 @@
       const gname = d.groupId ? (d.groups.find((g) => g.id === d.groupId) || {}).name : '전체 그룹';
       main.querySelector('[data-title]').innerHTML = `${year}년 ${d.fromMonth}월~${d.toMonth}월 <span>배당금</span> · ${ud(gname)} ${req('FR-DIV-06')}`;
       const box = main.querySelector('[data-list]');
+      const sumBox = main.querySelector('[data-dsum]');
+      sumBox.hidden = true;
       if (!d.items.length) {
         box.innerHTML = `<div class="empty">${year}년 ${ud(gname)}에 보유한 종목이 없습니다.<br/><a href="#/holdings?year=${year}">보유 종목 관리</a>에서 종목을 등록하세요.</div>`;
         return;
@@ -2417,8 +2419,12 @@
       }).join('');
       const lastSub = !d.groupId && lastGroup != null ? sumRow(`${ud(d.items.filter((x) => x.group_id === lastGroup)[0].group_name)} 소계`, sumOf(d.items.filter((x) => x.group_id === lastGroup))) : '';
       const hasUsd = d.items.some((x) => x.currency === 'USD');
+      // 제목 옆 합계 요약 (v0.26.3): 표 아래 합계(원화)와 같은 값
+      const tot = sumOf(d.items);
+      sumBox.innerHTML = `<span class="muted">(합계)</span> <span>월 배당 <b>${sumCell(tot.last)}</b></span> · <span>월 과세표준 <b>${sumCell(tot.last_tax)}</b></span> · <span>누적 배당 <b>${sumCell(tot.ytd)}</b></span> · <span>누적 과세표준 <b>${sumCell(tot.ytd_tax)}</b></span>`;
+      sumBox.hidden = false;
       box.innerHTML = `<div class="table-wrap"><table class="divm-table">
-        <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액(${d.fromMonth}~${d.toMonth}월)</th><th>누적 과세표준액(${d.fromMonth}~${d.toMonth}월)</th><th></th></tr></thead>
+        <thead><tr><th>종목</th><th>보유수량</th><th>${d.ongoing ? '현재 단가' : '연말 종가'}</th><th>평가금액</th><th>월 배당액(최근)</th><th>월 과세표준액</th><th>누적 배당액<br/><small class="th-period">(${d.fromMonth}월~${d.toMonth}월)</small></th><th>누적 과세표준액<br/><small class="th-period">(${d.fromMonth}월~${d.toMonth}월)</small></th><th></th></tr></thead>
         <tbody>${rows}${lastSub}</tbody>
         <tfoot>${sumRow('합계 (원화)', sumOf(d.items), 'tr')}</tfoot></table></div>
         <p class="small muted" style="margin:8px 0 0">소계·합계는 원화 환산${hasUsd ? `(미국 종목 × ${d.ongoing ? '현재' : '연말'} 환율 ${rate(d.fxRate)})` : ''} · 월 배당액(최근)·월 과세표준액 = ${d.fromMonth}~${d.toMonth}월에 저장한 회차 중 가장 최근 회차(배당락일) · 누적 배당액·누적 과세표준액 = ${year}년 ${d.fromMonth}~${d.toMonth}월에 저장한 회차 합계(배당락일 기준) · 금액은 거래 통화(국내 원, 미국 달러) · 연필 아이콘(입력)에서 회차를 골라 저장하면 반영됩니다.</p>`;

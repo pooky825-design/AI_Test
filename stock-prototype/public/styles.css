@@ -377,6 +377,11 @@ tr.clickable.on td { background: var(--t-50); }
 .divhist-sum b { color: var(--t-700); }
 @media (max-width: 640px) { .divhist-sum { white-space: normal; width: 100%; } }
 .divhist-sum span { white-space: nowrap; }
+/* 배당 내역 관리: 제목 옆 합계 (v0.26.3) */
+.divm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; }
+.divm-head h2 { margin: 0; }
+.divm-head .divhist-sum { align-self: center; }
+.divm-table th .th-period { font-weight: 500; opacity: .8; }
 
 /* ---------- 오렌지 테마 보정 (v0.16) ---------- */
 .mobile-top { background: linear-gradient(120deg, var(--side-a), var(--side-c)) !important; }
