@@ -573,8 +573,8 @@
     const main = shell('#/assets', `
       <div class="page-head">
         <div><h1>나의 자산 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
-        <div class="field-row">
-          <div class="field"><label>기준 연도</label><select data-year>${yearOptions(year)}</select></div>
+        <div class="field-row head-ctrl">
+          <div class="field inline-field"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year)}</select></div>
           <button class="secondary" data-refresh>새로고침</button>
           <button data-export="/export/assets.xlsx?year=${year}${groupQs}">엑셀 내보내기</button>
         </div>
@@ -1471,7 +1471,7 @@
     const main = shell('#/holdings', `
       <div class="page-head">
         <div><h1>보유 종목 관리 ${req('SC-04 · FR-HLD')}</h1><p>그룹(ISA·연금·일반 등)과 연도를 골라 주식 항목을 관리합니다. 보유 수량은 목록의 <b>수정</b>에서 매수·매도 구분 없이 바로 바꾸면 됩니다. 손대지 않은 연도는 직전 연도 보유가 그대로 이어집니다(이월).</p></div>
-        <div class="field-row"><div class="field"><label>관리 연도</label><select data-year>${yearOptions(year)}</select></div></div>
+        <div class="field-row head-ctrl"><div class="field inline-field"><label class="inline-label">관리 연도</label><select data-year>${yearOptions(year)}</select></div></div>
       </div>
       <div class="card">
         <div class="group-bar"><div class="group-tabs" data-tabs></div><button class="sm secondary" data-manage>그룹 관리</button></div>
@@ -1912,9 +1912,9 @@
       </div>
       <div class="notice warn"><div><b>해석 주의:</b> 연도별로 입력한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 종목을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
       <div class="card">
-        <form class="field-row" data-range>
-          <div class="field"><label>시작 연도</label><select name="from">${opts(from)}</select></div>
-          <div class="field"><label>종료 연도</label><select name="to">${opts(to)}</select></div>
+        <form class="field-row head-ctrl" data-range>
+          <span class="inline-label">시작 연도 ~ 종료 연도</span>
+          <span class="range-group"><select name="from" aria-label="시작 연도">${opts(from)}</select><span class="range-sep">~</span><select name="to" aria-label="종료 연도">${opts(to)}</select></span>
           <button type="submit">조회</button>
           <span class="small muted">기본 최근 5년 · 최대 10년 ${req('FR-YR-04')}</span>
         </form>
@@ -2934,9 +2934,9 @@
     const main = shell('#/divmgmt', `
       <div class="page-head">
         <div><h1>배당 관리 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
-        <div class="field-row" style="align-items:flex-end">
-          <div class="field"><label>연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
-          <div class="field"><label>기간</label><div class="field-row" style="align-items:center;gap:6px"><select data-from>${monthOpts(fromM)}</select><span>~</span><select data-to>${monthOpts(toM)}</select></div></div>
+        <div class="field-row head-ctrl">
+          <div class="field inline-field"><label class="inline-label">연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
+          <div class="field inline-field"><span class="inline-label">시작 월 ~ 종료 월</span><select data-from aria-label="시작 월">${monthOpts(fromM)}</select><span class="range-sep">~</span><select data-to aria-label="종료 월">${monthOpts(toM)}</select></div>
         </div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>

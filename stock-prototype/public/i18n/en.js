@@ -767,5 +767,7 @@ window.I18N_EN = {
 "의 자료만 비교합니다.": "— only this user's data is compared.",
 "⋮ 열 선택": "⋮ Columns",
 "보일 열 선택": "Choose columns to show",
-"모두 보기": "Show all"
+"모두 보기": "Show all",
+"시작 연도 ~ 종료 연도": "From year ~ To year",
+"시작 월 ~ 종료 월": "From month ~ To month"
 };

@@ -563,3 +563,12 @@ td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 1
 #toast .spinner { border-color: rgba(255,255,255,.35); border-top-color: #fff; }
 @keyframes kspin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* v0.26.13 화면 위 연도 선택: 라벨을 선택 칸 왼쪽에, 상자 제목(h2)과 같은 크기·굵게 */
+.head-ctrl { align-items: center !important; gap: 10px 12px; flex-wrap: wrap; }
+.field.inline-field { flex-direction: row; align-items: center; gap: 8px; margin: 0; }
+.inline-label { font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; margin: 0; }
+.field.inline-field > label.inline-label { font-size: 17px; font-weight: 700; color: var(--text); }
+.range-sep { color: var(--muted); font-weight: 700; }
+.head-ctrl select { width: auto; }
+.range-group { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
