@@ -873,7 +873,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols'];
 
 router.get('/settings', (req, res) => {
   const out = {};
@@ -887,7 +887,7 @@ router.put('/settings/:key', (req, res) => {
   const key = req.params.key;
   if (!SETTING_KEYS.includes(key)) return res.status(400).json({ error: '저장할 수 없는 설정입니다.', code: 'VALIDATION' });
   const value = JSON.stringify(req.body.value ?? null);
-  if (value.length > 2000) return res.status(400).json({ error: '설정 값이 너무 큽니다.', code: 'VALIDATION' });
+  if (value.length > (key === 'ui.cols' ? 8000 : 2000)) return res.status(400).json({ error: '설정 값이 너무 큽니다.', code: 'VALIDATION' });
   db.run(
     `INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,

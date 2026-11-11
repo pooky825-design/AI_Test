@@ -786,10 +786,16 @@
 
   // 상자(카드) 접기·펴기: 제목 오른쪽 −/+ 버튼. 접은 상자는 settingKey 에 저장해 다음에도 유지
   // v0.23: 나의 자산(data-ckey) 외 화면은 data-fold 로 지정. 버튼은 상자 오른쪽 위에 두어 제목이 다시 그려져도 유지
-  function makeFoldable(root, settingKey) {
+  // defaults (v0.26.10): 그 화면을 처음 열 때(접기 설정을 한 번도 저장하지 않았을 때) 접어 둘 상자. 배열 또는 'all'
+  function makeFoldable(root, settingKey, defaults) {
+    const cards = [...root.querySelectorAll('.card[data-ckey], .card[data-fold]')];
+    if (defaults && settings.get(settingKey) === undefined) {
+      const keys = defaults === 'all' ? cards.map((c) => c.dataset.ckey || c.dataset.fold) : defaults;
+      settings.set(settingKey, keys);
+    }
     // 같은 설정 키를 여러 번 붙여도 서로 덮어쓰지 않도록, 누를 때마다 저장된 값을 다시 읽는다 (v0.26.8)
     const current = () => new Set(settings.get(settingKey) || []);
-    root.querySelectorAll('.card[data-ckey], .card[data-fold]').forEach((card) => {
+    cards.forEach((card) => {
       const h2 = card.querySelector(':scope > h2, :scope > .card-head');
       if (!h2 || card.querySelector(':scope > .fold-btn')) return;
       const key = card.dataset.ckey || card.dataset.fold;
@@ -815,6 +821,143 @@
       apply();
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // 표 열 숨기기 · 종목 열 폭 (v0.26.10)
+  //  - 열이 4개 이상인 표 위에 [열 선택] 버튼: 보고 싶은 열만 체크. 화면·상자·표 위치·열 수별로 계정에 저장
+  //  - 종목 열(.name-cell)은 원래 폭의 80%로 줄이고, 글자가 넘치면 글자 크기를 줄여 모두 보이게 한다
+  //  - 화면이 다시 그려질 때마다 자동으로 적용(MutationObserver)
+  // ---------------------------------------------------------------------------
+  const COLS_KEY = 'ui.cols';
+  // 행의 칸들을 논리 열 번호와 함께: colspan 을 고려 (원래 colspan 은 data-ospan 에 보관)
+  function rowCells(tr) {
+    let col = 0;
+    return [...tr.children].map((cell) => {
+      if (!cell.dataset.ospan) cell.dataset.ospan = String(cell.colSpan || 1);
+      const span = Number(cell.dataset.ospan);
+      const r = { cell, start: col, span };
+      col += span;
+      return r;
+    });
+  }
+  function tableKey(table) {
+    const card = table.closest('.card');
+    const scope = card ? (card.dataset.fold || card.dataset.ckey || '') : '';
+    const peers = card ? [...card.querySelectorAll('table')] : [table];
+    const head = table.tHead && table.tHead.rows[0];
+    const n = head ? rowCells(head).reduce((a, c) => a + c.span, 0) : 0;
+    return `${(location.hash.split('?')[0] || '#/').slice(0, 20)}|${scope}|${peers.indexOf(table)}|${n}`;
+  }
+  const colPrefs = () => settings.get(COLS_KEY) || {};
+  function applyHiddenCols(table) {
+    const hidden = new Set(colPrefs()[table.dataset.colKey] || []);
+    [...table.rows].forEach((tr) => rowCells(tr).forEach(({ cell, start, span }) => {
+      let vis = 0;
+      for (let c = start; c < start + span; c++) if (!hidden.has(c)) vis++;
+      cell.classList.toggle('col-hidden', vis === 0);
+      if (span > 1 && vis > 0) cell.colSpan = vis;
+    }));
+    const tools = table.dataset.colKey && table._colTools;
+    if (tools) tools.querySelector('[data-col-btn]').classList.toggle('on', hidden.size > 0);
+  }
+  function openColPicker(table, btn) {
+    document.querySelectorAll('.col-pop').forEach((x) => x.remove());
+    const head = table.tHead.rows[0];
+    const cols = rowCells(head);
+    const key = table.dataset.colKey;
+    const hidden = new Set(colPrefs()[key] || []);
+    const pop = document.createElement('div');
+    pop.className = 'col-pop';
+    pop.innerHTML = `<div class="col-pop-title">보일 열 선택</div>${cols.map((c, i) => {
+      const label = (c.cell.innerText || '').replace(/\s+/g, ' ').trim() || (i === cols.length - 1 ? '작업' : `${i + 1}번째 열`);
+      return `<label class="check-row"><input type="checkbox" data-c="${c.start}" ${hidden.has(c.start) ? '' : 'checked'} ${i === 0 ? 'disabled' : ''} /> ${esc(label)}</label>`;
+    }).join('')}<div class="col-pop-foot"><button type="button" class="sm secondary" data-all>모두 보기</button><button type="button" class="sm" data-close>닫기</button></div>`;
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect();
+    pop.style.top = `${window.scrollY + r.bottom + 4}px`;
+    pop.style.left = `${Math.max(8, Math.min(window.scrollX + r.right - pop.offsetWidth, window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 8))}px`;
+    const save = () => {
+      const h = [...pop.querySelectorAll('input[data-c]')].filter((x) => !x.checked).map((x) => Number(x.dataset.c));
+      const all = { ...colPrefs() };
+      if (h.length) all[key] = h; else delete all[key];
+      settings.set(COLS_KEY, all);
+      // 같은 키의 표(같은 화면 다시 그린 것 등)에 모두 적용
+      document.querySelectorAll('table[data-col-key]').forEach((t) => { if (t.dataset.colKey === key) applyHiddenCols(t); });
+    };
+    pop.addEventListener('change', save);
+    pop.querySelector('[data-all]').addEventListener('click', () => { pop.querySelectorAll('input[data-c]').forEach((x) => { x.checked = true; }); save(); });
+    pop.querySelector('[data-close]').addEventListener('click', () => pop.remove());
+    setTimeout(() => document.addEventListener('click', function off(e) {
+      if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', off, true); }
+    }, true));
+  }
+  function fitNameColumn(table) {
+    const firstRow = [...table.tBodies].flatMap((tb) => [...tb.rows]).find((tr) => tr.querySelector(':scope > td .name-cell'));
+    if (!firstRow) return;
+    const idx = rowCells(firstRow).find((c) => c.cell.querySelector('.name-cell'));
+    if (!idx) return;
+    const col = idx.start;
+    if (!table.dataset.nameW) {
+      const th = table.tHead && rowCells(table.tHead.rows[0]).find((c) => c.start === col);
+      const w = (th ? th.cell : idx.cell).getBoundingClientRect().width;
+      if (!w) return;
+      table.dataset.nameW = String(Math.max(90, Math.round(w * 0.8)));
+    }
+    const w = Number(table.dataset.nameW);
+    // 1단계: 열의 모든 칸 폭을 먼저 줄이고, 2단계: 줄어든 폭에서 넘치는 글자만 작게
+    const todo = [];
+    [...table.rows].forEach((tr) => {
+      const c = rowCells(tr).find((x) => x.start === col && x.span === 1);
+      if (!c || c.cell.dataset.fit === String(w)) return;
+      c.cell.dataset.fit = String(w);
+      c.cell.classList.add('name-col');
+      c.cell.style.width = `${w}px`;
+      c.cell.style.maxWidth = `${w}px`;
+      todo.push(c);
+    });
+    todo.forEach((c) => {
+      c.cell.querySelectorAll('.name-cell > *').forEach((el) => {
+        el.style.fontSize = '';
+        el.style.whiteSpace = '';
+        let size = parseFloat(getComputedStyle(el).fontSize) || 14;
+        const min = Math.max(10, size * 0.65);
+        while (el.scrollWidth > el.clientWidth + 1 && size > min) {
+          size -= 0.5;
+          el.style.fontSize = `${size}px`;
+        }
+        // 가장 작게 해도 넘치면(배지가 있는 줄 등) 잘리지 않도록 줄바꿈
+        if (el.scrollWidth > el.clientWidth + 1) el.style.whiteSpace = 'normal';
+      });
+    });
+  }
+  function enhanceTables() {
+    document.querySelectorAll('.main table, .stock-modal table').forEach((table) => {
+      if (!table.tHead || table.tHead.rows.length !== 1 || table.querySelector('[rowspan]')) return;
+      const sig = `${table.rows.length}`;
+      const ncols = rowCells(table.tHead.rows[0]).length;
+      if (!table.dataset.colKey && ncols >= 4) {
+        table.dataset.colKey = tableKey(table);
+        const anchor = table.closest('.table-wrap') || table;
+        const tools = document.createElement('div');
+        tools.className = 'col-tools';
+        tools.innerHTML = '<button type="button" class="col-btn" data-col-btn title="보일 열 선택">⋮ 열 선택</button>';
+        anchor.parentNode.insertBefore(tools, anchor);
+        tools.querySelector('[data-col-btn]').addEventListener('click', (e) => { e.stopPropagation(); openColPicker(table, e.currentTarget); });
+        table._colTools = tools;
+      }
+      // 새로 그려진 칸(data-ospan 이 없는 칸)이 있거나 행 수가 바뀌면 다시 적용
+      if (table._sig === sig && !table.querySelector('tr > :not([data-ospan])')) return;
+      table._sig = sig;
+      fitNameColumn(table);
+      if (table.dataset.colKey) applyHiddenCols(table);
+    });
+  }
+  let enhanceQueued = false;
+  new MutationObserver(() => {
+    if (enhanceQueued) return;
+    enhanceQueued = true;
+    requestAnimationFrame(() => { enhanceQueued = false; try { enhanceTables(); } catch (_) { /* 무시 */ } });
+  }).observe(document.body, { childList: true, subtree: true });
 
   // ---------------------------------------------------------------------------
   // SC-03 종목 조회
@@ -1319,7 +1462,9 @@
         <div data-msg></div>
       </div>
       <div class="card" data-fold="list"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
-    makeFoldable(main, 'holdings.collapsed');
+    makeFoldable(main, 'holdings.collapsed', ['form']);
+    // 종목 조회의 ‘보유 종목으로 등록’으로 들어오면 종목 등록 상자를 편다
+    if (query.code) { const fc = main.querySelector('[data-fold="form"]'); if (fc && fc._unfold) fc._unfold(); }
 
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('holdings.year', Number(e.target.value));
@@ -2518,7 +2663,7 @@
           </form>
         </div>
       </div>`);
-    makeFoldable(main, 'me.collapsed');
+    makeFoldable(main, 'me.collapsed', 'all');
     bindCloudBox(main);
     bindLang(main);
     main.querySelector('[data-reqcodes]').addEventListener('change', (e) => {

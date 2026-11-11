@@ -764,5 +764,8 @@ window.I18N_EN = {
 "대기 중인 공유를 해제했습니다.": "Pending share removed.",
 "화면 공유": "Screen sharing",
 "사용자": "User",
-"의 자료만 비교합니다.": "— only this user's data is compared."
+"의 자료만 비교합니다.": "— only this user's data is compared.",
+"⋮ 열 선택": "⋮ Columns",
+"보일 열 선택": "Choose columns to show",
+"모두 보기": "Show all"
 };

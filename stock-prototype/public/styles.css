@@ -538,3 +538,18 @@ input.has-formula { background-image: linear-gradient(transparent, transparent);
 .mobile-top .sync-btn { color: #fff; font-weight: 700; }
 .pending-list { margin: 6px 0 0; padding-left: 18px; }
 .pending-list li { margin: 4px 0; }
+
+/* v0.26.10 표 열 숨기기·종목 열 폭, 상자 간격 */
+.col-hidden { display: none !important; }
+.col-tools { display: flex; justify-content: flex-end; margin: 0 0 4px; }
+.col-btn { background: none; border: 1px solid var(--t-200); color: var(--t-700); font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 6px; cursor: pointer; }
+.col-btn.on { background: var(--t-100); border-color: var(--t-400, var(--primary)); }
+.col-pop { position: absolute; z-index: 70; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 10px 12px; min-width: 200px; max-width: 300px; max-height: 60vh; overflow-y: auto; }
+.col-pop-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.col-pop .check-row { display: flex; padding: 4px 0; font-size: 13px; }
+.col-pop-foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+td.name-col .name-cell { overflow: hidden; }
+td.name-col .name-cell > * { white-space: nowrap; overflow: hidden; max-width: 100%; }
+/* 상자 묶음(grid) 안의 상자는 아래 여백 대신 grid 간격만: 휴대폰 세로에서 상자 간격이 두 배가 되지 않게 */
+.grid > .card { margin-bottom: 0; }
+.grid:has(> .card) { margin-bottom: 16px; }
