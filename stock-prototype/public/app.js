@@ -42,6 +42,7 @@
       }
       state.pendingLang = null;
     } else if (window.I18N && (savedLang === 'ko' || savedLang === 'en') && savedLang !== window.I18N.lang) window.I18N.set(savedLang);
+    try { await refreshSyncName(); } catch (_) { state.syncName = ''; }
   }
 
   // ---------------------------------------------------------------------------
@@ -286,18 +287,20 @@
           ${shareSwitch()}
           ${links}
           <div class="spacer"></div>
+          <span data-sync-slot></span>
           <div class="who">${esc(state.user.email)}</div>
           <button class="linkish" data-logout>로그아웃</button>
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span></span><button class="linkish" data-logout>로그아웃</button></div>
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span></span><span class="mtop-actions"><span data-sync-slot></span><button class="linkish" data-logout>로그아웃</button></span></div>
             ${shareSwitch()}
             <nav>${mlinks}</nav>
           </div>
           <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
         </div>
       </div>`;
+    renderSyncButtons();
     $app.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('click', async () => {
       await api('POST', '/auth/logout');
       state.user = null;
@@ -784,9 +787,10 @@
   // 상자(카드) 접기·펴기: 제목 오른쪽 −/+ 버튼. 접은 상자는 settingKey 에 저장해 다음에도 유지
   // v0.23: 나의 자산(data-ckey) 외 화면은 data-fold 로 지정. 버튼은 상자 오른쪽 위에 두어 제목이 다시 그려져도 유지
   function makeFoldable(root, settingKey) {
-    const folded = new Set(settings.get(settingKey) || []);
+    // 같은 설정 키를 여러 번 붙여도 서로 덮어쓰지 않도록, 누를 때마다 저장된 값을 다시 읽는다 (v0.26.8)
+    const current = () => new Set(settings.get(settingKey) || []);
     root.querySelectorAll('.card[data-ckey], .card[data-fold]').forEach((card) => {
-      const h2 = card.querySelector(':scope > h2');
+      const h2 = card.querySelector(':scope > h2, :scope > .card-head');
       if (!h2 || card.querySelector(':scope > .fold-btn')) return;
       const key = card.dataset.ckey || card.dataset.fold;
       const btn = document.createElement('button');
@@ -794,18 +798,19 @@
       btn.className = 'fold-btn';
       card.classList.add('foldable');
       const apply = () => {
-        const on = folded.has(key);
+        const on = current().has(key);
         card.classList.toggle('collapsed', on);
         btn.textContent = on ? '+' : '−';
         btn.title = on ? '펴기' : '접기';
         btn.setAttribute('aria-expanded', String(!on));
       };
       btn.addEventListener('click', () => {
+        const folded = current();
         if (folded.has(key)) folded.delete(key); else folded.add(key);
-        apply();
         settings.set(settingKey, [...folded]);
+        apply();
       });
-      card._unfold = () => { if (folded.has(key)) btn.click(); }; // 수정 버튼 등으로 상자를 써야 할 때 자동으로 펴기
+      card._unfold = () => { if (current().has(key)) btn.click(); }; // 수정 버튼 등으로 상자를 써야 할 때 자동으로 펴기
       card.appendChild(btn);
       apply();
     });
@@ -1024,8 +1029,8 @@
     const c = i.currency;
     box.innerHTML = `
       ${q.stale ? `<div class="notice warn"><div><b>최신 시세가 아닙니다.</b> 외부 출처 오류로 마지막 저장값(${fmtTime(q.priceTime)} 기준)을 표시합니다. ${req('FR-DATA-06')}<br/><span class="small">${esc(q.staleReason)}</span></div></div>` : ''}
-      <div class="card">
-        <div class="quote">
+      <div class="card" data-fold="quote">
+        <div class="quote card-head">
           <div>
             <div class="title"><h2>${ud(i.name)}</h2>${badge(i.type)}<span class="badge mk">${esc(i.market)}</span></div>
             <div class="muted">${esc(i.code)} · ${esc(c)}</div>
@@ -1050,8 +1055,8 @@
           <button class="secondary" data-refresh>현재가 새로고침</button>
         </div>
       </div>
-      <div class="card fund-card" data-fund hidden></div>
-      <div class="card">
+      <div data-fund hidden></div>
+      <div class="card" data-fold="prices">
         <h2>날짜별 종가 ${req('FR-STK-04 · FR-CHT-01')}</h2>
         <div class="field-row" style="margin-bottom:12px">
           <div class="btn-group" data-periods>
@@ -1067,6 +1072,7 @@
         <div class="table-wrap scroll-y" style="margin-top:14px" data-table></div>
         <p class="small muted" style="margin:8px 0 0">수정 종가: 액면분할·병합을 반영해 현재 주식 수 기준으로 환산한 과거 종가 (배당 미반영) ${req('FR-DATA-03')}</p>
       </div>`;
+    makeFoldable(box, 'stock.collapsed');
     box.querySelector('[data-refresh]').addEventListener('click', () => loadStock(box, i.code, true, form));
     box.querySelector('[data-divs]').addEventListener('click', () => openDividendModal(i.code));
     if (c === 'KRW' && i.type === '주식') loadFundamentals(box.querySelector('[data-fund]'), i.code, refresh);
@@ -1131,7 +1137,7 @@
     if (!f.available) {
       if (f.reason === 'source') {
         card.hidden = false;
-        card.innerHTML = `<h2>투자지표 · 실적 ${req('FR-STK-09')}</h2><div class="notice warn small"><div>투자지표·실적을 가져오지 못했습니다. 잠시 뒤 <b>현재가 새로고침</b>으로 다시 시도하세요.</div></div>`;
+        card.innerHTML = `<div class="card"><h2>투자지표 ${req('FR-STK-09')}</h2><div class="notice warn small"><div>투자지표·실적을 가져오지 못했습니다. 잠시 뒤 <b>현재가 새로고침</b>으로 다시 시도하세요.</div></div></div>`;
       }
       return;
     }
@@ -1148,26 +1154,30 @@
       const g = (cur - prev) / Math.abs(prev);
       return `<span class="${g > 0 ? 'up' : g < 0 ? 'down' : ''}">${g > 0 ? '+' : ''}${(g * 100).toFixed(1)}%</span>`;
     };
-    const finTable = (title, list, vsLabel) => {
+    // 분기·연간 실적은 각각 별도 상자 (v0.26.8), 제목 옆에 단위
+    const finTable = (title, list, vsLabel, foldKey) => {
       if (!list.length) return '';
       const head = list.map((x) => `<th class="num${x.estimate ? ' est' : ''}">${esc(x.period)}${x.estimate ? '<br/><small>(추정)</small>' : ''}</th>`).join('');
       const row = (label, fn) => `<tr><th class="left">${label}</th>${list.map((x) => `<td class="num${x.estimate ? ' est' : ''}">${fn(x)}</td>`).join('')}</tr>`;
       const vsRow = (k) => `<tr class="vs-row"><th class="left">${vsLabel}</th>${list.map((x, j) => `<td class="num${x.estimate ? ' est' : ''}">${j ? growth(x[k], list[j - 1][k]) : '<span class="muted">-</span>'}</td>`).join('')}</tr>`;
-      return `<h3 class="fund-sub">${title}</h3><div class="table-wrap"><table class="fund-table">
+      return `<div class="card" data-fold="${foldKey}"><h2>${title} <span class="unit-note">(단위: 억원, 영업이익률 %)</span></h2><div class="table-wrap"><table class="fund-table">
         <thead><tr><th class="left">항목</th>${head}</tr></thead>
         <tbody>${row('매출액', (x) => n(x.revenue))}${vsRow('revenue')}${row('영업이익', (x) => `<b>${n(x.op)}</b>`)}${vsRow('op')}${row('영업이익률', (x) => p2(x.opMargin))}${row('당기순이익', (x) => n(x.net))}${vsRow('net')}</tbody>
-      </table></div>`;
+      </table></div>
+      <p class="small muted" style="margin:8px 0 0">${vsLabel} = 바로 앞 ${vsLabel === '전분기 대비' ? '분기' : '해'}보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스</p></div>`;
     };
     card.hidden = false;
-    card.innerHTML = `<h2>투자지표 · 실적 ${req('FR-STK-09')}</h2>
+    card.innerHTML = `<div class="card" data-fold="fund"><h2>투자지표 ${req('FR-STK-09')}</h2>
       <div class="fund-kpis">
         <div class="kpi"><div class="label">시가총액</div><div class="value" data-noi18n>${capText(f.marketCap)}</div></div>
         <div class="kpi"><div class="label">PER</div><div class="value">${ratio(f.per, '배')}</div>${asOf(f.per)}${f.estPer && f.estPer.value != null ? `<small class="muted"> · 추정 ${ratio(f.estPer, '배')}</small>` : ''}</div>
         <div class="kpi"><div class="label">PBR</div><div class="value">${ratio(f.pbr, '배')}</div>${asOf(f.pbr)}</div>
         <div class="kpi"><div class="label">EPS · BPS</div><div class="value small-v">${ratio(f.eps, '원')} · ${ratio(f.bps, '원')}</div></div>
       </div>
-      ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : `${finTable('분기 실적', f.quarters, '전분기 대비')}${finTable('연간 실적', f.annual, '전년 대비')}`}
-      <p class="small muted" style="margin:8px 0 0">단위: 억원(영업이익률은 %) · 전분기·전년 대비 = 바로 앞 기간보다 늘어난 비율 · 연결 재무제표 기준 · 추정 = 증권사 컨센서스 · 출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p>`;
+      ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : ''}
+      <p class="small muted" style="margin:8px 0 0">출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p></div>
+      ${f.reason === 'noFinance' ? '' : `${finTable('분기 실적', f.quarters, '전분기 대비', 'quarter')}${finTable('연간 실적', f.annual, '전년 대비', 'annual')}`}`;
+    makeFoldable(card, 'stock.collapsed');
   }
 
   function drawPriceChart(canvas, prices, cur) {
@@ -2083,6 +2093,216 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // 기기 간 동기화 (v0.26.8): 클라우드 폴더(MYBOX·구글 드라이브 등)에 둔 동기화 파일 하나로 [동기화]를 누를 때 맞춘다
+  //  - 앱: 안드로이드 파일 선택 창으로 고른 파일(권한 유지) / PC: Chrome·Edge 의 파일 접근 기능
+  //  - 이 기기가 마지막으로 맞춘 상태와 비교: 이 기기만 바뀜 → 파일에 저장, 파일만 바뀜 → 가져오기, 둘 다 바뀜 → 고르기
+  // ---------------------------------------------------------------------------
+  const SYNC_FORMAT = 'kstock-sync';
+  const syncKey = () => String((state.user && state.user.email) || '').toLowerCase();
+  const syncMode = () => {
+    if (REMOTE_APP) return null; // 클라우드 서버 연결 중이면 이미 기기끼리 같은 데이터
+    if (IN_APP) return window.AndroidBridge.syncPick ? 'android' : null;
+    return typeof window.showSaveFilePicker === 'function' && typeof window.showOpenFilePicker === 'function' ? 'web' : null;
+  };
+  // 웹: 파일 핸들은 IndexedDB 에 저장 (브라우저가 다음에도 같은 파일을 열 수 있게)
+  const idb = (op, key, val) => new Promise((resolve, reject) => {
+    const req = indexedDB.open('kstock', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', op === 'get' ? 'readonly' : 'readwrite');
+      const st = tx.objectStore('kv');
+      const r = op === 'get' ? st.get(key) : op === 'put' ? st.put(val, key) : st.delete(key);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    };
+  });
+  const syncStateKey = () => `sync.state.${syncKey()}`;
+  const syncState = () => { try { return JSON.parse(localStorage.getItem(syncStateKey()) || 'null'); } catch (_) { return null; } };
+  const saveSyncState = (v) => { try { localStorage.setItem(syncStateKey(), JSON.stringify(v)); } catch (_) { /* 무시 */ } };
+  async function syncFileName() {
+    const m = syncMode();
+    try {
+      if (m === 'android') return window.AndroidBridge.syncName(syncKey()) || '';
+      if (m === 'web') { const h = await idb('get', `sync:${syncKey()}`); return h ? h.name : ''; }
+    } catch (_) { /* 무시 */ }
+    return '';
+  }
+  async function refreshSyncName() { state.syncName = await syncFileName(); return state.syncName; }
+  // 데이터 지문: 화면 설정(접기·마지막 연도 등)은 자주 바뀌므로 빼고, 보유·배당 데이터만으로 계산
+  function dataHash(backup) {
+    const d = backup.data || {};
+    const strip = (rows) => (rows || []).map((r) => { const o = { ...r }; delete o.created_at; delete o.updated_at; return o; });
+    const gname = new Map((d.groups || []).map((g) => [g.id, g.name]));
+    const withG = (rows) => strip(rows).map((r) => ({ ...r, group_id: gname.get(r.group_id) || r.group_id }));
+    const text = JSON.stringify([(d.groups || []).map((g) => [g.name, g.sort_order]), withG(d.items), strip(d.categories), strip(d.dividends), withG(d.holdingDividends)]);
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  const deviceLabel = () => (IN_APP ? '휴대폰 앱' : /Android|iPhone|iPad/i.test(navigator.userAgent) ? '휴대폰 브라우저' : 'PC 브라우저');
+  async function webHandle(ask) {
+    const h = await idb('get', `sync:${syncKey()}`);
+    if (!h) throw new Error('연결된 동기화 파일이 없습니다.');
+    const opt = { mode: 'readwrite' };
+    if ((await h.queryPermission(opt)) !== 'granted') {
+      if (!ask || (await h.requestPermission(opt)) !== 'granted') throw new Error('동기화 파일을 읽고 쓸 권한이 필요합니다. 다시 눌러 허용해 주세요.');
+    }
+    return h;
+  }
+  async function readSyncFile(h) {
+    const text = syncMode() === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
+    if (!text.trim()) return null;
+    let f;
+    try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(JSON 형식 아님).'); }
+    if (!f || f.format !== SYNC_FORMAT || !f.backup) throw new Error('K-Stock 동기화 파일이 아닙니다. 다른 파일을 연결해 주세요.');
+    return f;
+  }
+  async function writeSyncFile(h, backup, hash) {
+    const text = JSON.stringify({ format: SYNC_FORMAT, version: 1, savedAt: new Date().toISOString(), device: deviceLabel(), account: state.user.email, hash, counts: backup.counts, backup });
+    if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
+    else { const w = await h.createWritable(); await w.write(text); await w.close(); }
+  }
+  async function linkSyncFile(create) {
+    const m = syncMode();
+    if (m === 'android') {
+      await nativeDoc('syncPick', syncKey(), !!create);
+    } else {
+      const types = [{ description: 'K-Stock 동기화 파일', accept: { 'application/json': ['.json'] } }];
+      const h = create ? await window.showSaveFilePicker({ suggestedName: 'kstock-sync.json', types }) : (await window.showOpenFilePicker({ types, multiple: false }))[0];
+      await idb('put', `sync:${syncKey()}`, h);
+    }
+    saveSyncState(null); // 새 파일이면 처음 맞추는 것으로
+    await refreshSyncName();
+  }
+  async function unlinkSyncFile() {
+    if (syncMode() === 'android') window.AndroidBridge.syncUnlink(syncKey());
+    else await idb('del', `sync:${syncKey()}`);
+    saveSyncState(null);
+    state.syncName = '';
+  }
+  // [동기화] 한 번
+  let syncBusy = false;
+  async function runSync() {
+    if (syncBusy) return;
+    if (state.actAs) return toast('공유받은 화면을 보는 중에는 동기화할 수 없습니다. 내 자산으로 돌아간 뒤 눌러 주세요.');
+    syncBusy = true;
+    document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = true; });
+    try {
+      const h = syncMode() === 'web' ? await webHandle(true) : null;
+      const [local, file] = await Promise.all([api('GET', '/backup'), readSyncFile(h)]);
+      const localHash = dataHash(local);
+      const st = syncState();
+      const push = async (msg) => {
+        await writeSyncFile(h, local, localHash);
+        saveSyncState({ lastHash: localHash, fileHash: localHash, at: new Date().toISOString() });
+        toast(msg || '이 기기의 데이터를 동기화 파일에 저장했습니다.');
+      };
+      const pull = async (msg) => {
+        await api('POST', '/restore', { backup: file.backup });
+        const fresh = await api('GET', '/backup');
+        saveSyncState({ lastHash: dataHash(fresh), fileHash: file.hash, at: new Date().toISOString() });
+        await loadSettings();
+        toast(msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`);
+        render();
+      };
+      if (!file) await push('동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
+      else if (file.hash === localHash) { saveSyncState({ lastHash: localHash, fileHash: file.hash, at: new Date().toISOString() }); toast('이미 최신입니다. 바뀐 내용이 없습니다.'); }
+      else {
+        const localChanged = !st || st.lastHash !== localHash;
+        const fileChanged = !st || st.fileHash !== file.hash;
+        if (localChanged && !fileChanged) await push();
+        else if (!localChanged && fileChanged) await pull();
+        else await chooseSync(file, local, push, pull, !st);
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') toast('취소했습니다.');
+      else toast(err.message || String(err));
+    } finally {
+      syncBusy = false;
+      document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = false; });
+      const card = document.querySelector('[data-sync-card]');
+      if (card && card._paint) card._paint();
+    }
+  }
+  // 이 기기와 파일이 둘 다 바뀌었거나(또는 처음 맞출 때 서로 다르면) 어느 쪽을 남길지 고른다
+  function chooseSync(file, local, push, pull, first) {
+    return new Promise((resolve) => {
+      const fc = file.counts || {};
+      const lc = local.counts || {};
+      const body = openModal('동기화 · 어느 데이터를 남길까요?');
+      body.innerHTML = `<p style="margin:0 0 10px">${first ? '이 기기에서 처음 동기화합니다. 이 기기의 데이터와 동기화 파일의 데이터가 다릅니다.' : '마지막 동기화 뒤에 이 기기와 다른 기기(동기화 파일) 양쪽에서 데이터가 바뀌었습니다.'} 남길 쪽을 고르세요. 고르지 않은 쪽의 바뀐 내용은 사라집니다.</p>
+        <table><thead><tr><th></th><th class="num">이 기기</th><th class="num">동기화 파일</th></tr></thead><tbody>
+          <tr><td class="left">저장 일시</td><td class="right">지금</td><td class="right">${esc(fmtTime(file.savedAt))}<br/><small class="muted">${esc(file.device || '')}</small></td></tr>
+          <tr><td class="left">그룹</td><td class="right">${lc.groups || 0}개</td><td class="right">${fc.groups || 0}개</td></tr>
+          <tr><td class="left">주식 항목(연도별)</td><td class="right">${lc.items || 0}건</td><td class="right">${fc.items || 0}건</td></tr>
+          <tr><td class="left">배당 관리 회차</td><td class="right">${lc.holdingDividends || 0}건</td><td class="right">${fc.holdingDividends || 0}건</td></tr>
+        </tbody></table>
+        <div class="field-row" style="justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="secondary" data-close>취소</button>
+          <button class="secondary" data-push>이 기기 데이터로 파일 덮어쓰기</button>
+          <button data-pull>파일 데이터 가져오기</button>
+        </div>`;
+      const done = async (fn) => { closeModal(); try { if (fn) await fn(); } catch (e) { toast(e.message); } resolve(); };
+      body.querySelector('[data-close]').addEventListener('click', () => { toast('동기화를 취소했습니다.'); done(null); });
+      body.querySelector('[data-push]').addEventListener('click', () => done(() => push()));
+      body.querySelector('[data-pull]').addEventListener('click', () => done(() => pull()));
+    });
+  }
+  function mountSyncCard(card) {
+    const m = syncMode();
+    const paint = async () => {
+      const name = await refreshSyncName();
+      const st = syncState();
+      const box = card.querySelector('[data-sync-body]');
+      if (!m) {
+        box.innerHTML = REMOTE_APP
+          ? '<p class="small muted" style="margin:0">지금은 클라우드 서버에 연결되어 있어 기기끼리 이미 같은 데이터를 봅니다. 동기화 파일은 이 휴대폰 모드에서 쓸 수 있습니다.</p>'
+          : '<div class="notice warn small"><div>이 브라우저는 동기화 파일 기능을 지원하지 않습니다. PC의 Chrome·Edge 또는 휴대폰 앱에서 쓰거나, 아래 백업 파일 저장·복원으로 옮기세요.</div></div>';
+        return;
+      }
+      box.innerHTML = name
+        ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-relink>다른 파일 연결</button><button class="secondary" data-unlink>연결 해제</button></div>`
+        : `<div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-create>새 동기화 파일 만들기</button><button class="secondary" data-open>기존 동기화 파일 연결</button></div>
+          <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`;
+      const on = (sel, fn) => { const b = box.querySelector(sel); if (b) b.addEventListener('click', fn); };
+      const link = (create) => async () => {
+        try { await linkSyncFile(create); toast('동기화 파일을 연결했습니다. 이제 지금 동기화를 눌러 맞추세요.'); } catch (err) { toast(err && err.name === 'AbortError' ? '취소했습니다.' : err.message); }
+        paint();
+        renderSyncButtons();
+      };
+      on('[data-create]', link(true));
+      on('[data-open]', link(false));
+      on('[data-relink]', link(false));
+      on('[data-sync-now]', runSync);
+      on('[data-unlink]', async () => {
+        if (!confirm('동기화 파일 연결을 해제할까요? 파일과 이 기기의 데이터는 지워지지 않습니다.')) return;
+        await unlinkSyncFile();
+        paint();
+        renderSyncButtons();
+      });
+    };
+    card._paint = paint;
+    paint();
+  }
+  // 왼쪽 메뉴·휴대폰 상단의 [동기화] 버튼: 동기화 파일을 연결했을 때만 보인다
+  function renderSyncButtons() {
+    document.querySelectorAll('[data-sync-slot]').forEach((slot) => {
+      slot.innerHTML = state.syncName && !state.actAs ? `<button class="linkish sync-btn" data-sync-now title="동기화 파일과 데이터 맞추기">⟳ 동기화</button>` : '';
+      const b = slot.querySelector('[data-sync-now]');
+      if (b) b.addEventListener('click', runSync);
+    });
+  }
+
   // 화면 테마 카드 (v0.17)
   function mountThemeCard(card) {
     const sw = card.querySelector('[data-swatches]');
@@ -2217,6 +2437,12 @@
           <div class="field-row"><button data-cloud>클라우드 서버에 연결</button></div>
           <p class="small muted" style="margin:10px 0 0">데이터 옮기기: 연결 전에 아래 <b>백업 파일 저장</b> → 연결 후 서버에서 사용자 추가·로그인 → <b>백업 파일로 복원</b>. 서버 만드는 방법은 README의 ‘클라우드 서버(Oracle Cloud)’ 안내를 보세요.</p>`}
       </div>` : ''}
+      <div class="card" data-sync-card data-fold="sync">
+        <h2>기기 간 동기화 ${req('FR-BAK-03')}</h2>
+        <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다.</p>
+        <div data-sync-body><span class="small muted">확인 중…</span></div>
+        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다).' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 내 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 나만 쓰는 폴더에 두세요. 같은 이메일 계정끼리 쓰는 것을 권장합니다.</p>
+      </div>
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
         <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 관리 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
@@ -2278,6 +2504,7 @@
       settings.set('ui.reqcodes', e.target.checked);
     });
     mountThemeCard(main.querySelector('[data-theme-card]'));
+    mountSyncCard(main.querySelector('[data-sync-card]'));
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
@@ -2508,7 +2735,8 @@
         </div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
-      <div class="card"><div class="divm-head"><h2 data-title>${year}년 ${fromM}~${toM}월 배당금</h2><div class="divhist-sum" data-dsum hidden></div></div><div data-list><div class="empty">불러오는 중…</div></div></div>`);
+      <div class="card" data-fold="list"><div class="divm-head card-head"><h2 data-title>${year}년 ${fromM}~${toM}월 배당금</h2><div class="divhist-sum" data-dsum hidden></div></div><div data-list><div class="empty">불러오는 중…</div></div></div>`);
+    makeFoldable(main, 'divmgmt.collapsed');
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('divmgmt.year', Number(e.target.value));
       go(`#/divmgmt?${qsOf({ year: e.target.value, from: '', to: '' })}`); // 연도를 바꾸면 기간은 기본값

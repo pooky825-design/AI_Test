@@ -103,6 +103,11 @@ public class MainActivity extends Activity {
     // 백업·복원 (v0.15): 안드로이드 파일 선택 창(저장 위치 선택 / 파일 열기)으로 앱 삭제 후에도 남는 위치에 저장·불러오기
     private static final int REQ_CREATE_DOC = 7001;
     private static final int REQ_OPEN_DOC = 7002;
+    // 기기 간 동기화 파일 (v0.26.8): 고른 파일의 권한을 계속 유지해 [동기화] 때마다 같은 파일을 읽고 쓴다
+    private static final int REQ_SYNC_CREATE = 7003;
+    private static final int REQ_SYNC_OPEN = 7004;
+    private static final String KEY_SYNC = "syncUri:";
+    private String pendingSyncKey;
     private String pendingDocId;
     private byte[] pendingDocData;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -165,6 +170,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_SYNC_CREATE || requestCode == REQ_SYNC_OPEN) { onSyncPicked(requestCode, resultCode, data); return; }
         if (requestCode != REQ_CREATE_DOC && requestCode != REQ_OPEN_DOC) return;
         final String id = pendingDocId;
         final byte[] bytes = pendingDocData;
@@ -195,6 +201,41 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    private void onSyncPicked(int requestCode, int resultCode, Intent data) {
+        final String id = pendingDocId;
+        final String key = pendingSyncKey;
+        pendingDocId = null;
+        pendingSyncKey = null;
+        if (id == null) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) { docDone(id, false, "취소했습니다."); return; }
+        Uri uri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        } catch (Exception e) {
+            docDone(id, false, "이 파일은 계속 읽고 쓸 권한을 받을 수 없습니다. 다른 저장 위치(예: 구글 드라이브)를 골라 주세요.");
+            return;
+        }
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_SYNC + key, uri.toString()).apply();
+        docDone(id, true, displayName(uri));
+    }
+
+    private String displayName(Uri uri) {
+        android.database.Cursor c = null;
+        try {
+            c = getContentResolver().query(uri, new String[] { "_display_name" }, null, null, null);
+            if (c != null && c.moveToFirst()) return c.getString(0);
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return uri.getLastPathSegment();
+    }
+
+    private Uri syncUri(String key) {
+        String u = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SYNC + key, "");
+        return u.isEmpty() ? null : Uri.parse(u);
     }
 
     @Override
@@ -352,6 +393,90 @@ public class MainActivity extends Activity {
                     } catch (Exception e) {
                         pendingDocId = null;
                         docDone(id, false, "저장 창을 열 수 없습니다: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+        /** 동기화 파일 고르기 (v0.26.8): create=새로 만들기, 아니면 기존 파일 열기. 결과는 window.__docDone(파일 이름). */
+        @JavascriptInterface
+        public void syncPick(final String key, final boolean create, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        pendingDocId = id;
+                        pendingSyncKey = key;
+                        Intent i = new Intent(create ? Intent.ACTION_CREATE_DOCUMENT : Intent.ACTION_OPEN_DOCUMENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType(create ? "application/json" : "*/*");
+                        if (create) i.putExtra(Intent.EXTRA_TITLE, "kstock-sync.json");
+                        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                        startActivityForResult(i, create ? REQ_SYNC_CREATE : REQ_SYNC_OPEN);
+                    } catch (Exception e) {
+                        pendingDocId = null;
+                        docDone(id, false, "파일 창을 열 수 없습니다: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+        /** 연결된 동기화 파일 이름 (없으면 빈 문자열) */
+        @JavascriptInterface
+        public String syncName(String key) {
+            Uri u = syncUri(key);
+            return u == null ? "" : displayName(u);
+        }
+
+        @JavascriptInterface
+        public void syncUnlink(String key) {
+            Uri u = syncUri(key);
+            if (u != null) {
+                try { getContentResolver().releasePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) { }
+            }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_SYNC + key).apply();
+        }
+
+        /** 동기화 파일 읽기 → base64 (빈 파일이면 빈 문자열) */
+        @JavascriptInterface
+        public void syncRead(final String key, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            pool.execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        Uri u = syncUri(key);
+                        if (u == null) throw new Exception("연결된 동기화 파일이 없습니다.");
+                        InputStream in = getContentResolver().openInputStream(u);
+                        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                        byte[] b = new byte[8192];
+                        int n;
+                        while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                        in.close();
+                        docDone(id, true, Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP));
+                    } catch (Exception e) {
+                        docDone(id, false, "동기화 파일을 읽지 못했습니다: " + e.getMessage());
+                    }
+                }
+            });
+        }
+
+        /** 동기화 파일 쓰기 (내용 전체를 바꿈) */
+        @JavascriptInterface
+        public void syncWrite(final String key, final String b64, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            pool.execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        Uri u = syncUri(key);
+                        if (u == null) throw new Exception("연결된 동기화 파일이 없습니다.");
+                        byte[] data = Base64.decode(b64, Base64.DEFAULT);
+                        OutputStream out;
+                        try { out = getContentResolver().openOutputStream(u, "wt"); } catch (Exception e) { out = getContentResolver().openOutputStream(u, "w"); }
+                        out.write(data);
+                        out.close();
+                        docDone(id, true, "ok");
+                    } catch (Exception e) {
+                        docDone(id, false, "동기화 파일에 쓰지 못했습니다: " + e.getMessage());
                     }
                 }
             });

@@ -135,7 +135,7 @@ tr.detail .inner { padding: 8px 16px 14px; }
 .card[data-ckey] > h2 { display: flex; align-items: center; }
 .fold-btn { margin-left: auto; width: 28px; height: 28px; padding: 0; border-radius: 6px; background: #fff; color: var(--text); border: 1px solid #cbd5e1; font-size: 18px; line-height: 1; font-weight: 600; flex: none; }
 .fold-btn:hover { background: var(--primary-soft); border-color: var(--primary-2); }
-.card.collapsed > :not(h2):not(.fold-btn) { display: none !important; }
+.card.collapsed > :not(h2):not(.fold-btn):not(.card-head) { display: none !important; }
 .card.collapsed > h2 { margin-bottom: 0; }
 .fold-card .grid.k4 .kpi { box-shadow: none; background: var(--surface-2); }
 .tip { cursor: pointer; border-bottom: 1px dotted #94a3b8; }
@@ -525,3 +525,14 @@ input.has-formula { background-image: linear-gradient(transparent, transparent);
 .fx-mark { display: inline-block; font-style: italic; font-weight: 700; font-size: 11px; color: var(--t-700); background: var(--t-100); border-radius: 4px; padding: 0 4px; margin-right: 4px; border-bottom: none; vertical-align: 1px; }
 .fund-table tr.vs-row th, .fund-table tr.vs-row td { font-size: 12px; padding-top: 4px; padding-bottom: 6px; }
 .fund-table tr.vs-row th.left { padding-left: 22px; font-weight: 500; color: var(--muted); }
+
+/* v0.26.8: 실적 상자 단위 표기, 머리 줄(.card-head)로 접는 상자 */
+.unit-note { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.card.foldable > .card-head { padding-right: 44px; }
+.card.collapsed > .card-head { margin-bottom: 0; }
+
+/* 기기 간 동기화 (v0.26.8) */
+.sync-status { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 8px 12px; background: var(--t-50); border: 1px solid var(--t-200); border-radius: 8px; }
+.side .sync-btn { color: #fff; font-weight: 700; margin-bottom: 6px; }
+.mtop-actions { display: inline-flex; align-items: center; gap: 10px; }
+.mobile-top .sync-btn { color: #fff; font-weight: 700; }
