@@ -254,8 +254,6 @@
   const NAV_ICON_PATHS = {
     // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움, v0.30.6: 지붕은 그대로 몸체는 좁게·문은 더 넓게)
     '#/home': '<path fill="currentColor" d="M10.8 4.6Q12 3.6 13.2 4.6L20.3 10.6Q21.1 11.4 20 11.5H17.8V18.6Q17.8 20.2 16.2 20.2H14.8V16.6Q14.8 14.2 12 14.2Q9.2 14.2 9.2 16.6V20.2H7.8Q6.2 20.2 6.2 18.6V11.5H4Q2.9 11.4 3.7 10.6Z"/>',
-    // 대시보드 제목 아이콘 (v0.30.14): 크기가 다른 네 칸
-    'dash': '<rect x="4" y="4" width="7" height="9" rx="1.6"/><rect x="13" y="4" width="7" height="5" rx="1.6"/><rect x="13" y="11" width="7" height="9" rx="1.6"/><rect x="4" y="15" width="7" height="5" rx="1.6"/>',
     '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
@@ -321,9 +319,9 @@
           <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
         </div>
       </div>`;
-    // 화면 제목 왼쪽 아이콘 (v0.30.14), 홈은 대시보드 아이콘
+    // 화면 제목 왼쪽 아이콘 (v0.30.14)
     const h1 = $app.querySelector('.content .page-head h1');
-    const icoKey = active === '#/home' ? 'dash' : active;
+    const icoKey = active; // v0.30.21: 홈(대시보드)도 메뉴와 같은 집 아이콘
     if (h1 && NAV_ICON_PATHS[icoKey]) h1.insertAdjacentHTML('afterbegin', navIcon(icoKey).replace('class="nav-ico"', 'class="title-ico"'));
     const mnav = $app.querySelector('.mobile-top nav');
     if (mnav) {
