@@ -79,7 +79,12 @@ function localize(obj, lang) {
     seen.add(o);
     if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
     if (typeof o.code === 'string' && typeof o.name === 'string' && /^[0-9A-Z][0-9A-Z.-]{0,9}$/.test(o.code)) {
-      const n = c.get(o.code);
+      let n = c.get(o.code);
+      // 아직 모르는 언어의 이름이 이 기기에 저장된 종목명이면 바로 쓴다 (예: 미국 종목의 영문명)
+      if (!(n && (lang === 'en' ? n.en : n.ko))) {
+        const inst = db.get('SELECT name FROM instruments WHERE code = ?', [o.code]);
+        if (inst && inst.name) { learn(o.code, hasHangul(inst.name) ? { ko: inst.name } : { en: inst.name }); n = c.get(o.code); }
+      }
       const want = n && (lang === 'en' ? n.en : n.ko);
       if (want) o.name = want;
       else if (n === undefined || (lang === 'en' ? !n.en : !n.ko)) ensure(o.code);

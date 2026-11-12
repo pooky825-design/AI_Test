@@ -29,7 +29,7 @@ function applySetCookie(header) {
   jar.set(expired ? '' : pair);
 }
 
-async function request(method, url, body) {
+async function request(method, url, body, headers = {}) {
   await ready;
   const u = new URL(url, 'http://app.local/api');
   const req = {
@@ -40,6 +40,9 @@ async function request(method, url, body) {
     headers: { cookie: jar.get() },
     params: {},
   };
+  // 화면이 보낸 헤더(예: X-Lang 종목명 언어, v0.30.38)를 서버 코드가 읽을 수 있게
+  for (const [k, v] of Object.entries(headers || {})) if (k.toLowerCase() !== 'cookie') req.headers[k.toLowerCase()] = String(v);
+  req.get = (name) => req.headers[String(name).toLowerCase()];
   const res = createResponse();
   try {
     auth.loadUser(req, res, () => {});
@@ -82,7 +85,8 @@ const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init = {}) => {
   const url = typeof input === 'string' ? input : input.url;
   if (!url.startsWith('/api/')) return nativeFetch(input, init);
-  const r = await request(init.method || 'GET', url, init.body ? JSON.parse(init.body) : undefined);
+  const h = init.headers instanceof Headers ? Object.fromEntries(init.headers.entries()) : (init.headers || {});
+  const r = await request(init.method || 'GET', url, init.body ? JSON.parse(init.body) : undefined, h);
   return new Response(JSON.stringify(r.json ?? {}), { status: r.status, headers: { 'Content-Type': 'application/json' } });
 };
 
