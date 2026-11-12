@@ -376,7 +376,12 @@ function migrate() {
     PRIMARY KEY (viewer_id, owner_email))`);
   // 데모 계정: 별명·사진을 붙이고 비밀번호를 4자리(1234)로 (한 번만, 별명이 없을 때)
   if (get("SELECT 1 FROM users WHERE email = 'demo@example.com' AND nickname IS NULL")) {
-    db.run("UPDATE users SET nickname = '데모', avatar = 'preset:1', password_hash = ? WHERE email = 'demo@example.com'", [DEMO_PIN_HASH]);
+    db.run("UPDATE users SET nickname = '샘플', avatar = 'preset:1', password_hash = ? WHERE email = 'demo@example.com'", [DEMO_PIN_HASH]);
+  }
+  // v0.30.27: 기본 사용자 별명 '데모' → '샘플' (한 번, 다른 사용자가 '샘플'을 쓰지 않을 때)
+  if (get("SELECT 1 FROM users WHERE email = 'demo@example.com' AND nickname = '데모'")
+    && !get("SELECT 1 FROM users WHERE email != 'demo@example.com' AND (lower(nickname) = '샘플' OR lower(email) = '샘플')")) {
+    db.run("UPDATE users SET nickname = '샘플' WHERE email = 'demo@example.com'");
   }
 
   const icols = all('PRAGMA table_info(holding_items)').map((c) => c.name);

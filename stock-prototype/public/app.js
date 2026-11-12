@@ -22,7 +22,10 @@
     },
   };
   // 요구사항 ID(FR-AUTH-01 등) 표시 여부 (v0.26.4): 계정에 저장, 로그인 화면용으로 이 기기에도 기억
+  // v0.30.27: 요구사항 ID 표시를 숨김(환경설정 상자도 숨김). 다시 보이게 하려면 SHOW_REQ_UI 를 true 로
+  const SHOW_REQ_UI = false;
   function applyReqCodes(show) {
+    if (!SHOW_REQ_UI) { document.documentElement.classList.add('hide-req'); return; }
     document.documentElement.classList.toggle('hide-req', show === false);
     try { localStorage.setItem('ui.reqcodes', show === false ? '0' : '1'); } catch (_) { /* 무시 */ }
   }
@@ -482,7 +485,7 @@
         <div class="lang-row">${langSelectHtml()}</div>
         <div class="card">
           <h1>${title}</h1>
-          <p class="muted" style="margin:4px 0 0">${sub}</p>
+          ${sub ? `<p class="muted" style="margin:4px 0 0">${sub}</p>` : ''}
           ${body}
         </div>
         <p class="footer-note" style="text-align:center;border:none">${DISCLAIMER}</p>
@@ -524,7 +527,7 @@
         ? `<div class="notice error small"><div class="grow"><b>클라우드 서버(${esc(hostOf(saved))})에 연결하지 못했습니다.</b><br/>인터넷 연결이나 서버 상태를 확인하세요. 지금 화면은 휴대폰 안의 데이터입니다.</div></div>
            <div class="field-row" style="margin-bottom:10px"><button type="button" class="sm" data-cretry>다시 연결</button><button type="button" class="sm secondary" data-clocal>이 휴대폰 모드로 사용</button></div>`
         : '';
-      return `${err}<div class="cloud-box">☁️ 다른 기기와 공유하려면 <button type="button" class="linkish" data-cloud>클라우드 서버에 연결</button></div>`;
+      return `${err}<div class="cloud-box">☁️ 다른 기기와 공유하려면 구글 드라이브에 서로 연결</div>`;
     }
     if (REMOTE_APP) return `<div class="cloud-box">☁️ 연결된 서버: <b>${esc(hostOf(appServerUrl() || location.origin))}</b> · <button type="button" class="linkish" data-clocal>이 휴대폰 모드로 전환</button></div>`;
     return '';
@@ -548,7 +551,7 @@
   };
 
   async function viewLogin(query = {}) {
-    authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
+    authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '', `
       <div data-login-body><div class="empty">불러오는 중…</div></div>
       ${cloudLoginBox(query)}`);
     bindCloudBox($app);
@@ -557,19 +560,17 @@
     let hidden = false;
     try { const r = await api('GET', '/auth/profiles'); profiles = r.profiles || []; hidden = !!r.hidden; } catch (_) { hidden = true; }
     const done = (r) => { state.user = r.user; state.settings = null; go('#/home'); };
-    const demoNote = state.server.demo ? '<div class="demo-box">데모 계정: <b>데모</b> · 비밀번호 <b>1234</b><br/>보유 종목과 배당 내역이 미리 들어 있습니다.</div>' : '';
+    const demoNote = state.server.demo ? '<div class="demo-box">샘플 계정: <b>샘플</b> · 비밀번호 <b>1234</b><br/>보유 종목과 배당 내역이 미리 들어 있습니다.</div>' : '';
 
-    // ① 누가 사용하나요? (프로필 고르기)
+    // ① 로그인 사용자 선택 (프로필 고르기)
     function showProfiles() {
-      body.innerHTML = `<h2 class="who-title">누가 사용하나요?</h2>
+      body.innerHTML = `<h2 class="who-title">로그인 사용자 선택</h2>
         <div class="profile-grid">
           ${profiles.map((p, i) => `<button type="button" class="profile-tile" data-p="${i}">${avatarHtml(p.avatar, p.name, 'av-xl')}<span class="profile-name" data-noi18n>${esc(p.name)}</span></button>`).join('')}
           <a class="profile-tile add" href="#/signup"><span class="avatar av-xl av-plus">＋</span><span class="profile-name">사용자 추가</span></a>
         </div>
-        <div class="links"><a href="#" data-classic>아이디로 로그인</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
         ${demoNote}`;
       body.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => showPin(profiles[Number(b.dataset.p)])));
-      body.querySelector('[data-classic]').addEventListener('click', (e) => { e.preventDefault(); showClassic(); });
     }
     // ② 고른 사람의 4자리 비밀번호
     function showPin(p) {
@@ -579,7 +580,7 @@
           <p class="muted small" style="margin:6px 0 12px">비밀번호 4자리를 입력하세요</p>
           ${pinBoxesHtml('login')}
           <div class="notice error small" data-msg hidden style="margin-top:12px"></div>
-          <div class="links" style="justify-content:center;gap:18px"><a href="#" data-back>← 다른 사용자</a><a href="#" data-legacy>4자리가 아닌 예전 비밀번호</a></div>
+          <div class="links" style="justify-content:center;gap:18px"><a href="#" data-back>← 다른 사용자</a></div>
         </div>`;
       const msg = body.querySelector('[data-msg]');
       let busy = false;
@@ -592,9 +593,8 @@
       });
       pin.focus();
       body.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); if (profiles.length && !hidden) showProfiles(); else showClassic(); });
-      body.querySelector('[data-legacy]').addEventListener('click', (e) => { e.preventDefault(); showClassic(p.id); });
     }
-    // ③ 아이디로 로그인 (공개 서버, 예전 이메일·긴 비밀번호 계정)
+    // ③ 아이디로 로그인: v0.30.27부터 화면에서 고를 수 없음. 사용자 목록을 보여 줄 수 없는 공개 클라우드 서버에서만 씀
     function showClassic(id = '') {
       body.innerHTML = `<form class="stack" novalidate>
           <div class="field"><label>아이디 (별명 또는 이메일)</label><input name="email" autocomplete="username" autocapitalize="off" value="${esc(id)}" /><span class="err" data-err="email"></span></div>
@@ -602,7 +602,7 @@
           <div class="notice error" data-msg hidden></div>
           <button type="submit">로그인</button>
         </form>
-        <div class="links">${profiles.length && !hidden ? '<a href="#" data-back>← 사용자 목록</a>' : ''}<a href="#/signup">사용자 추가</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
+        <div class="links">${profiles.length && !hidden ? '<a href="#" data-back>← 사용자 목록</a>' : ''}<a href="#/signup">사용자 추가</a></div>
         ${hidden ? '' : demoNote}`;
       const form = body.querySelector('form');
       (id ? form.password : form.email).focus();
@@ -3145,7 +3145,7 @@
         <h2><span data-noi18n>${isEn() ? 'Change language (언어)' : '언어 (Language) 변경'}</span> ${req('FR-COM-07')}</h2>
         <div class="field-row" style="align-items:center;gap:12px">${langSelectHtml()}<span class="small muted">화면에 보이는 글자를 고른 언어로 표시합니다. 엑셀 파일과 종목명은 원래 언어 그대로입니다.</span></div>
       </div>
-      <div class="card" data-fold="reqcodes">
+      <div class="card" data-fold="reqcodes"${SHOW_REQ_UI ? '' : ' style="display:none"'}>
         <h2>요구사항 ID 표시 ${req('FR-UI-02')}</h2>
         <label class="check-row"><input type="checkbox" data-reqcodes ${document.documentElement.classList.contains('hide-req') ? '' : 'checked'} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
         <p class="small muted" style="margin:8px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.</p>
@@ -3155,7 +3155,7 @@
         <p style="margin:0 0 10px">홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목과 순서를 정하세요. <b>홈을 공유받은 사람에게도 여기서 고른 항목만</b> 보입니다(공유받은 사람은 바꿀 수 없음).</p>
         <div data-dash-items><span class="small muted">불러오는 중…</span></div>
       </div>
-      ${IN_APP ? `<div class="card" data-fold="cloud">
+      ${false /* v0.30.27 클라우드 서버 연결 상자 삭제 */ && IN_APP ? `<div class="card" data-fold="cloud">
         <h2>클라우드 서버 연결 ${req('FR-CLD-01')}</h2>
         ${REMOTE_APP ? `<p style="margin:0 0 10px">지금 <b>클라우드 서버(${esc(hostOf(appServerUrl() || location.origin))})</b>에 연결되어 있습니다. 다른 기기(PC 브라우저·다른 휴대폰)에서도 같은 주소로 접속하면 같은 데이터를 보고, 화면 공유도 기기에 상관없이 됩니다.</p>
           <div class="field-row"><button class="secondary" data-clocal>이 휴대폰 모드로 전환</button></div>

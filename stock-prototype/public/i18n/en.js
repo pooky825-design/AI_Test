@@ -968,5 +968,8 @@ window.I18N_EN = {
 "공유할 사용자를 고르세요.": "Select a user to share with.",
 "모든 사용자에게 이미 공유했습니다": "Already shared with every user",
 "공유할 다른 사용자가 없습니다": "No other users to share with",
-"종목명 또는 코드": "Name or code"
+"종목명 또는 코드": "Name or code",
+"로그인 사용자 선택": "Choose who's logging in",
+"샘플 계정:": "Sample account:",
+"다른 기기와 공유하려면 구글 드라이브에 서로 연결": "To share with other devices, connect each to Google Drive"
 };
