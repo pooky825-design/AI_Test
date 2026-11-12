@@ -74,7 +74,12 @@ router.post('/auth/signup', async (req, res) => {
   // 공개 서버에 가입 코드가 있으면 그 코드를 알아야 가입 (v0.25)
   const codeErr = config.SIGNUP_CODE && String(req.body.signupCode || '').trim() !== config.SIGNUP_CODE ? '가입 코드가 올바르지 않습니다. 서버 관리자에게 받은 코드를 입력하세요.' : null;
   fieldErrors({ email: validateEmail(email), password: validatePassword(password), signupCode: codeErr });
-  if (db.get('SELECT 1 FROM users WHERE email = ?', [email])) {
+  const exists = db.get('SELECT u.id, m.user_id AS mirror FROM users u LEFT JOIN mirror_users m ON m.user_id = u.id WHERE u.email = ?', [email]);
+  if (exists && exists.mirror) {
+    const msg = '이 이메일은 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
+    throw new ValidationError(msg, { email: msg });
+  }
+  if (exists) {
     throw new ValidationError('이미 가입된 이메일입니다.', { email: '이미 가입된 이메일입니다.' });
   }
   const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
@@ -91,7 +96,7 @@ router.post('/auth/login', async (req, res) => {
   const key = `${ip}|${email}`;
   const wait = loginFail.blocked(key) || loginFailIp.blocked(ip);
   if (wait) return tooMany(res, wait);
-  const user = db.get('SELECT * FROM users WHERE email = ?', [email]);
+  const user = db.get('SELECT * FROM users WHERE email = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [email]); // 공유받은 자료는 로그인 불가
   const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
   if (!ok) {
     loginFail.hit(key);
@@ -232,8 +237,9 @@ router.get('/shares', (req, res) => {
     `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.viewer_id
      WHERE s.owner_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'));
   const received = db.all(
-    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.owner_id
-     WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'))
+    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, m.saved_at AS mirror_saved, m.device AS mirror_device, m.updated_at AS mirror_at
+     FROM screen_shares s JOIN users u ON u.id = s.owner_id LEFT JOIN mirror_users m ON m.user_id = u.id
+     WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => ({ ...shareOut(r, 'email'), mirror: r.mirror_at ? { savedAt: r.mirror_saved, device: r.mirror_device, at: r.mirror_at } : null }))
     .filter((r) => Object.keys(r.perms).length);
   const pending = db.all('SELECT viewer_email AS email, perms, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY viewer_email', [req.user.id])
     .map((r) => { let perms = {}; try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ } return { email: r.email, perms, updated_at: r.updated_at }; });
@@ -279,9 +285,11 @@ router.delete('/shares/pending', (req, res) => {
 // 소유자는 준 공유를, 공유받은 사람은 받은 공유를 해제할 수 있다
 router.delete('/shares/:id', (req, res) => {
   const id = Number(req.params.id);
-  const row = db.get('SELECT id FROM screen_shares WHERE id = ? AND (owner_id = ? OR viewer_id = ?)', [id, req.user.id, req.user.id]);
+  const row = db.get('SELECT id, owner_id, viewer_id FROM screen_shares WHERE id = ? AND (owner_id = ? OR viewer_id = ?)', [id, req.user.id, req.user.id]);
   if (!row) return res.status(404).json({ error: '공유 정보를 찾을 수 없습니다.', code: 'NOT_FOUND' });
-  db.run('DELETE FROM screen_shares WHERE id = ?', [id]);
+  // 동기화로 받은 공유 자료(v0.27.2)면 아무에게도 공유되지 않게 될 때 받아 둔 자료도 지운다
+  if (db.get('SELECT 1 FROM mirror_users WHERE user_id = ?', [row.owner_id])) dropMirrorShare(row.owner_id, row.viewer_id);
+  else db.run('DELETE FROM screen_shares WHERE id = ?', [id]);
   res.json({ ok: true });
 });
 
@@ -1033,17 +1041,49 @@ router.get('/backup', (req, res) => {
   res.json({ format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now(), account: req.user.email, counts, data });
 });
 
-// 복원: 지금 회원의 데이터를 모두 지우고 백업 파일의 데이터로 바꾼다 (그룹 번호는 새로 매기고 연결을 다시 맞춤)
-router.post('/restore', (req, res) => {
-  const b = req.body && req.body.backup;
-  const bad = (msg) => res.status(400).json({ error: msg, code: 'VALIDATION' });
-  if (!b || b.format !== BACKUP_FORMAT || !b.data || typeof b.data !== 'object') return bad('주식 관리시스템 백업 파일이 아닙니다.');
-  if (Number(b.version) > BACKUP_VERSION) return bad('더 새로운 버전에서 만든 백업 파일입니다. 앱을 업데이트한 뒤 복원해 주세요.');
+// 백업 형식 검사 (복원·공유받은 자료 공용). 문제가 있으면 오류 메시지
+function backupError(b) {
+  if (!b || b.format !== BACKUP_FORMAT || !b.data || typeof b.data !== 'object') return '주식 관리시스템 백업 파일이 아닙니다.';
+  if (Number(b.version) > BACKUP_VERSION) return '더 새로운 버전에서 만든 백업 파일입니다. 앱을 업데이트한 뒤 복원해 주세요.';
+  const d = b.data;
+  if (!(Array.isArray(d.groups) && d.groups.length) && Array.isArray(d.items) && d.items.length) return '백업 파일에 그룹 정보가 없습니다.';
+  return null;
+}
+
+function restoreShares(uid, d, ownEmail, t, counts) {
+  // 화면 공유 (v0.26.9): 백업에 shares 가 있을 때만 바꾼다(예전 백업이면 지금 공유 유지)
+  if (Array.isArray(d.shares)) {
+    db.run('DELETE FROM screen_shares WHERE owner_id = ?', [uid]);
+    db.run('DELETE FROM pending_shares WHERE owner_id = ?', [uid]);
+    let given = 0;
+    let waiting = 0;
+    for (const r of d.shares) {
+      const email = String(r.viewer_email || '').trim().toLowerCase();
+      if (validateEmail(email) || email === String(ownEmail || '').toLowerCase()) continue;
+      let perms = {};
+      try { perms = cleanPerms(typeof r.perms === 'string' ? JSON.parse(r.perms) : r.perms); } catch (_) { /* 무시 */ }
+      if (!Object.keys(perms).length) continue;
+      const pj = JSON.stringify(perms);
+      const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
+      if (viewer) {
+        db.run('INSERT OR REPLACE INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, viewer.id, pj, r.created_at || t, r.updated_at || t]);
+        given++;
+      } else {
+        db.run('INSERT OR REPLACE INTO pending_shares (owner_id, viewer_email, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, email, pj, r.created_at || t, r.updated_at || t]);
+        waiting++;
+      }
+    }
+    counts.shares = given;
+    counts.pendingShares = waiting;
+  }
+}
+
+// 복원 본체: uid 회원의 데이터를 모두 지우고 백업 데이터로 바꾼다 (그룹 번호는 새로 매기고 연결을 다시 맞춤)
+//  opts.settings=false: 화면 설정은 건드리지 않음, opts.shares=false: 화면 공유는 건드리지 않음 (공유받은 자료용)
+function restoreData(uid, b, opts = {}) {
   const d = b.data;
   const arr = (k) => (Array.isArray(d[k]) ? d[k] : []);
   const groups = arr('groups');
-  if (!groups.length && arr('items').length) return bad('백업 파일에 그룹 정보가 없습니다.');
-  const uid = req.user.id;
   const t = now();
   const counts = {};
   db.tx(() => {
@@ -1083,7 +1123,7 @@ router.post('/restore', (req, res) => {
     }
     counts.categories = n;
     n = 0;
-    for (const r of arr('settings')) {
+    for (const r of opts.settings === false ? [] : arr('settings')) {
       if (!SETTING_KEYS.includes(r.key)) continue;
       db.run('INSERT OR REPLACE INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)', [uid, r.key, String(r.value), r.updated_at || t]);
       n++;
@@ -1097,58 +1137,80 @@ router.post('/restore', (req, res) => {
     }
     counts.dividends = n;
     counts.groups = groups.length;
-    // 화면 공유 (v0.26.9): 백업에 shares 가 있을 때만 바꾼다(예전 백업이면 지금 공유 유지)
-    if (Array.isArray(d.shares)) {
-      db.run('DELETE FROM screen_shares WHERE owner_id = ?', [uid]);
-      db.run('DELETE FROM pending_shares WHERE owner_id = ?', [uid]);
-      let given = 0;
-      let waiting = 0;
-      for (const r of d.shares) {
-        const email = String(r.viewer_email || '').trim().toLowerCase();
-        if (validateEmail(email) || email === String(req.user.email).toLowerCase()) continue;
-        let perms = {};
-        try { perms = cleanPerms(typeof r.perms === 'string' ? JSON.parse(r.perms) : r.perms); } catch (_) { /* 무시 */ }
-        if (!Object.keys(perms).length) continue;
-        const pj = JSON.stringify(perms);
-        const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
-        if (viewer) {
-          db.run('INSERT OR REPLACE INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, viewer.id, pj, r.created_at || t, r.updated_at || t]);
-          given++;
-        } else {
-          db.run('INSERT OR REPLACE INTO pending_shares (owner_id, viewer_email, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [uid, email, pj, r.created_at || t, r.updated_at || t]);
-          waiting++;
-        }
-      }
-      counts.shares = given;
-      counts.pendingShares = waiting;
-    }
+    if (opts.shares !== false) restoreShares(uid, d, opts.email, t, counts);
   });
+  return counts;
+}
+
+// 복원: 지금 회원의 데이터를 모두 지우고 백업 파일의 데이터로 바꾼다
+router.post('/restore', (req, res) => {
+  const b = req.body && req.body.backup;
+  const err = backupError(b);
+  if (err) return res.status(400).json({ error: err, code: 'VALIDATION' });
+  const counts = restoreData(req.user.id, b, { email: req.user.email });
   res.json({ ok: true, counts, account: b.account || null, exportedAt: b.exportedAt || null });
 });
 
 // ---------------------------------------------------------------------------
-// 구글 드라이브 직접 연결 (v0.27.0): 동기화 파일을 Drive API 로 읽고 쓴다 (토큰은 이 기기 DB 에만)
+// 공유받은 자료 동기화 (v0.27.2)
+// 같은 동기화 파일(같은 구글 계정)에 있는 다른 사용자 칸 중, 나에게 화면을 공유한 사람의 자료를
+// 이 기기에 조회 전용 사용자(mirror_users)로 받아 둔다. 권한은 모두 '조회'로 바꾼다(여기서 고쳐도 원래 기기로 돌아가지 않으므로)
+// sections: { 이메일: { backup, hash, savedAt, device } } — 동기화 파일에서 내 칸을 뺀 나머지
 // ---------------------------------------------------------------------------
-const driveRoute = (fn) => async (req, res) => {
-  if (req.viewer) return res.status(403).json({ error: "공유받은 화면에서는 사용할 수 없습니다.", code: "FORBIDDEN" });
-  try {
-    res.json(await fn(req));
-  } catch (e) {
-    if (e instanceof gdrive.DriveError || e.code === 'SOURCE_ERROR') return res.status(e.status || 502).json({ error: e.message, code: e.code });
-    throw e;
+const isMirror = (uid) => !!db.get('SELECT 1 FROM mirror_users WHERE user_id = ?', [uid]);
+function dropMirrorShare(ownerId, viewerId) {
+  db.run('DELETE FROM screen_shares WHERE owner_id = ? AND viewer_id = ?', [ownerId, viewerId]);
+  // 이 기기의 누구에게도 공유하지 않게 되면 받아 둔 자료를 지운다
+  if (!db.get('SELECT 1 FROM screen_shares WHERE owner_id = ?', [ownerId])) db.run('DELETE FROM users WHERE id = ?', [ownerId]);
+}
+router.post('/mirror/sync', async (req, res) => {
+  if (req.viewer) return res.status(403).json({ error: '공유받은 화면에서는 사용할 수 없습니다.', code: 'FORBIDDEN' });
+  const me = req.user;
+  const myEmail = String(me.email).toLowerCase();
+  const sections = req.body && typeof req.body.sections === 'object' && req.body.sections ? req.body.sections : {};
+  const result = [];
+  const keep = new Set();
+  for (const [rawEmail, sec] of Object.entries(sections)) {
+    const email = String(rawEmail || '').trim().toLowerCase();
+    if (validateEmail(email) || email === myEmail || !sec || backupError(sec.backup)) continue;
+    const shares = Array.isArray(sec.backup.data.shares) ? sec.backup.data.shares : [];
+    const mine = shares.find((x) => String(x.viewer_email || '').trim().toLowerCase() === myEmail);
+    let perms = {};
+    try { perms = mine ? cleanPerms(typeof mine.perms === 'string' ? JSON.parse(mine.perms) : mine.perms) : {}; } catch (_) { perms = {}; }
+    if (!Object.keys(perms).length) continue; // 나에게 공유하지 않은 사람 → 아래에서 정리
+    const viewOnly = Object.fromEntries(Object.keys(perms).map((k) => [k, 'view']));
+    let owner = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
+    if (owner && !isMirror(owner.id)) {
+      // 이 기기에 실제 사용자로 있으면 그 사람의 자료는 본인 동기화로 맞추고, 여기서는 건드리지 않는다
+      result.push({ email, status: 'local' });
+      continue;
+    }
+    const t = now();
+    let updated = false;
+    if (!owner) {
+      const hash = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 10); // 아무도 모르는 비밀번호 + 로그인 차단
+      owner = { id: db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [email, hash, t]).lastId };
+      db.run('INSERT INTO mirror_users (user_id, updated_at) VALUES (?, ?)', [owner.id, t]);
+    }
+    const m = db.get('SELECT * FROM mirror_users WHERE user_id = ?', [owner.id]);
+    const srcHash = String(sec.hash || '');
+    if (!srcHash || m.source_hash !== srcHash) {
+      restoreData(owner.id, sec.backup, { settings: false, shares: false });
+      updated = true;
+    }
+    db.run('UPDATE mirror_users SET source_hash = ?, saved_at = ?, device = ?, updated_at = ? WHERE user_id = ?',
+      [srcHash || null, sec.savedAt ? String(sec.savedAt).slice(0, 40) : null, sec.device ? String(sec.device).slice(0, 40) : null, t, owner.id]);
+    db.run(`INSERT INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`, [owner.id, me.id, JSON.stringify(viewOnly), t, t]);
+    keep.add(owner.id);
+    result.push({ email, status: updated ? 'updated' : 'same', perms: viewOnly });
   }
-};
-router.get('/gdrive', driveRoute(async (req) => gdrive.status(req.user.id)));
-router.put('/gdrive/client', driveRoute(async (req) => gdrive.setClient(req.user.id, req.body.clientId, req.body.clientSecret)));
-router.post('/gdrive/auth-start', driveRoute(async (req) => gdrive.startAuth(req.user.id, req.body.redirectUri)));
-router.post('/gdrive/auth-finish', driveRoute(async (req) => gdrive.finishAuth(req.user.id, req.body.code, req.body.state)));
-// accessToken 이 있으면 휴대폰의 구글 계정 토큰으로 (v0.27.1), 없으면 클라이언트 ID 방식(PC)
-router.post('/gdrive/read', driveRoute(async (req) => gdrive.readFileWith(req.user.id, req.body.accessToken)));
-router.post('/gdrive/write', driveRoute(async (req) => {
-  if (typeof req.body.text !== 'string' || !req.body.text) throw new gdrive.DriveError('저장할 내용이 없습니다.');
-  return { file: await gdrive.writeFileWith(req.user.id, req.body.accessToken, req.body.text) };
-}));
-router.delete('/gdrive', driveRoute(async (req) => gdrive.disconnect(req.user.id)));
+  // 더 이상 나에게 공유하지 않는(또는 파일에서 사라진) 사람의 받아 둔 자료 정리
+  const stale = db.all('SELECT s.owner_id, u.email FROM screen_shares s JOIN mirror_users m ON m.user_id = s.owner_id JOIN users u ON u.id = s.owner_id WHERE s.viewer_id = ?', [me.id])
+    .filter((r) => !keep.has(r.owner_id));
+  for (const r of stale) { dropMirrorShare(r.owner_id, me.id); result.push({ email: r.email, status: 'removed' }); }
+  res.json({ ok: true, result });
+});
 
 function sendXlsx(res, buf, name) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

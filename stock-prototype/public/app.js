@@ -127,7 +127,7 @@
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
   const SHARE_PATH = { '#/assets': 'assets', '#/yearly': 'yearly', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
-  const NO_AS = /^\/(auth|shares|settings|backup|restore)(\/|\?|$)/;
+  const NO_AS = /^\/(auth|shares|settings|backup|restore|gdrive|mirror)(\/|\?|$)/; // 동기화(v0.27.2)도 항상 내 이름으로
   const PERM_LABEL = { view: '조회', edit: '편집' };
   function withAs(path) {
     if (!state.actAs || NO_AS.test(path)) return path;
@@ -266,7 +266,7 @@
     const cur = state.actAs ? state.actAs.user_id : '';
     return `<label class="act-switch"><span>보는 자산</span><select data-actas>
       <option value="">내 자산</option>
-      ${state.received.map((r) => `<option value="${r.user_id}" ${r.user_id === cur ? 'selected' : ''}>${esc(r.email)} (공유)</option>`).join('')}
+      ${state.received.map((r) => `<option value="${r.user_id}" ${r.user_id === cur ? 'selected' : ''}>${esc(r.email)} ${r.mirror ? '(공유 · 조회 전용)' : '(공유)'}</option>`).join('')}
     </select></label>`;
   }
   function shareBanner(active) {
@@ -2452,7 +2452,6 @@
   let syncBusy = false;
   async function runSync() {
     if (syncBusy) return;
-    if (state.actAs) return toast('공유받은 화면을 보는 중에는 동기화할 수 없습니다. 내 자산으로 돌아간 뒤 눌러 주세요.');
     syncBusy = true;
     document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = true; });
     try {
@@ -2491,6 +2490,8 @@
         else if (!localChanged && fileChanged) await pull();
         else await chooseSync(file, local, push, pull, !st);
       }
+      // 공유받은 자료 (v0.27.2): 같은 파일의 다른 사용자 칸 중 나에게 화면을 공유한 사람의 최신 자료를 조회 전용으로 받는다
+      await syncMirrors(whole);
     } catch (err) {
       if (err && err.name === 'AbortError') toast('취소했습니다.');
       else toast(err.message || String(err));
@@ -2499,6 +2500,24 @@
       document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = false; });
       const card = document.querySelector('[data-sync-card]');
       if (card && card._paint) card._paint();
+    }
+  }
+  async function syncMirrors(whole) {
+    const sections = {};
+    for (const [k, v] of Object.entries(whole.users || {})) if (k !== syncKey() && v && v.backup) sections[k] = { backup: v.backup, hash: v.hash, savedAt: v.savedAt, device: v.device };
+    const hadMirror = (state.received || []).some((r) => r.mirror);
+    if (!Object.keys(sections).length && !hadMirror) return;
+    let mr;
+    try { mr = await api('POST', '/mirror/sync', { sections }); } catch (e) { toast(`공유받은 자료를 받지 못했습니다: ${e.message}`); return; }
+    const list = mr.result || [];
+    const ch = list.filter((x) => x.status === 'updated' || x.status === 'removed');
+    await loadReceived();
+    if (state.actAs && !(state.received || []).some((r) => r.user_id === state.actAs.user_id)) setActAs(null); // 공유가 해제됨
+    if (ch.length) {
+      const t = document.getElementById('toast');
+      const prev = t && !t.hidden ? `${t.textContent} · ` : '';
+      toast(`${prev}공유받은 자료 ${ch.map((x) => `${x.email} ${x.status === 'removed' ? '삭제' : '갱신'}`).join(', ')} (조회 전용)`);
+      render();
     }
   }
   // 클라우드 앱(구글 드라이브 등)이 아직 최신 파일을 받지 않아 예전 사본을 준 경우 (v0.26.18)
@@ -2695,7 +2714,7 @@
   // 왼쪽 메뉴·휴대폰 상단의 [동기화] 버튼: 동기화 파일을 연결했을 때만 보인다
   function renderSyncButtons() {
     document.querySelectorAll('[data-sync-slot]').forEach((slot) => {
-      slot.innerHTML = state.syncName && !state.actAs ? `<button class="linkish sync-btn" data-sync-now title="동기화 파일과 데이터 맞추기">⟳ 동기화</button>` : '';
+      slot.innerHTML = state.syncName ? `<button class="linkish sync-btn" data-sync-now title="동기화 파일과 데이터 맞추기">⟳ 동기화</button>` : '';
       const b = slot.querySelector('[data-sync-now]');
       if (b) b.addEventListener('click', runSync);
     });
@@ -2768,11 +2787,11 @@
         <h3 style="margin:16px 0 8px">나에게 공유된 화면 <span class="muted small">${received.length}명</span></h3>
         ${received.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>공유한 회원</th><th>화면 · 권한</th><th class="center">작업</th></tr></thead><tbody>
           ${received.map((g) => `<tr data-id="${g.id}" data-uid="${g.user_id}">
-            <td class="left"><b>${esc(g.email)}</b></td>
+            <td class="left"><b>${esc(g.email)}</b>${g.mirror ? `<br/><small class="muted">동기화로 받은 자료 · 조회 전용 · ${esc(fmtTime(g.mirror.savedAt || g.mirror.at))} ${esc(g.mirror.device || '')} 저장분</small>` : ''}</td>
             <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
-        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산·종목 조회는 조회만 공유됩니다(종목 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리만 공유됩니다(여러 사람이 함께 쓰려면 PC 웹 버전 서버를 사용하세요)' : ''}</p>`;
+        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산·종목 조회는 조회만 공유됩니다(종목 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리 공유됩니다' : ''} · <b>다른 기기</b>: 두 기기를 같은 동기화 파일(같은 구글 계정)로 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)</p>`;
       body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
         try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
         load();

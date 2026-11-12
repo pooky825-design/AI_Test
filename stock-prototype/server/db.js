@@ -151,6 +151,16 @@ CREATE TABLE IF NOT EXISTS pending_shares (
   PRIMARY KEY (owner_id, viewer_email)
 );
 
+-- 공유받은 자료 (v0.27.2): 같은 동기화 파일에 있는 다른 사용자(나에게 화면을 공유한 사람)의 자료를
+-- 이 기기에 조회 전용으로 받아 둔 사용자. 로그인할 수 없고, 동기화할 때마다 새로 받아 바뀐다
+CREATE TABLE IF NOT EXISTS mirror_users (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  source_hash TEXT,
+  saved_at TEXT,
+  device TEXT,
+  updated_at TEXT NOT NULL
+);
+
 -- 구글 드라이브 직접 연결 (v0.27.0): 기기·사용자별 OAuth 정보. 백업·동기화 파일에는 넣지 않는다
 CREATE TABLE IF NOT EXISTS gdrive_auth (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
