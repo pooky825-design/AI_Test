@@ -517,7 +517,7 @@ window.I18N_EN = {
 "전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)": "Daily change = price change per share × total qty × current FX (KRW; tap for per-share change)",
 "전일 종가": "Prev. close",
 "전체": "All",
-"전체 그룹": "All Group",
+"전체 그룹": "All",
 "전체 선택": "Select all",
 "전체 손익": "Total P/L",
 "전체 수익률": "Total return",

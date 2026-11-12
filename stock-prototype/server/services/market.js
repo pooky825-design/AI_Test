@@ -131,10 +131,14 @@ async function fetchFull(code, kind) {
   }
   if (!res) throw err || new NotFoundError();
 
-  // 국내 종목은 한글 종목명으로 보완
+  // 국내 종목은 한글 종목명으로 보완 (야후의 영문명은 영어 화면용으로 따로 저장, v0.30.37)
   if (kind === 'KR' && res.source !== (backup && backup.NAME)) {
+    const en = res.info.name;
     const ko = await providers.koreanName(code);
     if (ko) res.info.name = ko;
+    try { require('./names').learn(code, { ko, en }); } catch (_) { /* 무시 */ }
+  } else {
+    try { require('./names').learn(code, kind === 'KR' ? { ko: res.info.name } : { en: res.info.name }); } catch (_) { /* 무시 */ }
   }
   return { res, historyRows, historySource };
 }

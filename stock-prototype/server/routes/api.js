@@ -189,6 +189,18 @@ router.post('/auth/reset', async (req, res) => {
 // 이하 로그인 필요 ------------------------------------------------------------
 router.use(auth.requireAuth);
 
+// 종목명을 화면 언어로 (v0.30.37): 화면이 보낸 X-Lang(en/ko)에 맞춰 응답 안의 { code, name } 이름을 바꾼다
+const names = require('../services/names');
+router.use((req, res, next) => {
+  const lang = req.get && req.get('X-Lang') === 'en' ? 'en' : 'ko';
+  req.lang = lang;
+  if (/^\/(backup|restore|sync|mirror|gdrive|auth|settings)(\/|$)/.test(req.path)) return next();
+  const orig = res.json.bind(res);
+  // 서버에 캐시된 객체를 건드리지 않게 복사본에서 바꾼다
+  res.json = (body) => { try { return orig(names.localize(JSON.parse(JSON.stringify(body)), lang)); } catch (_) { return orig(body); } };
+  next();
+});
+
 // ---------------------------------------------------------------------------
 // 화면 공유·권한 (v0.16)
 // 공유받은 사용자는 요청에 ?as=<소유자 id> 를 붙여 소유자의 데이터로 화면을 연다.
@@ -426,7 +438,7 @@ const searchCache = new Map();
 router.get('/search/stocks', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 40);
   if (!q) return res.json({ items: [] });
-  const key = q.toLowerCase();
+  const key = `${req.lang}:${q.toLowerCase()}`;
   const hit = searchCache.get(key);
   if (hit && Date.now() - hit.at < 10 * 60 * 1000) return res.json({ items: hit.items, cached: true });
   const seen = new Set();
@@ -434,17 +446,24 @@ router.get('/search/stocks', async (req, res) => {
   const add = (list) => list.forEach((it) => { if (!seen.has(it.code) && items.length < 12) { seen.add(it.code); items.push(it); } });
   let remote = 0;
   let failed = 0;
-  const fns = providers.search || [];
+  const all = providers.search || [];
+  // 영어 화면이고 영문 검색어면 야후(영문명)를 먼저 (v0.30.37)
+  const fns = req.lang === 'en' && !/[가-힣]/.test(q) && all.length > 1 ? [all[1], all[0], ...all.slice(2)] : all;
   for (const fn of fns) {
     if (items.length >= 8) break;
     let term = q;
-    if (fn !== fns[0] && /[가-힣]/.test(q)) {
+    if (fn !== all[0] && /[가-힣]/.test(q)) {
       // 한글은 네이버가 담당. 네이버가 안 되면 영문·숫자 부분(예: ‘BNK금융지주’ → BNK)만 야후로 찾아 본다
       if (remote) continue;
       term = (q.match(/[A-Za-z0-9&]{2,}/g) || []).join(' ');
       if (!term) continue;
     }
-    try { const r = await fn(term); remote += r.length; add(r); } catch (_) { failed += 1; }
+    try {
+      const r = await fn(term);
+      remote += r.length;
+      for (const it of r) names.learn(it.code, it.source === 'naver' ? { ko: it.name } : { en: it.name });
+      add(r);
+    } catch (_) { failed += 1; }
   }
   const like = `%${q.replace(/[%_]/g, '')}%`;
   add(db.all('SELECT code, name, market, currency FROM instruments WHERE name LIKE ? OR code LIKE ? ORDER BY name LIMIT 12', [like, `${q.toUpperCase()}%`])

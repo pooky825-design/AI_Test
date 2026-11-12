@@ -164,7 +164,7 @@
   async function api(method, path, body) {
     const res = await fetch(`/api${withAs(path)}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : {},
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), 'X-Lang': isEn() ? 'en' : 'ko' }, // 종목명 언어 (v0.30.37)
       body: body ? JSON.stringify(body) : undefined,
       credentials: 'same-origin',
     });
@@ -1706,7 +1706,7 @@
     const curLabel = form.querySelector('[data-cur]');
     let groups = [];
     let groupId = null; // null = 전체
-    const groupName = () => (groupId ? (groups.find((g) => g.id === groupId) || {}).name : '전체 그룹');
+    const groupName = () => (groupId ? (groups.find((g) => g.id === groupId) || {}).name : (isEn() ? 'All' : '전체 그룹'));
 
     let lookedUp = ''; // 마지막으로 확인한 종목코드
     const clearCodeError = () => {
@@ -2035,7 +2035,7 @@
     // ---- 전년도 일괄 이월: 전년 말 보유 종목을 팝업에 보여 주고, 선택한 종목만 올해 이월 종목으로 등록
     main.querySelector('[data-carry]').addEventListener('click', openCarryModal);
     async function openCarryModal() {
-      const scope = groupId ? `‘${ud(groupName())}’ 그룹` : '전체 그룹';
+      const scope = groupId ? `‘${ud(groupName())}’ 그룹` : (isEn() ? 'All' : '전체 그룹');
       const body = openModal(`전년도 일괄이월 · ${year - 1}년 → ${year}년 ${req('FR-HLD-05')}`, { wide: true, loadingText: `${year - 1}년 말 보유 종목을 불러오는 중…` });
       let d;
       try {
@@ -3587,7 +3587,7 @@
         settings.set('divmgmt.group', b.dataset.g);
         go(`#/divmgmt?${qsOf({ group: b.dataset.g })}`);
       }));
-      const gname = d.groupId ? (d.groups.find((g) => g.id === d.groupId) || {}).name : '전체 그룹';
+      const gname = d.groupId ? (d.groups.find((g) => g.id === d.groupId) || {}).name : (isEn() ? 'All' : '전체 그룹');
       main.querySelector('[data-title]').innerHTML = `${year}년 ${d.fromMonth}월~${d.toMonth}월 <span>배당금</span> · ${ud(gname)} ${req('FR-DIV-06')}`;
       const box = main.querySelector('[data-list]');
       const sumBox = main.querySelector('[data-dsum]');
