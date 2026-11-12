@@ -284,10 +284,15 @@
     const badge = h !== '#/me' ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
     return `<span class="nav-ico-wrap">${navIcon(h)}${badge}</span>`;
   };
+  // 휴대폰 위쪽 메뉴의 가로 스크롤 위치 (v0.27.6): 화면을 다시 그려도 그대로 둔다
+  let mnavScroll = 0;
   function shell(active, inner) {
+    const navEl = $app.querySelector('.mobile-top nav');
+    if (navEl) mnavScroll = navEl.scrollLeft;
     const nav = state.actAs ? NAV.filter(([h]) => h === '#/me' || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
     const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
-    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
+    // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
+    const mlinks = nav.map(([h, label]) => `${state.actAs && h === '#/me' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
@@ -308,6 +313,19 @@
           <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
         </div>
       </div>`;
+    const mnav = $app.querySelector('.mobile-top nav');
+    if (mnav) {
+      mnav.scrollLeft = mnavScroll;
+      // 고른 메뉴가 화면 밖이면(처음 열 때 등) 보이는 곳까지만 살짝 스크롤
+      const act = mnav.querySelector('a.active');
+      if (act && mnav.clientWidth) {
+        const l = act.getBoundingClientRect().left - mnav.getBoundingClientRect().left + mnav.scrollLeft;
+        if (l < mnav.scrollLeft) mnav.scrollLeft = Math.max(0, l - 8);
+        else if (l + act.offsetWidth > mnav.scrollLeft + mnav.clientWidth) mnav.scrollLeft = l + act.offsetWidth - mnav.clientWidth + 8;
+      }
+      mnavScroll = mnav.scrollLeft;
+      mnav.addEventListener('scroll', () => { mnavScroll = mnav.scrollLeft; }, { passive: true });
+    }
     renderSyncButtons();
     $app.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('click', async () => {
       await api('POST', '/auth/logout');

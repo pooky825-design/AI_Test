@@ -614,3 +614,6 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .mobile-top nav a .nav-ico-wrap { margin-right: 5px; }
 .mobile-top nav a .share-badge { right: -5px; bottom: -4px; width: 11px; height: 11px; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .15); }
 .mobile-top nav a .share-badge svg { width: 8px; height: 8px; }
+
+/* v0.27.6 휴대폰 메뉴: 공유받은 화면을 볼 때 환경설정 앞 구분선 */
+.mobile-top nav .nav-sep { flex: none; width: 1.5px; margin: 7px 6px; border-radius: 1px; background: rgba(255, 255, 255, .55); }
