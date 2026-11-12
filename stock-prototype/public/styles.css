@@ -882,3 +882,5 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .gbtn:hover:not(:disabled) { background: #f8faff; }
 .gbtn .g-logo { width: 20px; height: 20px; flex: none; }
 .cloud-box, .demo-box, .who-title { word-break: keep-all; }
+.gd-on { display: inline-flex; align-items: center; gap: 8px; } .gd-on .g-logo { width: 20px; height: 20px; flex: none; }
+.gd-on span { white-space: nowrap; font-weight: 600; } .sync-status .gd-acct { display: block; overflow-wrap: anywhere; }

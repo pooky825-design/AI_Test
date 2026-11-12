@@ -2905,7 +2905,7 @@
       const gdOk = gdriveAvailable();
       const g = state.gdrive;
       if (m === 'gdrive') {
-        box.innerHTML = `<div class="sync-status"><span>구글 드라이브 직접 연결 <b data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b></span><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+        box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>`;
         box.querySelector('[data-sync-now]').addEventListener('click', runSync);
         box.querySelector('[data-gd-off]').addEventListener('click', async () => {
@@ -2924,7 +2924,7 @@
       // 구글 드라이브 패널 + (아래) 기존 동기화 파일 방식
       const gdHtml = gdOk ? gdrivePanel(g) : (!REMOTE_APP && !IN_APP ? '<div class="notice small"><div>구글 드라이브 직접 연결은 이 PC에서 <b>http://localhost:포트</b> 로 연 화면 또는 휴대폰 앱에서 쓸 수 있습니다.</div></div>' : '');
       const mount = (inner) => {
-        box.innerHTML = gdHtml + (inner ? `<div class="gd-or">${gdOk ? '또는 동기화 파일 직접 고르기' : ''}</div>${inner}` : '');
+        box.innerHTML = gdHtml + (inner ? `<div class="gd-or">${gdOk ? '연결된 동기화 파일' : ''}</div>${inner}` : '');
         const gs = box.querySelector('[data-gd-save]');
         if (gs) gs.addEventListener('click', async () => {
           try {
@@ -2949,9 +2949,12 @@
           : '<div class="notice warn small"><div>이 브라우저는 동기화 파일 기능을 지원하지 않습니다. PC의 Chrome·Edge 또는 휴대폰 앱에서 쓰거나, 아래 백업 파일 저장·복원으로 옮기세요.</div></div>';
         return;
       }
+      // v0.30.31: 구글 드라이브 연결을 쓸 수 있으면 '동기화 파일 직접 고르기'는 없앰
+      //  (이미 파일을 연결해 둔 사용자는 그 파일로 계속 동기화하거나 연결 해제할 수 있게 상태만 보여 줌)
+      if (gdOk && !name) { mount(''); return; }
       mount(name
         ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
-          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-relink>다른 파일 연결</button><button class="secondary" data-unlink>연결 해제</button></div>`
+          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${gdOk ? '' : '<button class="secondary" data-relink>다른 파일 연결</button>'}<button class="secondary" data-unlink>연결 해제</button></div>`
         : `<div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-create>새 동기화 파일 만들기</button><button class="secondary" data-open>기존 동기화 파일 연결</button></div>
           <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`);
       const on = (sel, fn) => { const b = box.querySelector(sel); if (b) b.addEventListener('click', fn); };
@@ -3176,7 +3179,6 @@
         <h2>데이터 동기화 ${req('FR-BAK-03')}</h2>
         <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한을 맞추며, 파일 안에서 로그인한 사용자(이메일)별로 따로 저장되어 같은 이메일로 로그인한 기기끼리만 맞춰집니다.</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
-        <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다). 클라우드 앱이 꺼져 있어 예전 파일을 받으면 가져오지 않고 알려 드립니다.' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 믿을 수 있는 사람만 쓰는 폴더에 두세요.</p>
       </div>
       <div class="card" data-share-card data-fold="share">
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
