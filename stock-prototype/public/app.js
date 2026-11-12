@@ -2383,7 +2383,7 @@
       list.innerHTML = `<div class="table-wrap scroll-y"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>과세</th></tr></thead><tbody>
         ${rows.map((r) => `<tr>
           <td class="center">${esc(r.paid)}${r.pay_date ? '' : '<br/><small class="muted">배당락일</small>'}</td>
-          <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} · ${ud(r.group_name)}</small></div></td>
+          <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
           <td>${qty(r.quantity)}</td>
           <td>${money(r.per_share, r.currency)}</td>
           <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>

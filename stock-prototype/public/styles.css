@@ -887,3 +887,5 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 
 /* v0.30.33 왼쪽 메뉴: 종목 조회 아래 가로줄 */
 .side .side-sep { border: 0; border-top: 1.5px solid rgba(255, 255, 255, .35); margin: 6px 10px; }
+/* v0.30.39 배당 내역 조회: 그룹 이름 배지 */
+.badge.grp-tag { background: var(--t-50); color: var(--t-700); border-color: var(--t-200); margin-left: 2px; }
