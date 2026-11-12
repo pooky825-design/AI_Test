@@ -2602,11 +2602,42 @@
   }
   async function writeSyncFile(h, file, backup, hash, rev) {
     const users = { ...(file.users || {}), [syncKey()]: { savedAt: new Date().toISOString(), device: deviceLabel(), hash, rev, counts: backup.counts, backup } };
-    const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users });
+    file.users = users;
+    await writeWholeSync(h, file);
+  }
+  // 파일 전체 쓰기: 사용자별 자료(users) + 사용자 정보(profiles, deleted, v0.30.23)
+  async function writeWholeSync(h, file) {
+    const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users: file.users || {}, profiles: file.profiles || {}, deleted: file.deleted || {} });
     if (syncMode() === 'gdrive') await driveCall('/gdrive/write', { text });
     else if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
     else { const w = await h.createWritable(); await w.write(text); await w.close(); }
-    file.users = users;
+    file.written = true;
+  }
+  // 사용자 정보 동기화 (v0.30.23): 사용자 추가·별명·사진·비밀번호 변경·삭제를 파일과 이 기기 사이에 맞춘다
+  async function syncProfiles(whole) {
+    const sections = {};
+    for (const [k, v] of Object.entries(whole.users || {})) {
+      if (k !== syncKey() && v && v.backup) sections[k] = { backup: v.backup, hash: v.hash, rev: v.rev };
+    }
+    const pr = await api('POST', '/sync/profiles', { profiles: whole.profiles || {}, deleted: whole.deleted || {}, sections });
+    whole.profiles = pr.profiles;
+    whole.deleted = pr.deleted;
+    let dirty = !!pr.fileChanged;
+    for (const e of Object.keys(pr.deleted || {})) { if (whole.users && whole.users[e]) { delete whole.users[e]; dirty = true; } }
+    // 새로 추가한 사용자는 파일 자료를 그대로 넣었으므로 그 사용자의 동기화 기록도 '최신'으로
+    for (const x of pr.restored || []) {
+      try { localStorage.setItem(`sync.state.${x.email}`, JSON.stringify({ lastHash: x.lastHash, fileHash: x.fileHash, rev: x.rev, at: new Date().toISOString() })); } catch (_) { /* 무시 */ }
+    }
+    if ((pr.updated || []).includes(syncKey())) {
+      try { const r = await api('GET', '/auth/me'); if (r.user) state.user = { ...state.user, ...r.user }; } catch (_) { /* 무시 */ }
+    }
+    const name = (e) => { const p = (pr.profiles || {})[e]; return (p && p.nickname) || e; };
+    const parts = [];
+    const en = isEn();
+    if ((pr.created || []).length) parts.push(`${en ? 'added' : '추가'} ${pr.created.map(name).join(', ')}`);
+    if ((pr.updated || []).length) parts.push(`${en ? 'changed' : '변경'} ${pr.updated.map(name).join(', ')}`);
+    if ((pr.removed || []).length) parts.push(`${en ? 'deleted' : '삭제'} ${pr.removed.join(', ')}`);
+    return { dirty, note: parts.length ? `${en ? 'Users' : '사용자 정보'} ${parts.join(' · ')}` : '', changed: parts.length > 0 };
   }
   async function linkSyncFile(create) {
     const m = syncMode();
@@ -2634,7 +2665,9 @@
     document.querySelectorAll('[data-sync-now]').forEach((b) => { b.disabled = true; });
     try {
       const h = syncMode() === 'web' ? await webHandle(true) : null;
-      const [local, whole] = await Promise.all([api('GET', '/backup'), readSyncFile(h)]);
+      const whole = await readSyncFile(h);
+      const prof = await syncProfiles(whole); // 사용자 정보 먼저 (v0.30.23)
+      const local = await api('GET', '/backup');
       const file = whole.users[syncKey()] || null; // 로그인한 사용자의 칸만
       const others = Object.keys(whole.users).filter((k) => k !== syncKey());
       const localHash = dataHash(local);
@@ -2668,8 +2701,15 @@
         else if (!localChanged && fileChanged) await pull();
         else await chooseSync(file, local, push, pull, !st);
       }
+      // 사용자 정보만 바뀌었으면 파일에 한 번 더 저장 (자료를 저장했으면 이미 함께 들어감)
+      if (prof.dirty && !whole.written && !stale) await writeWholeSync(h, whole);
+      if (prof.note) {
+        const t = document.getElementById('toast');
+        toast(`${t && !t.hidden ? `${t.textContent} · ` : ''}${prof.note}`);
+      }
       // 공유받은 자료 (v0.27.2): 같은 파일의 다른 사용자 칸 중 나에게 화면을 공유한 사람의 최신 자료를 조회 전용으로 받는다
       await syncMirrors(whole);
+      if (prof.changed) render();
     } catch (err) {
       if (err && err.name === 'AbortError') toast('취소했습니다.');
       else toast(err.message || String(err));

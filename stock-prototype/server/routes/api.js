@@ -107,7 +107,8 @@ router.post('/auth/signup', async (req, res) => {
   }
   const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
   // 프로토타입: 이메일 인증 절차 생략 → 가입 즉시 활성화
-  const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at, nickname, avatar) VALUES (?, ?, 1, ?, ?, ?)', [email, hash, now(), nickname, avatar]);
+  const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at, nickname, avatar, profile_at) VALUES (?, ?, 1, ?, ?, ?, ?)', [email, hash, now(), nickname, avatar, now()]);
+  db.run('DELETE FROM deleted_users WHERE email = ?', [email]);
   applyPendingShares(lastId, email);
   auth.createSession(res, lastId);
   res.json({ user: { id: lastId, email, nickname, avatar } });
@@ -178,7 +179,7 @@ router.post('/auth/reset', async (req, res) => {
   fieldErrors({ password: validatePassword(req.body.password) });
   const hash = await bcrypt.hash(String(req.body.password), 10);
   db.tx(() => {
-    db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, t.user_id]);
+    db.run('UPDATE users SET password_hash = ?, profile_at = ? WHERE id = ?', [hash, now(), t.user_id]);
     db.run('UPDATE reset_tokens SET used = 1 WHERE token_hash = ?', [t.token_hash]);
     db.run('DELETE FROM sessions WHERE user_id = ?', [t.user_id]);
   });
@@ -352,13 +353,13 @@ router.put('/auth/profile', (req, res) => {
     const nn = String(req.body.nickname || '').trim().replace(/\s+/g, ' ');
     const err = nicknameError(nn, req.user.id);
     if (err) return res.status(400).json({ error: err, code: 'VALIDATION', fields: { nickname: err } });
-    db.run('UPDATE users SET nickname = ? WHERE id = ?', [nn, req.user.id]);
+    db.run('UPDATE users SET nickname = ?, profile_at = ? WHERE id = ?', [nn, now(), req.user.id]);
     out.nickname = nn;
   }
   if (req.body.avatar !== undefined || req.body.nickname === undefined) {
     const avatar = cleanAvatar(req.body.avatar);
     if (!avatar) return res.status(400).json({ error: '사진 형식이 올바르지 않거나 너무 큽니다.', code: 'VALIDATION' });
-    db.run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, req.user.id]);
+    db.run('UPDATE users SET avatar = ?, profile_at = ? WHERE id = ?', [avatar, now(), req.user.id]);
     out.avatar = avatar;
   }
   res.json(out);
@@ -370,7 +371,7 @@ router.post('/auth/change-password', async (req, res) => {
     throw new ValidationError('현재 비밀번호가 올바르지 않습니다.', { current: '현재 비밀번호가 올바르지 않습니다.' });
   }
   fieldErrors({ next: validatePassword(req.body.next) });
-  db.run('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(String(req.body.next), 10), user.id]);
+  db.run('UPDATE users SET password_hash = ?, profile_at = ? WHERE id = ?', [await bcrypt.hash(String(req.body.next), 10), now(), user.id]);
   res.json({ ok: true });
 });
 
@@ -395,6 +396,8 @@ router.delete('/auth/account', async (req, res) => {
     db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
     db.run('DELETE FROM users WHERE id = ?', [user.id]);
+    // 다른 기기에도 동기화로 삭제를 전한다 (v0.30.23)
+    db.run('INSERT OR REPLACE INTO deleted_users (email, deleted_at) VALUES (?, ?)', [String(user.email).toLowerCase(), now()]);
   });
   auth.destroySession(req, res);
   res.json({ ok: true });
@@ -1376,6 +1379,109 @@ router.post('/mirror/sync', async (req, res) => {
     .filter((r) => !keep.has(r.owner_id));
   for (const r of stale) { dropMirrorShare(r.owner_id, me.id); result.push({ email: r.email, status: 'removed' }); }
   res.json({ ok: true, result });
+});
+
+// ---------------------------------------------------------------------------
+// 사용자 정보 동기화 (v0.30.23)
+// 동기화 파일의 profiles { 아이디: { nickname, avatar, pw, created_at, at } } 과 deleted { 아이디: 지운 시각 } 을
+// 이 기기의 사용자 목록과 합친다. 같은 아이디는 바꾼 시각(at)이 늦은 쪽을 남긴다
+//  - 파일에만 있는 사용자 → 이 기기에 사용자로 추가(같은 비밀번호로 로그인), 파일에 그 사용자 자료가 있으면 함께 넣음
+//  - 이 기기에만 있는 사용자 → 파일에 추가
+//  - 지운 시각이 마지막 변경보다 늦으면 양쪽에서 삭제(지금 로그인한 사용자는 지우지 않음)
+// sections: 파일의 다른 사용자 칸 { 아이디: { backup, hash, rev } } — 새로 추가한 사용자의 자료를 넣는 데 씀
+// ---------------------------------------------------------------------------
+const AT = (v) => (typeof v === 'string' && v.length <= 40 ? v : '');
+function deleteUserLocal(uid) {
+  db.tx(() => {
+    for (const tbl of ['holdings', 'holding_trades', 'holding_items', 'holding_dividends', 'user_settings', 'gdrive_auth', 'holding_groups', 'stock_categories', 'dividends', 'sessions', 'reset_tokens']) {
+      db.run(`DELETE FROM ${tbl} WHERE user_id = ?`, [uid]);
+    }
+    db.run('DELETE FROM screen_shares WHERE owner_id = ? OR viewer_id = ?', [uid, uid]);
+    db.run('DELETE FROM pending_shares WHERE owner_id = ?', [uid]);
+    db.run('DELETE FROM users WHERE id = ?', [uid]);
+  });
+}
+router.post('/sync/profiles', (req, res) => {
+  if (req.viewer) return res.status(403).json({ error: '공유받은 화면에서는 사용할 수 없습니다.', code: 'FORBIDDEN' });
+  const body = req.body || {};
+  const fileProfiles = body.profiles && typeof body.profiles === 'object' ? body.profiles : {};
+  const fileDeleted = body.deleted && typeof body.deleted === 'object' ? body.deleted : {};
+  const sections = body.sections && typeof body.sections === 'object' ? body.sections : {};
+  const me = String(req.user.email).toLowerCase();
+  const local = {};
+  for (const u of db.all('SELECT * FROM users WHERE id NOT IN (SELECT user_id FROM mirror_users)')) {
+    local[String(u.email).toLowerCase()] = u;
+  }
+  const localDel = Object.fromEntries(db.all('SELECT email, deleted_at FROM deleted_users').map((r) => [r.email, r.deleted_at]));
+  const outP = {};
+  const outD = {};
+  const created = [];
+  const updated = [];
+  const removed = [];
+  let fileChanged = false;
+  const t = now();
+  const prof = (u) => ({ nickname: u.nickname || null, avatar: u.avatar || null, pw: u.password_hash, created_at: u.created_at, at: u.profile_at || '' }); // 바꾼 적 없으면 '' (가장 오래된 것으로)
+  const emails = new Set([...Object.keys(local), ...Object.keys(localDel), ...Object.keys(fileProfiles), ...Object.keys(fileDeleted)].map((e) => String(e).toLowerCase()));
+  for (const e of emails) {
+    if (validateLoginId(e)) continue;
+    const L = local[e] ? prof(local[e]) : null;
+    const fp = fileProfiles[e];
+    const F = fp && typeof fp === 'object' && typeof fp.pw === 'string' && fp.pw.length < 200 ? {
+      nickname: typeof fp.nickname === 'string' ? fp.nickname.slice(0, 20) : null,
+      avatar: cleanAvatar(fp.avatar) || null,
+      pw: fp.pw, created_at: AT(fp.created_at) || t, at: AT(fp.at),
+    } : null;
+    let del = [AT(localDel[e]), AT(fileDeleted[e])].filter(Boolean).sort().pop() || '';
+    // 늦게 바꾼 쪽, 같으면 이 기기 쪽
+    const latest = L && F ? (String(F.at) > String(L.at) ? F : L) : (L || F);
+    if (del && (!latest || del >= String(latest.at))) {
+      if (e === me) {
+        // 다른 기기에서 지웠지만 지금 이 기기에서 로그인해 쓰는 중 → 지우지 않고 이 기기의 정보를 새로 남긴다
+        db.run('UPDATE users SET profile_at = ? WHERE id = ?', [t, local[e].id]);
+        db.run('DELETE FROM deleted_users WHERE email = ?', [e]);
+        outP[e] = { ...L, at: t };
+        fileChanged = true;
+        continue;
+      }
+      if (local[e]) { deleteUserLocal(local[e].id); removed.push(e); }
+      db.run('INSERT OR REPLACE INTO deleted_users (email, deleted_at) VALUES (?, ?)', [e, del]);
+      outD[e] = del;
+      if (fp || AT(fileDeleted[e]) !== del) fileChanged = true;
+      continue;
+    }
+    del = '';
+    if (localDel[e]) db.run('DELETE FROM deleted_users WHERE email = ?', [e]); // 지운 뒤 다시 만든 사용자
+    if (fileDeleted[e]) fileChanged = true;
+    // 바꾼 시각이 같으면(예: 두 기기에 원래부터 있던 같은 아이디) 각 기기는 자기 정보를 그대로 두고 파일도 그대로 둔다
+    outP[e] = L && F && L.at === F.at ? F : latest;
+    if (outP[e] !== F) fileChanged = true;
+    if (!L) {
+      // 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있으면 지우고 실제 사용자로 만든다
+      const mirror = db.get('SELECT id FROM users WHERE lower(email) = ?', [e]);
+      if (mirror) db.run('DELETE FROM users WHERE id = ?', [mirror.id]);
+      db.run('INSERT INTO users (email, password_hash, email_verified, created_at, nickname, avatar, profile_at) VALUES (?, ?, 1, ?, ?, ?, ?)',
+        [e, latest.pw, latest.created_at || t, latest.nickname, latest.avatar, latest.at || null]);
+      created.push(e);
+    } else if (L.at !== latest.at && String(latest.at) > String(L.at)) {
+      db.run('UPDATE users SET password_hash = ?, nickname = ?, avatar = ?, profile_at = ? WHERE id = ?', [latest.pw, latest.nickname, latest.avatar, latest.at || null, local[e].id]);
+      updated.push(e);
+    }
+  }
+  // 새로 추가한 사용자의 자료: 모두 만든 뒤에 넣어야 서로 준 화면 공유가 이어진다
+  const restored = [];
+  for (const e of created) {
+    const u = db.get('SELECT id FROM users WHERE lower(email) = ?', [e]);
+    const sec = sections[e];
+    if (sec && !backupError(sec.backup)) {
+      restoreData(u.id, sec.backup, { email: e });
+      restored.push({ email: e, lastHash: syncHash(buildBackup(u.id, e)), fileHash: String(sec.hash || ''), rev: Number(sec.rev) || 0 });
+    }
+  }
+  for (const e of created) {
+    const u = db.get('SELECT id FROM users WHERE lower(email) = ?', [e]);
+    applyPendingShares(u.id, e);
+  }
+  res.json({ ok: true, profiles: outP, deleted: outD, created, updated, removed, restored, fileChanged });
 });
 
 function sendXlsx(res, buf, name) {

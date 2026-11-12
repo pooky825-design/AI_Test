@@ -365,6 +365,9 @@ function migrate() {
   const ucols = all('PRAGMA table_info(users)').map((c) => c.name);
   if (!ucols.includes('nickname')) db.run('ALTER TABLE users ADD COLUMN nickname TEXT');
   if (!ucols.includes('avatar')) db.run('ALTER TABLE users ADD COLUMN avatar TEXT');
+  // 사용자 정보 동기화 (v0.30.23): 별명·사진·비밀번호를 마지막으로 바꾼 시각, 지운 사용자 기록(다른 기기에도 삭제를 전하기 위해)
+  if (!ucols.includes('profile_at')) db.run('ALTER TABLE users ADD COLUMN profile_at TEXT');
+  db.run('CREATE TABLE IF NOT EXISTS deleted_users (email TEXT PRIMARY KEY, deleted_at TEXT NOT NULL)');
   // 데모 계정: 별명·사진을 붙이고 비밀번호를 4자리(1234)로 (한 번만, 별명이 없을 때)
   if (get("SELECT 1 FROM users WHERE email = 'demo@example.com' AND nickname IS NULL")) {
     db.run("UPDATE users SET nickname = '데모', avatar = 'preset:1', password_hash = ? WHERE email = 'demo@example.com'", [DEMO_PIN_HASH]);
