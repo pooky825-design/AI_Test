@@ -3661,7 +3661,7 @@
       body.innerHTML = `
         ${mk ? `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)} (한국 시간)${id === 'usmarket' ? ` · 현지 ${esc(mk.hours.local)}` : ''}${mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>` : ''}
         <div class="dd-head">
-          <div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}${mk ? ` <span class="muted small">(${esc(id === 'krmarket' ? '코스피' : 'S&P 500')} 지수)</span>` : ''}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
+          ${mk ? '<div></div>' : `<div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>`}
           <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
         </div>
         ${mk ? '<div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div><h3 class="dd-sub">' + (id === 'krmarket' ? '코스피' : 'S&P 500') + ' 지수</h3>' : ''}
