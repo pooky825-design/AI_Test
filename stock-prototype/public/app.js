@@ -22,7 +22,7 @@
     },
   };
   // 요구사항 ID(FR-AUTH-01 등) 표시 여부 (v0.26.4): 계정에 저장, 로그인 화면용으로 이 기기에도 기억
-  // v0.30.27: 요구사항 ID 표시를 숨김(환경설정 상자도 숨김). 다시 보이게 하려면 SHOW_REQ_UI 를 true 로
+  // v0.30.27: 요구사항 ID 표시를 숨김(환경 설정 상자도 숨김). 다시 보이게 하려면 SHOW_REQ_UI 를 true 로
   const SHOW_REQ_UI = false;
   function applyReqCodes(show) {
     if (!SHOW_REQ_UI) { document.documentElement.classList.add('hide-req'); return; }
@@ -249,11 +249,11 @@
   // ---------------------------------------------------------------------------
   const NAV = [
     ['#/stock', '종목 조회', 'SC-03'], // v0.30.33: 맨 위, 다른 메뉴와 줄로 구분
-    ['#/yearly', '연도별 자산 · 배당', 'SC-05'], // v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경설정 (v0.30.35 이름: 보유 종목 등록(변경), 배당 입력)
-    ['#/assets', '나의 자산', 'SC-02'],
+    ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 보유 종목 등록(변경), 배당 입력)
+    ['#/assets', '나의 자산 조회', 'SC-02'], // v0.30.36 이름: 나의 자산 조회, 연도별 자산 · 배당 조회, 환경 설정
     ['#/holdings', '보유 종목 등록(변경)', 'SC-04'],
     ['#/divmgmt', '배당 입력', 'SC-08'],
-    ['#/me', '환경설정', 'SC-07'],
+    ['#/me', '환경 설정', 'SC-07'],
   ];
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
@@ -277,7 +277,7 @@
     </select></label>`;
   }
   function shareBanner(active) {
-    if (!state.actAs || MY_MENU(active)) return ''; // 환경설정·종목 조회는 공유받은 화면이 아니라 내 메뉴 (v0.27.8, v0.30.33)
+    if (!state.actAs || MY_MENU(active)) return ''; // 환경 설정·종목 조회는 공유받은 화면이 아니라 내 메뉴 (v0.27.8, v0.30.33)
     const sc = SHARE_PATH[active];
     const perm = sc ? state.actAs.perms[sc] : null;
     const mode = perm === 'edit' ? '<span class="perm edit">편집 가능</span>' : perm ? '<span class="perm view">조회 전용</span>' : '';
@@ -288,7 +288,7 @@
   const SHARE_BADGE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
   const navIconFor = (h) => {
     if (!state.actAs) return navIcon(h);
-    const badge = !MY_MENU(h) ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
+    const badge = !MY_MENU(h) ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경 설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
     return `<span class="nav-ico-wrap">${navIcon(h)}${badge}</span>`;
   };
   // 휴대폰 위쪽 메뉴의 가로 스크롤 위치 (v0.27.6): 화면을 다시 그려도 그대로 둔다
@@ -301,8 +301,8 @@
     if (navEl) mnavScroll = navEl.scrollLeft;
     const nav = state.actAs ? NAV.filter(([h]) => MY_MENU(h) || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
     const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
-    // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
-    const mlinks = nav.map(([h, label], i) => `${state.actAs && h === '#/me' && nav[i - 1] && nav[i - 1][0] !== '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>${h === '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}`).join('');
+    // 공유받은 화면을 보는 중이면 내 메뉴(환경 설정) 앞에 구분선 (v0.27.6)
+    const mlinks = nav.map(([h, label], i) => `${h === '#/me' && nav[i - 1] && nav[i - 1][0] !== '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>${h === '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}`).join('');
     // 내 사진·별명 | 로그아웃 (v0.30.12)
     const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 관리">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
@@ -310,7 +310,7 @@
         <aside class="side">
           <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div>${homeBtn(active)}</div>
           ${shareSwitch()}
-          ${links.replace(/(<a href="#\/stock"[\s\S]*?<\/a>)/, '$1<hr class="side-sep" aria-hidden="true" />')}
+          ${links.replace(/(<a href="#\/stock"[\s\S]*?<\/a>)/, '$1<hr class="side-sep" aria-hidden="true" />').replace(/(<\/a>)(<a href="#\/me")/, '$1<hr class="side-sep" aria-hidden="true" />$2')}
           <div class="spacer"></div>
           <span data-sync-slot class="side-sync"></span>
           ${userBar}
@@ -368,7 +368,7 @@
   // ---------------------------------------------------------------------------
   // SC-01 로그인·사용자 추가·비밀번호 재설정
   // ---------------------------------------------------------------------------
-  // 언어 선택 (v0.26): 로그인 화면과 환경설정에서 한국어 / English 중 선택. 이 기기에 기억하고, 로그인 중이면 계정에도 저장
+  // 언어 선택 (v0.26): 로그인 화면과 환경 설정에서 한국어 / English 중 선택. 이 기기에 기억하고, 로그인 중이면 계정에도 저장
   function langSelectHtml() {
     const cur = isEn() ? 'en' : 'ko';
     return `<label class="lang-switch" data-noi18n><span>언어 (Language)</span><select data-lang aria-label="언어 (Language)">
@@ -504,7 +504,7 @@
     body.innerHTML = `<p style="margin:0 0 10px">다른 기기와 화면을 공유하려면, 직접 만든 K-Stock 클라우드 서버(예: Oracle Cloud)에 연결하세요. 연결하면 이 앱은 그 서버의 화면과 데이터를 사용합니다.</p>
       <form class="stack" data-cform novalidate>
         <div class="field"><label>서버 주소</label><input name="url" placeholder="https://kstock.duckdns.org" value="${esc(cur)}" autocomplete="off" inputmode="url" /><span class="err" data-err="url"></span></div>
-        <div class="notice info small"><div><b>휴대폰에 있던 데이터를 옮기려면</b><br/>① 연결 전에 환경설정 → <b>백업 파일 저장</b> ② 연결 후 서버에서 사용자 추가·로그인 ③ 환경설정 → <b>백업 파일로 복원</b><br/>휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.</div></div>
+        <div class="notice info small"><div><b>휴대폰에 있던 데이터를 옮기려면</b><br/>① 연결 전에 환경 설정 → <b>백업 파일 저장</b> ② 연결 후 서버에서 사용자 추가·로그인 ③ 환경 설정 → <b>백업 파일로 복원</b><br/>휴대폰 안의 데이터는 지워지지 않으며, 언제든 ‘이 휴대폰 모드’로 돌아올 수 있습니다.</div></div>
         <div class="field-row" style="justify-content:flex-end"><button type="button" class="secondary" data-close>취소</button><button type="submit">연결</button></div>
       </form>`;
     const f = body.querySelector('[data-cform]');
@@ -715,7 +715,7 @@
     const groupQs = (groupParam ? `&group=${encodeURIComponent(groupParam)}` : '') + (merged ? '&merged=1' : '');
     const main = shell('#/assets', `
       <div class="page-head">
-        <div><h1>나의 자산 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
+        <div><h1>나의 자산 조회 ${req('SC-02 · FR-AST · FR-XLS-01')}</h1><p>${ongoing ? '선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화 기준으로 보여줍니다.' : `${year}년 말 보유 종목을 그해 연말 종가·연말 환율로 평가합니다.`}</p></div>
         <div class="field-row head-ctrl">
           <button data-export="/export/assets.xlsx?year=${year}${groupQs}">엑셀 내보내기</button>
         </div>
@@ -2128,7 +2128,7 @@
     const opts = (sel) => Array.from({ length: 10 }, (_, k) => thisYear - 9 + k).map((y) => `<option ${y === sel ? 'selected' : ''}>${y}</option>`).join('');
     const main = shell('#/yearly', `
       <div class="page-head">
-        <div><h1>연도별 자산 · 배당 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 등록(변경)에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
+        <div><h1>연도별 자산 · 배당 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 등록(변경)에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
         <button data-export="/export/yearly.xlsx?from=${from}&to=${to}">엑셀 내보내기</button>
       </div>
       <div class="notice warn"><div><b>해석 주의:</b> 연도별로 입력한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 종목을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
@@ -2998,10 +2998,10 @@
     });
   }
   function openSyncSetup() {
-    toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경설정 → 데이터 동기화에서 연결해 주세요.`);
+    toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경 설정 → 데이터 동기화에서 연결해 주세요.`);
     goMeCard('[data-sync-card]');
   }
-  // 환경설정 화면의 상자로 이동해 펴고 보이게 (v0.30.20)
+  // 환경 설정 화면의 상자로 이동해 펴고 보이게 (v0.30.20)
   function goMeCard(sel) {
     const show = () => {
       const card = document.querySelector(sel);
@@ -3097,7 +3097,7 @@
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
         <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
           ? 'View: see the screen and export to Excel only · Edit: also change Holdings (add·edit·delete items, carry over, groups) and Dividends (save rounds) · Yearly assets & dividends and My assets can be shared as view only · Settings and Stock lookup are never shared · Setting every permission to None removes the share · <b>Other devices</b>: connect both devices to Google Drive with the same Google account; when the receiver syncs, the sharer\'s latest data arrives as view only (the sharer must sync first; edit becomes view)'
-          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(변경)(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 입력(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
+          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(변경)(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 입력(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경 설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
       body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
         try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
         load();
@@ -3151,7 +3151,7 @@
 
   function viewMe() {
     const main = shell('#/me', `
-      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1></div></div>
+      <div class="page-head"><div><h1>환경 설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1></div></div>
       <div class="card" data-fold="profile">
         <h2>사용자 관리</h2>
         <div class="me-info">${avatarHtml(state.user.avatar, displayName(state.user), 'av-md')}<div class="me-info-text">
@@ -3220,7 +3220,7 @@
           <button class="sm secondary" data-reset>기본값(주황)으로</button>
         </div>
         <div class="theme-preview" aria-hidden="true">
-          <div class="pv-side"><b>미리보기</b><span class="on">나의 자산</span><span>보유 종목 등록(변경)</span></div>
+          <div class="pv-side"><b>미리보기</b><span class="on">나의 자산 조회</span><span>보유 종목 등록(변경)</span></div>
           <div class="pv-main">
             <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="#/me" tabindex="-1">링크</a></div>
             <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
@@ -3911,7 +3911,7 @@
     const main = shell('#/home', `
       <div class="page-head home-head">
         <div class="home-title"><h1>대시보드</h1><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div>
-        <p class="dash-intro">${state.actAs ? '공유한 사람이 고른 항목만 보입니다.' : '항목은 환경설정에서 고를 수 있습니다.'}</p>
+        <p class="dash-intro">${state.actAs ? '공유한 사람이 고른 항목만 보입니다.' : '항목은 환경 설정에서 고를 수 있습니다.'}</p>
       </div>
       <div data-dash><div class="card empty">대시보드를 불러오는 중…</div></div>`);
     main.querySelector('[data-refresh]').addEventListener('click', () => render());
@@ -3919,7 +3919,7 @@
     let d;
     try { d = await api('GET', '/dashboard'); } catch (e) { box.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
     if (!d.items.length) {
-      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 대시보드 설정</a>에서 항목을 고르세요.'}</div><div data-kw></div>`;
+      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경 설정 → 대시보드 설정</a>에서 항목을 고르세요.'}</div><div data-kw></div>`;
       loadKeywords(box.querySelector('[data-kw]'));
       return;
     }
@@ -3964,7 +3964,7 @@
     const { path, query } = parseHash();
     if (PUBLIC[path]) {
       if (state.user && path !== '/reset') {
-        if (query.cloudError) toast('클라우드 서버에 연결하지 못해 휴대폰 안의 데이터로 열었습니다. 환경설정에서 다시 연결할 수 있습니다.');
+        if (query.cloudError) toast('클라우드 서버에 연결하지 못해 휴대폰 안의 데이터로 열었습니다. 환경 설정에서 다시 연결할 수 있습니다.');
         return go('#/home');
       }
       return PUBLIC[path](query);

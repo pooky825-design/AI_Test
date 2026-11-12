@@ -99,7 +99,7 @@ router.post('/auth/signup', async (req, res) => {
   fieldErrors({ email: validateLoginId(nickname), password: validatePassword(password), signupCode: codeErr });
   const exists = db.get('SELECT u.id, m.user_id AS mirror FROM users u LEFT JOIN mirror_users m ON m.user_id = u.id WHERE u.email = ?', [email]);
   if (exists && exists.mirror) {
-    const msg = '이 아이디는 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
+    const msg = '이 아이디는 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경 설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
     throw new ValidationError(msg, { email: msg });
   }
   if (exists || db.get('SELECT id FROM users WHERE lower(nickname) = ?', [email])) {
@@ -196,10 +196,10 @@ router.use(auth.requireAuth);
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
   { id: 'home', label: '홈', edit: false }, // 대시보드 (v0.28.0): 공유한 사람이 설정한 항목만 보임
-  { id: 'assets', label: '나의 자산', edit: false },
+  { id: 'assets', label: '나의 자산 조회', edit: false },
   { id: 'holdings', label: '보유 종목 등록(변경)', edit: true },
   { id: 'divmgmt', label: '배당 입력', edit: true },
-  { id: 'yearly', label: '연도별 자산 · 배당', edit: false },
+  { id: 'yearly', label: '연도별 자산 · 배당 조회', edit: false },
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
