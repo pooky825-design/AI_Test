@@ -21,6 +21,7 @@ async function fetchRaw(url, { timeoutMs = 12000, form } = {}) {
     ok: r.status >= 200 && r.status < 300,
     status: r.status,
     async json() { return JSON.parse(new TextDecoder('utf-8').decode(bytes)); },
+    async text() { return new TextDecoder('utf-8').decode(bytes); },
     async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); },
   };
 }

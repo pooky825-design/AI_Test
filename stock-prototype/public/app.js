@@ -374,8 +374,9 @@
   }
 
   // 프로필 사진 (v0.30.0): 기본 그림 12개(preset:1~12) 또는 직접 올린 사진(data URL)
-  const AVATAR_PRESETS = [['🐶', '#fde68a'], ['🐱', '#fbcfe8'], ['🦊', '#fed7aa'], ['🐻', '#ecdcc9'], ['🐼', '#e5e7eb'], ['🐯', '#fde047'],
-    ['🐸', '#bbf7d0'], ['🐵', '#f5d0a9'], ['🐰', '#e9d5ff'], ['🦁', '#fcd34d'], ['🐨', '#cbd5e1'], ['🐧', '#bae6fd']];
+  // 사람 모양 (v0.30.1): 남·여·남자아이·여자아이·할아버지·할머니·사람·금발·수염·아기·어린이·어르신 (합성 이모지 없이 기본 글자만 → 휴대폰에서 깨지지 않음)
+  const AVATAR_PRESETS = [['👨', '#bfdbfe'], ['👩', '#fbcfe8'], ['👦', '#bbf7d0'], ['👧', '#fde68a'], ['👴', '#e5e7eb'], ['👵', '#e9d5ff'],
+    ['🧑', '#fed7aa'], ['👱', '#fef08a'], ['🧔', '#ecdcc9'], ['👶', '#cffafe'], ['🧒', '#fecaca'], ['🧓', '#d9f99d']];
   function avatarHtml(av, name, cls = '') {
     if (typeof av === 'string' && av.startsWith('data:image/')) return `<span class="avatar ${cls}"><img src="${esc(av)}" alt="" /></span>`;
     const m = /^preset:(\d+)$/.exec(av || '');
@@ -3637,7 +3638,7 @@
     if (!box) return;
     box.innerHTML = '<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="empty">최근 기사에서 키워드를 찾는 중…</div></div>';
     let d;
-    try { d = await api('GET', '/dashboard/keywords'); } catch (e) { box.innerHTML = `<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="small muted">${esc(e.message)}</div></div>`; return; }
+    try { d = await api('GET', `/dashboard/keywords?lang=${isEn() ? 'en' : 'ko'}`); } catch (e) { box.innerHTML = `<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="small muted">${esc(e.message)}</div></div>`; return; }
     if (!d.enabled) { box.innerHTML = ''; return; }
     if (!d.rows.length) { box.innerHTML = '<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="empty">올해 보유 종목이 없습니다.</div></div>'; return; }
     const chip = (k) => `<a class="kw-chip" href="${esc(k.url)}" target="_blank" rel="noopener noreferrer" title="${esc(k.title)}${k.press ? ` · ${esc(k.press)}` : ''}${k.time ? ` · ${esc(shortTime(k.time))}` : ''}" data-noi18n>${esc(k.word)}</a>`;
@@ -3646,7 +3647,7 @@
       ${d.rows.map((r) => `<tr><td class="left kw-name"><div><span data-noi18n>${esc(r.name)}</span><small class="muted">${esc(r.code)}${r.type ? ` · ${esc(r.type)}` : ''}</small></div></td>
         <td class="left">${r.error ? `<span class="small muted">${esc(r.error)}</span>` : r.keywords.length ? `<div class="kw-chips">${r.keywords.map(chip).join('')}</div>` : '<span class="small muted">최근 1일 기사 없음</span>'}</td></tr>`).join('')}
       </tbody></table></div>
-      <p class="small muted" style="margin:8px 0 0">종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 국내 종목 네이버 증권, 미국 종목 Yahoo Finance(영문) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다</p></div>`;
+      <p class="small muted" style="margin:8px 0 0">종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 화면 언어에 맞춰 한국어는 한국어 기사(국내 종목 네이버 증권, 미국 종목 구글 뉴스), 영어는 영어 기사(미국 종목 Yahoo Finance, 국내 종목 Google News) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다</p></div>`;
   }
 
   const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };

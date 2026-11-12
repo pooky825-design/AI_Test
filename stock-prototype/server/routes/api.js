@@ -940,7 +940,7 @@ router.get('/dashboard/keywords', async (req, res) => {
   const codes = [...new Set(positions.positionsAt(uid, thisYear(), {}).filter((p) => p.quantity > 0).map((p) => p.code))].slice(0, 30);
   const rows = await portfolio.mapLimit(codes, 4, async (code) => {
     const i = db.get('SELECT name, type FROM instruments WHERE code = ?', [code]) || {};
-    return { code, name: i.name || code, type: i.type || null, ...(await newskw.keywordsFor(code, i.name || code)) };
+    return { code, name: i.name || code, type: i.type || null, ...(await newskw.keywordsFor(code, i.name || code, req.query.lang === 'en' ? 'en' : 'ko')) };
   });
   res.json({ enabled: true, rows, at: now() });
 });

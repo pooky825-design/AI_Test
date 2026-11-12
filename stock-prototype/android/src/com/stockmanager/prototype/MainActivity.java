@@ -59,7 +59,8 @@ public class MainActivity extends Activity {
             "www.soletf.com", "investments.miraeasset.com",
             "ac.stock.naver.com", // 종목명 검색 (v0.21.1)
             "m.stock.naver.com", // 투자지표·분기 실적 (v0.26.6)
-            "oauth2.googleapis.com", "www.googleapis.com")); // 구글 드라이브 직접 연결 (v0.27.0)
+            "oauth2.googleapis.com", "www.googleapis.com", // 구글 드라이브 직접 연결 (v0.27.0)
+            "news.google.com")); // 홈 화면 키워드: 언어별 뉴스 (v0.30.1)
 
     private WebView webView;
 

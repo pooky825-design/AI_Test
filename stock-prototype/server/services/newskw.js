@@ -1,4 +1,7 @@
-// 홈 화면 보유 종목 주요 키워드 (v0.29.0)
+// 홈 화면 보유 종목 주요 키워드 (v0.29.0, 언어별 v0.30.1)
+//  화면 언어가 한국어면 한국어 기사, 영어면 영어 기사:
+//   한국어 + 국내 종목 → 네이버 증권 / 한국어 + 미국 종목 → 구글 뉴스(한국어, 한글 종목명으로 검색)
+//   영어 + 미국 종목 → 야후 파이낸스 / 영어 + 국내 종목 → 구글 뉴스(영어, 영문 종목명으로 검색)
 // 종목별 최근 기사 제목에서 자주 나오는 단어를 골라(최대 4개) 그 단어가 들어간 최근 기사로 연결한다.
 //  - 국내 종목: 네이버 증권 모바일 종목 뉴스(m.stock.naver.com, 한국어)
 //  - 미국 종목: 야후 파이낸스 검색 뉴스 중 그 티커가 관련 종목으로 붙은 기사(영어)
@@ -98,13 +101,64 @@ function phrasesOf(seq) {
   for (let n = 3; n >= 2; n--) {
     for (let i = 0; i + n <= seq.length; i++) {
       const g = seq.slice(i, i + n);
-      if (g.some((x) => !x) || g.every((x) => x[2] === 'weak')) continue;
+      if (g.some((x) => !x) || g.every((x) => x[2] === 'weak') || g[0][2] === 'weak') continue; // '황 리스크' 같은 조각 제외
       const key = g.map((x) => x[0]).join(' ');
       if (new Set(g.map((x) => x[0])).size < n) continue; // 같은 단어 반복
       if (!out.has(key)) out.set(key, { label: g.map((x) => x[1]).join(' '), n: g.length });
     }
   }
   return out;
+}
+
+// 이름 찾기 (캐시): 미국 종목의 한글 이름(네이버 자동완성), 국내 종목의 영문 이름(야후 검색)
+const nameCache = new Map();
+async function koreanNameOf(code) {
+  const k = `ko:${code}`;
+  if (nameCache.has(k)) return nameCache.get(k);
+  let n = null;
+  try {
+    const r = await fetchRaw(`https://ac.stock.naver.com/ac?q=${encodeURIComponent(code)}&target=stock,etf`, { timeoutMs: 6000 });
+    if (r.ok) {
+      const j = await r.json();
+      const items = (j.items || []).flat ? (j.items || []).flat() : [];
+      const hit = items.find((x) => String(x.code || '').toUpperCase() === code) || null;
+      if (hit && /[가-힣]/.test(hit.name || '')) n = hit.name;
+    }
+  } catch (_) { /* 없음 */ }
+  nameCache.set(k, n);
+  return n;
+}
+async function englishNameOf(code) {
+  const k = `en:${code}`;
+  if (nameCache.has(k)) return nameCache.get(k);
+  let n = null;
+  for (const suf of ['.KS', '.KQ']) {
+    try {
+      const r = await fetchRaw(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(code + suf)}&newsCount=0&quotesCount=1`);
+      if (!r.ok) continue;
+      const q = ((await r.json()).quotes || [])[0];
+      if (q && String(q.symbol || '').toUpperCase() === code + suf) { n = q.longname || q.shortname || null; break; }
+    } catch (_) { /* 다음 */ }
+  }
+  if (n) n = n.replace(/,?\s+(Co\.,?\s*Ltd\.?|Inc\.?|Corporation|Corp\.?|Ltd\.?|Holdings?)$/i, '').replace(/,?\s+(Co\.,?\s*Ltd\.?|Inc\.?)$/i, '').trim();
+  nameCache.set(k, n);
+  return n;
+}
+
+// 구글 뉴스 RSS (키 없음): 최근 1일, 언어별
+async function googleNews(query, lang) {
+  const loc = lang === 'ko' ? 'hl=ko&gl=KR&ceid=KR:ko' : 'hl=en-US&gl=US&ceid=US:en';
+  const r = await fetchRaw(`https://news.google.com/rss/search?q=${encodeURIComponent(`${query} when:1d`)}&${loc}`);
+  if (!r.ok) throw new Error(`구글 뉴스 응답 오류 (HTTP ${r.status})`);
+  const xml = await r.text();
+  const tag = (s, t) => { const m = s.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`)); return m ? m[1].replace(/^<!\[CDATA\[|\]\]>$/g, '') : ''; };
+  return xml.split('<item>').slice(1, 41).map((it) => {
+    const press = decode(tag(it, 'source'));
+    let title = decode(tag(it, 'title'));
+    if (press && title.endsWith(` - ${press}`)) title = title.slice(0, -(press.length + 3));
+    const d = Date.parse(tag(it, 'pubDate'));
+    return { title, url: tag(it, 'link').trim() || null, time: Number.isFinite(d) ? new Date(d).toISOString() : null, press: press || null };
+  }).filter((x) => x.title && x.url);
 }
 
 async function koNews(code) {
@@ -132,7 +186,10 @@ async function usNews(code) {
 }
 
 // 키워드 고르기 (v0.29.1): ① 여러 기사에 붙어서 나온 2~3단어 묶음(예: 방산 수요 증가) ② 모자라면 자주 나온 단어
-function pickKeywords(articles, lang, skip) {
+function pickKeywords(input, lang, skip) {
+  // 같은 기사가 여러 언론사에 거의 같은 제목으로 실리면 한 번만 센다 (구글 뉴스)
+  const seenT = new Set();
+  const articles = input.filter((a) => { const k = String(a.title).toLowerCase().replace(/[^0-9a-z가-힣]/g, '').slice(0, 24); if (seenT.has(k)) return false; seenT.add(k); return true; });
   const latestOf = (arts) => arts.slice().sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))[0];
   const phrases = new Map(); // key → { label, words, n, articles, first }
   const words = new Map();
@@ -153,7 +210,7 @@ function pickKeywords(articles, lang, skip) {
   // 묶음: 2번 이상, 같은 횟수면 긴 묶음 먼저. 이미 고른 묶음에 들어 있는 짧은 묶음은 뺀다
   const picked = [];
   const covered = (key) => picked.some((p) => (` ${p.key} `).includes(` ${key} `));
-  [...phrases.entries()].filter(([, c]) => c.n >= 2)
+  [...phrases.entries()].filter(([, c]) => c.n >= (c.words >= 3 ? 3 : 2)) // 3단어 묶음은 3번 이상
     .sort((a, b) => b[1].n - a[1].n || b[1].words - a[1].words || a[1].first - b[1].first)
     .forEach(([key, c]) => {
       if (picked.length >= MAX_KW || covered(key)) return;
@@ -175,23 +232,42 @@ function pickKeywords(articles, lang, skip) {
   });
 }
 
-async function keywordsFor(code, name) {
+async function keywordsFor(code, name, uiLang = 'ko') {
   const key = String(code).toUpperCase();
-  const c = cache.get(key);
+  const lang = uiLang === 'en' ? 'en' : 'ko';
+  const ck = `${key}|${lang}`;
+  const c = cache.get(ck);
   if (c && Date.now() - c.at < TTL) return c.v;
   const kr = /^[0-9][0-9A-Z]{5}$/.test(key);
-  const skip = [...new Set([...nameParts(name), key.toLowerCase()])];
   let v;
   try {
-    const all = kr ? await koNews(key) : await usNews(key);
+    let all;
+    let source;
+    const names = [name];
+    if (lang === 'ko' && kr) { all = await koNews(key); source = '네이버 증권'; }
+    else if (lang === 'en' && !kr) { all = await usNews(key); source = 'Yahoo Finance'; }
+    else if (lang === 'ko') {
+      // 미국 종목을 한국어 기사로: 한글 이름으로 구글 뉴스 검색 (한글 이름이 없으면 '티커 주가')
+      const kn = await koreanNameOf(key);
+      if (kn) names.push(kn);
+      all = await googleNews(kn ? `"${kn}"` : `${key} 주가`, 'ko');
+      source = '구글 뉴스';
+    } else {
+      // 국내 종목을 영어 기사로: 영문 이름으로 구글 뉴스 검색
+      const en = await englishNameOf(key);
+      if (en) names.push(en);
+      all = await googleNews(`"${en || name}"`, 'en');
+      source = 'Google News';
+    }
+    const skip = [...new Set([...names.flatMap(nameParts), key.toLowerCase()])];
     // 최근 1일(24시간) 이내 기사만 (v0.29.1)
     const since = Date.now() - 24 * 60 * 60 * 1000;
     const arts = all.filter((a) => a.time && Date.parse(a.time) >= since);
-    v = { code: key, lang: kr ? 'ko' : 'en', articles: arts.length, keywords: pickKeywords(arts, kr ? 'ko' : 'en', skip), source: kr ? '네이버 증권' : 'Yahoo Finance' };
+    v = { code: key, lang, articles: arts.length, keywords: pickKeywords(arts, lang, skip), source };
   } catch (e) {
     v = { code: key, keywords: [], error: e.message || '가져오지 못했습니다.' };
   }
-  if (!v.error) cache.set(key, { at: Date.now(), v });
+  if (!v.error) cache.set(ck, { at: Date.now(), v });
   return v;
 }
 
