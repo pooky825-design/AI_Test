@@ -4153,10 +4153,21 @@
   }
 
   window.addEventListener('hashchange', render);
+  // 앱(또는 브라우저 탭)을 새로 켤 때는 항상 로그인 화면부터 (v0.30.47)
+  // 지난 실행의 로그인(세션 쿠키 7일)을 이어 쓰지 않는다. 같은 실행 안에서 화면을 다시 불러오는 경우(재시도 등)는 로그인 유지
+  let freshLaunch = true;
+  try { freshLaunch = !sessionStorage.getItem('app.launched'); sessionStorage.setItem('app.launched', '1'); } catch (_) { /* 저장소를 못 쓰면 새 실행으로 봄 */ }
   api('GET', '/health').then((h) => { state.server = { ...state.server, ...h }; }).catch(() => {}).finally(() => {
-    api('GET', '/auth/me').then((r) => {
-      state.user = r.user;
-      render();
+    api('GET', '/auth/me').then(async (r) => {
+      let user = r.user;
+      if (user && freshLaunch) {
+        try { await api('POST', '/auth/logout'); } catch (_) { /* 무시 */ }
+        user = null;
+      }
+      state.user = user;
+      const { path } = parseHash();
+      if (freshLaunch && !user && !PUBLIC[path]) go('#/login'); // 주소에 남은 화면(#/home 등) 대신 로그인 화면
+      else render();
     }).catch(() => render());
   });
 })();

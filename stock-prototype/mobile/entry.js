@@ -5,7 +5,7 @@ const db = require('../server/db');
 const auth = require('../server/auth');
 const router = require('../server/routes/api');
 const market = require('../server/services/market');
-const { seedDemo } = require('../server/seed');
+const { seedDemo, seedSampleDividends } = require('../server/seed');
 const { createResponse } = require('./express-shim');
 const bridge = require('./bridge');
 
@@ -92,3 +92,8 @@ window.fetch = async (input, init = {}) => {
 
 // FR-DATA-01: 앱이 켜져 있는 동안 1시간마다 장 마감 후 종가 수집
 ready.then(() => setInterval(() => market.collectDaily().catch(() => {}), 60 * 60 * 1000));
+// 처음 설치 때 샘플 계정의 배당 입력 회차를 채움 (v0.30.47). 인터넷이 안 되면 1시간 뒤(또는 다음 실행 때) 다시
+ready.then(() => {
+  seedSampleDividends();
+  setInterval(seedSampleDividends, 60 * 60 * 1000);
+});

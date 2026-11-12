@@ -38,19 +38,82 @@ async function seedDemo() {
   for (const [code, c] of Object.entries(cats)) {
     db.run('INSERT INTO stock_categories (user_id, code, category, updated_at) VALUES (?, ?, ?, ?)', [uid, code, c, now]);
   }
-  const y = new Date().getFullYear();
-  const dividends = [
-    ['005930', `${y - 2}-04-19`, 30500, 'KRW', '결산 배당 (데모)'],
-    ['005930', `${y - 1}-04-18`, 30500, 'KRW', '결산 배당 (데모)'],
-    ['069500', `${y - 1}-04-30`, 10600, 'KRW', 'ETF 분배금 (데모)'],
-    ['AAPL', `${y - 1}-05-15`, 2.13, 'USD', '세후 수령액 (데모)'],
-    ['SPY', `${y - 1}-10-31`, 7.8, 'USD', 'ETF 분배금 (데모)'],
-    ['005930', `${y}-04-17`, 36100, 'KRW', '결산 배당 (데모)'],
-  ];
-  for (const [code, d, a, c, m] of dividends) {
-    db.run('INSERT INTO dividends (user_id, code, pay_date, amount, currency, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid, code, d, a, c, m, now]);
-  }
+  // 배당 내역 (v0.30.47): 배당 입력 화면의 저장 회차(holding_dividends)는 실제 배당락일·주당 배당금과 맞아야 하므로
+  // 시세 출처에서 배당 내역을 받아 와야 한다 → 처음 설치 때 '할 일'로 표시해 두고 seedSampleDividends() 가 채운다
+  db.run("INSERT INTO app_meta (key, value) VALUES ('sample_dividends', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [JSON.stringify({ userId: uid, done: [] })]);
   console.log('샘플 계정 생성: 샘플(demo@example.com) / 1234');
 }
 
-module.exports = { seedDemo };
+// 샘플 계정의 배당 입력 회차 채우기 (v0.30.47, 처음 설치 때만)
+// - 샘플 보유 종목(그룹·종목)마다 배당 내역(배당락일·주당 배당금·주당 과세표준·실지급일)을 받아,
+//   보유한 연도의 회차를 그 해 말 보유 수량으로 저장한다(배당 입력 화면에서 직접 저장한 것과 같은 모양)
+// - 인터넷이 안 되는 등으로 받지 못한 종목은 남겨 두었다가 다음 실행(또는 1시간 주기)에 다시 시도
+// - 이미 채운 종목은 다시 건드리지 않음(사용자가 고치거나 지운 회차를 되살리지 않도록)
+let sampleDivRunning = null;
+function seedSampleDividends() {
+  if (!sampleDivRunning) sampleDivRunning = runSampleDividends().catch((e) => console.warn('[sample-dividends]', e.message)).finally(() => { sampleDivRunning = null; });
+  return sampleDivRunning;
+}
+
+async function runSampleDividends() {
+  const row = db.get("SELECT value FROM app_meta WHERE key = 'sample_dividends'");
+  if (!row || row.value === 'done') return;
+  let job;
+  try { job = JSON.parse(row.value); } catch (_) { job = null; }
+  const finish = () => db.run("UPDATE app_meta SET value = 'done' WHERE key = 'sample_dividends'");
+  const user = job && db.get('SELECT id FROM users WHERE id = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [job.userId]);
+  if (!user) return finish(); // 샘플 계정을 지웠으면 할 일 없음
+  const portfolio = require('./services/portfolio');
+  const positions = require('./services/positions');
+  const uid = user.id;
+  const done = new Set(job.done || []);
+  const items = positions.itemsOf(uid);
+  const pairs = [...new Map(items.map((it) => [`${it.group_id}|${it.code}`, { groupId: it.group_id, code: it.code }])).values()]
+    .filter((p) => !done.has(`${p.groupId}|${p.code}`));
+  const today = new Date().toISOString().slice(0, 10);
+  const thisYear = new Date().getFullYear();
+  const byCode = new Map(); // 같은 종목을 여러 그룹에서 보유하면 배당 내역은 한 번만 받음
+  let failed = 0;
+  for (const p of pairs) {
+    try {
+      if (!byCode.has(p.code)) byCode.set(p.code, await portfolio.getStockDividends(uid, p.code, {}));
+      const d = byCode.get(p.code);
+      if (d.neverLoaded) { failed++; continue; } // 배당 내역을 한 번도 받지 못함 → 다음에 다시
+      const firstYear = Math.min(...items.filter((it) => it.group_id === p.groupId && it.code === p.code).map((it) => it.year));
+      const qtyOf = new Map();
+      const rows = [];
+      for (const e of d.events) {
+        const y = Number(e.exDate.slice(0, 4));
+        if (y < firstYear || y > thisYear || e.exDate > today) continue;
+        if (!qtyOf.has(y)) {
+          const held = positions.positionsAt(uid, y, { groupId: p.groupId }).find((x) => x.code === d.instrument.code);
+          qtyOf.set(y, held ? held.quantity : 0);
+        }
+        const q = qtyOf.get(y);
+        if (!(q > 0)) continue;
+        const tax = e.taxBase ?? null;
+        const t = new Date().toISOString();
+        rows.push([uid, p.groupId, d.instrument.code, e.exDate, e.payDate || null, e.amount, tax, q, q * e.amount, tax == null ? null : q * tax, t, t]);
+      }
+      db.tx(() => {
+        for (const r of rows) {
+          db.run(`INSERT OR IGNORE INTO holding_dividends (user_id, group_id, code, ex_date, pay_date, per_share, tax_per_share, quantity, amount, tax_amount, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r);
+        }
+      });
+      done.add(`${p.groupId}|${p.code}`);
+      db.run("UPDATE app_meta SET value = ? WHERE key = 'sample_dividends'", [JSON.stringify({ userId: uid, done: [...done] })]);
+    } catch (e) {
+      if (e.code === 'NOT_FOUND') { // 출처에 없는 종목(샘플 시세 모드 등)은 채울 것이 없음
+        done.add(`${p.groupId}|${p.code}`);
+        db.run("UPDATE app_meta SET value = ? WHERE key = 'sample_dividends'", [JSON.stringify({ userId: uid, done: [...done] })]);
+      } else failed++;
+    }
+  }
+  if (!failed) {
+    finish();
+    console.log('샘플 계정 배당 내역 준비 완료');
+  }
+}
+
+module.exports = { seedDemo, seedSampleDividends };

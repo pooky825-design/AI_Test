@@ -6,7 +6,7 @@ const db = require('./db');
 const auth = require('./auth');
 const market = require('./services/market');
 const providers = require('./providers');
-const { seedDemo } = require('./seed');
+const { seedDemo, seedSampleDividends } = require('./seed');
 const config = require('./config');
 const { securityHeaders } = require('./security');
 
@@ -70,6 +70,9 @@ async function main() {
 
   // FR-DATA-01: 장 마감 후 일별 종가 자동 수집 (1시간 주기 확인)
   setInterval(() => market.collectDaily().catch((e) => console.warn('[collect]', e.message)), 60 * 60 * 1000);
+  // 처음 설치 때 샘플 계정의 배당 입력 회차를 시세 출처에서 받아 채움 (v0.30.47). 실패하면 1시간 뒤 다시
+  seedSampleDividends();
+  setInterval(seedSampleDividends, 60 * 60 * 1000);
 
   const shutdown = () => {
     db.saveNow();
