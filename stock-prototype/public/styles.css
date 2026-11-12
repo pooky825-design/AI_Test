@@ -863,3 +863,15 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .code-ac .ac-menu { min-width: 300px; right: auto; }
 .code-ac .code-hint { display: block; min-height: 1.2em; font-size: 13px; color: var(--t-900, #1f2937); white-space: normal; }
 @media (max-width: 640px) { .code-ac { width: 100% !important; } .code-ac .ac-menu { min-width: 0; right: 0; } }
+
+/* v0.30.28 로그인 화면: 좁은 휴대폰에서 사용자 칸이 카드보다 넓어 오른쪽으로 밀리던 문제 */
+.auth-wrap { grid-template-columns: minmax(0, 400px); justify-content: center; }
+.auth-card { min-width: 0; }
+@media (max-width: 420px) {
+  .auth-card .card { padding: 20px 16px; }
+  .profile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 6px; }
+  .profile-tile { width: 100%; max-width: 104px; padding: 4px 2px; }
+  .profile-tile .profile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .avatar.av-xl { width: 76px; height: 76px; }
+  .avatar.av-xl .av-emoji { font-size: 44px; }
+}

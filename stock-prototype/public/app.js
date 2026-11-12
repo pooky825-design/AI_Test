@@ -488,7 +488,6 @@
           ${sub ? `<p class="muted" style="margin:4px 0 0">${sub}</p>` : ''}
           ${body}
         </div>
-        <p class="footer-note" style="text-align:center;border:none">${DISCLAIMER}</p>
       </div></div>`;
     bindLang($app);
     return $app.querySelector('form');
