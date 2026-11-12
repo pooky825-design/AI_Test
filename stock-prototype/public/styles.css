@@ -826,3 +826,9 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 /* v0.30.16 접힌 상자는 막대를 눌러 펴기 */
 .card.collapsed { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 @media (hover: hover) { .card.collapsed:hover { border-color: var(--primary-2); } }
+
+/* v0.30.17 펼친 상자 제목 막대를 눌러 접기, 새 비밀번호 칸 진하게 */
+.card.foldable > h2, .card.foldable > .card-head { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pw-new .pin-box { border-color: var(--t-300); background: var(--t-50); }
+.pw-new .pin-box:focus { border-color: var(--primary); }
+.pw-sep { border-top: 2px solid var(--t-200); margin: 4px 0; }

@@ -964,10 +964,13 @@
         apply();
       });
       card._unfold = () => { if (current().has(key)) btn.click(); }; // 수정 버튼 등으로 상자를 써야 할 때 자동으로 펴기
-      // 접힌 상자는 막대 어디를 눌러도 펴기 (v0.30.16). 막대 안의 버튼·입력칸·링크는 원래 동작
+      // 접힌 상자는 막대 어디를 눌러도 펴기 (v0.30.16), 펼친 상자는 제목 막대를 누르면 접기 (v0.30.17)
+      // 막대 안의 버튼·입력칸·링크는 원래 동작
       card.addEventListener('click', (e) => {
-        if (!card.classList.contains('collapsed') || e.target.closest('.fold-btn')) return;
+        if (e.target.closest('.fold-btn')) return;
         if (e.target.closest('button, a, input, select, textarea, label, [role="button"]')) return;
+        if (!card.classList.contains('collapsed') && !(h2.contains(e.target) || e.target === card && e.offsetY < h2.offsetTop + h2.offsetHeight)) return;
+        if (window.getSelection && String(window.getSelection()).length) return; // 글자를 드래그해 고르는 중이면 그대로
         btn.click();
       });
       card.appendChild(btn);
@@ -3081,8 +3084,8 @@
           <form data-pw novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
             <div class="field"><label>현재 비밀번호</label>${pinBoxesHtml('cur', '현재 비밀번호')}<span class="err" data-err="current"></span></div>
             <hr class="pw-sep" />
-            <div class="field"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('n1')}<span class="err" data-err="next"></span></div>
-            <div class="field"><label>새 비밀번호 확인</label>${pinBoxesHtml('n2', '새 비밀번호 확인')}<span class="err" data-err="next2"></span></div>
+            <div class="field pw-new"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('n1')}<span class="err" data-err="next"></span></div>
+            <div class="field pw-new"><label>새 비밀번호 확인</label>${pinBoxesHtml('n2', '새 비밀번호 확인')}<span class="err" data-err="next2"></span></div>
             <div><button type="submit">변경</button></div>
           </form>
         </div>
