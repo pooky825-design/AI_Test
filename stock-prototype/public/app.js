@@ -301,7 +301,7 @@
     // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
     const mlinks = nav.map(([h, label]) => `${state.actAs && h === '#/me' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
     // 내 사진·별명 | 로그아웃 (v0.30.12)
-    const userBar = `<span class="user-bar"><span class="who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
+    const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 정보">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
@@ -339,6 +339,10 @@
       mnav.addEventListener('scroll', () => { mnavScroll = mnav.scrollLeft; }, { passive: true });
     }
     renderSyncButtons();
+    $app.querySelectorAll('[data-goprofile]').forEach((el) => {
+      el.addEventListener('click', () => goMeCard('[data-fold="profile"]'));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goMeCard('[data-fold="profile"]'); } });
+    });
     $app.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('click', async () => {
       await api('POST', '/auth/logout');
       state.user = null;
@@ -2887,8 +2891,12 @@
   }
   function openSyncSetup() {
     toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경설정 → 기기 간 동기화에서 연결해 주세요.`);
+    goMeCard('[data-sync-card]');
+  }
+  // 환경설정 화면의 상자로 이동해 펴고 보이게 (v0.30.20)
+  function goMeCard(sel) {
     const show = () => {
-      const card = document.querySelector('[data-sync-card]');
+      const card = document.querySelector(sel);
       if (!card) return false;
       if (card._unfold) card._unfold();
       const top = document.querySelector('.mobile-top');
@@ -3027,7 +3035,10 @@
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1></div></div>
       <div class="card" data-fold="profile">
         <h2>사용자 정보</h2>
-        <div class="me-info">${avatarHtml(state.user.avatar, displayName(state.user), 'av-md')}<div><div class="me-name" data-noi18n>${esc(displayName(state.user))}</div><div class="small muted">등록일 ${fmtTime(state.user.created_at)}</div></div></div>
+        <div class="me-info">${avatarHtml(state.user.avatar, displayName(state.user), 'av-md')}<div class="me-info-text">
+          <div class="me-name-row"><span class="me-name" data-noi18n>${esc(displayName(state.user))}</span><button type="button" class="sm secondary" data-nick-edit>별명 변경</button></div>
+          <form class="nick-form" data-nick-form hidden novalidate><input name="nickname" maxlength="20" autocomplete="off" value="${esc(displayName(state.user))}" aria-label="새 별명" /><button type="submit" class="sm">저장</button><button type="button" class="sm secondary" data-nick-cancel>취소</button><span class="err" data-err="nickname"></span><span class="hint">2~20자, 한글·영문·숫자(공백·_·-·. 가능). 다른 사용자와 같은 별명은 쓸 수 없습니다.</span></form>
+          <div class="small muted">등록일 ${fmtTime(state.user.created_at)}${state.user.nickname && state.user.email && state.user.email !== String(state.user.nickname).toLowerCase() ? ` · 로그인 아이디 <span data-noi18n>${esc(state.user.email)}</span> (새 별명으로도 로그인 가능)` : ''}</div></div></div>
         <h3 class="me-sub">프로필 사진</h3>
         <p style="margin:0 0 10px">로그인 화면의 사용자 목록에 보이는 사진입니다.</p>
         ${avatarPickerHtml(state.user.avatar)}
@@ -3175,6 +3186,22 @@
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
     const avCard = main.querySelector('[data-fold="profile"]');
     const avp = bindAvatarPicker(avCard);
+    // 별명 바꾸기 (v0.30.20)
+    const nf = avCard.querySelector('[data-nick-form]');
+    const nickRow = avCard.querySelector('.me-name-row');
+    avCard.querySelector('[data-nick-edit]').addEventListener('click', () => { nickRow.hidden = true; nf.hidden = false; nf.nickname.focus(); nf.nickname.select(); });
+    avCard.querySelector('[data-nick-cancel]').addEventListener('click', () => { nf.hidden = true; nickRow.hidden = false; nf.nickname.value = displayName(state.user); showFieldErrors(nf, {}); });
+    nf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const v = nf.nickname.value.trim();
+      if (v === displayName(state.user)) { nf.hidden = true; nickRow.hidden = false; return; }
+      try {
+        const r = await api('PUT', '/auth/profile', { nickname: v });
+        state.user = { ...state.user, nickname: r.nickname };
+        toast(`별명을 '${r.nickname}'(으)로 바꿨습니다.`);
+        render();
+      } catch (err) { showFieldErrors(nf, err.fields || { nickname: err.message }); }
+    });
     avCard.querySelector('[data-avsave]').addEventListener('click', async () => {
       const v = avp.get() || state.user.avatar;
       try { const r = await api('PUT', '/auth/profile', { avatar: v }); state.user = { ...state.user, avatar: r.avatar }; toast('프로필 사진을 저장했습니다.'); render(); } catch (err) { toast(err.message); }

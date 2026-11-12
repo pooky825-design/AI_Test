@@ -947,5 +947,11 @@ window.I18N_EN = {
 "항목은 환경설정에서 고를 수 있습니다.": "Choose items in Settings.",
 "사용자 정보": "User info",
 "등록일": "Registered",
-"4자리 칸으로 입력": "Enter in 4 boxes"
+"4자리 칸으로 입력": "Enter in 4 boxes",
+"별명 변경": "Change nickname",
+"이미 다른 사용자가 쓰는 별명입니다.": "Another user already uses this nickname.",
+"별명에는 @를 쓸 수 없습니다.": "Nicknames cannot contain @.",
+"2~20자, 한글·영문·숫자(공백·_·-·. 가능). 다른 사용자와 같은 별명은 쓸 수 없습니다.": "2–20 characters: Korean, English letters, digits (space · _ · - · . allowed). Must differ from other users' nicknames.",
+"(새 별명으로도 로그인 가능)": "(you can also log in with the new nickname)",
+"로그인 아이디": "Login ID"
 };

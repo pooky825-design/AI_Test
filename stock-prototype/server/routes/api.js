@@ -102,7 +102,7 @@ router.post('/auth/signup', async (req, res) => {
     const msg = '이 아이디는 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
     throw new ValidationError(msg, { email: msg });
   }
-  if (exists) {
+  if (exists || db.get('SELECT id FROM users WHERE lower(nickname) = ?', [email])) {
     throw new ValidationError('이미 있는 별명(아이디)입니다.', { email: '이미 있는 별명(아이디)입니다.' });
   }
   const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
@@ -119,7 +119,8 @@ router.post('/auth/login', async (req, res) => {
   const key = `${ip}|${email}`;
   const wait = loginFail.blocked(key) || loginFailIp.blocked(ip);
   if (wait) return tooMany(res, wait);
-  const user = db.get('SELECT * FROM users WHERE email = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [email]); // 공유받은 자료는 로그인 불가
+  const user = db.get('SELECT * FROM users WHERE email = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [email]) // 공유받은 자료는 로그인 불가
+    || db.get('SELECT * FROM users WHERE lower(nickname) = ? AND id NOT IN (SELECT user_id FROM mirror_users) AND (SELECT COUNT(*) FROM users WHERE lower(nickname) = ?) = 1', [email, email]); // 바꾼 별명으로 (v0.30.20)
   const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
   if (!ok) {
     loginFail.hit(key);
@@ -330,12 +331,34 @@ router.delete('/shares/:id', (req, res) => {
 });
 
 // 프로필 사진 바꾸기 (v0.30.0)
+// 별명 바꾸기 (v0.30.20): 로그인 아이디(users.email)는 그대로 두고 별명만 바꾼다
+//  - 동기화 파일·기기 연결·공유가 아이디 기준이라 아이디를 바꾸면 끊기기 때문
+//  - 다른 사용자의 아이디·별명과 겹치면 안 됨(대소문자 무시). 로그인은 새 별명으로도 됨
+function nicknameError(nn, selfId) {
+  if (nn.includes('@')) return '별명에는 @를 쓸 수 없습니다.';
+  const err = validateLoginId(nn);
+  if (err) return err;
+  const low = nn.toLowerCase();
+  const dup = db.get('SELECT id FROM users WHERE id != ? AND (lower(email) = ? OR lower(nickname) = ?)', [selfId, low, low]);
+  return dup ? '이미 다른 사용자가 쓰는 별명입니다.' : null;
+}
 router.put('/auth/profile', (req, res) => {
   if (req.viewer) return res.status(403).json({ error: '공유받은 화면에서는 바꿀 수 없습니다.', code: 'FORBIDDEN' });
-  const avatar = cleanAvatar(req.body.avatar);
-  if (!avatar) return res.status(400).json({ error: '사진 형식이 올바르지 않거나 너무 큽니다.', code: 'VALIDATION' });
-  db.run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, req.user.id]);
-  res.json({ ok: true, avatar });
+  const out = { ok: true };
+  if (req.body.nickname !== undefined) {
+    const nn = String(req.body.nickname || '').trim().replace(/\s+/g, ' ');
+    const err = nicknameError(nn, req.user.id);
+    if (err) return res.status(400).json({ error: err, code: 'VALIDATION', fields: { nickname: err } });
+    db.run('UPDATE users SET nickname = ? WHERE id = ?', [nn, req.user.id]);
+    out.nickname = nn;
+  }
+  if (req.body.avatar !== undefined || req.body.nickname === undefined) {
+    const avatar = cleanAvatar(req.body.avatar);
+    if (!avatar) return res.status(400).json({ error: '사진 형식이 올바르지 않거나 너무 큽니다.', code: 'VALIDATION' });
+    db.run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, req.user.id]);
+    out.avatar = avatar;
+  }
+  res.json(out);
 });
 
 router.post('/auth/change-password', async (req, res) => {

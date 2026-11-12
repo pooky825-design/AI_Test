@@ -840,3 +840,13 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .mobile-top .mtop-row2 .act-switch select { min-width: 0; }
 .mtop-row2 .mtop-sync { flex: none; }
 .mobile-top .mobile-top-sync, .mtop-row2 .sync-btn { white-space: nowrap; }
+
+/* v0.30.20 내 사진·별명 누르면 사용자 정보, 별명 바꾸기 */
+.user-bar .who[data-goprofile] { cursor: pointer; border-radius: 8px; -webkit-tap-highlight-color: transparent; }
+@media (hover: hover) { .user-bar .who[data-goprofile]:hover .who-name { text-decoration: underline; } }
+.me-info-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.me-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.me-name-row[hidden], .nick-form[hidden] { display: none !important; }
+.nick-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.nick-form input { flex: 1 1 120px; width: auto; min-width: 0; max-width: 220px; }
+.nick-form .err, .nick-form .hint { flex-basis: 100%; }
