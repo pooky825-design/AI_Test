@@ -759,3 +759,7 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .dd-stats th { text-align: left !important; }
 .dd-stats td { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .dd-stats th { width: 40%; } }
+
+/* v0.30.7 대시보드 칸 테두리를 조금 진하게 (테마 색에 맞춰) */
+.dash-tile { border-color: #d9c6b4; border-color: color-mix(in srgb, var(--border) 72%, #6b4a2e); }
+.dash-tile.mine { border-color: #f0b98a; border-color: color-mix(in srgb, var(--t-200) 78%, var(--primary)); }
