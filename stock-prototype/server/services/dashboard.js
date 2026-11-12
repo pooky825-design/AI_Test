@@ -19,6 +19,8 @@ const ITEMS = [
   { id: 'us30y', group: 'us', label: '미국채 30년물 금리', symbol: '^TYX', kind: 'rate' },
   { id: 'usdkrw', group: 'etc', label: '원/달러 환율', symbol: 'KRW=X', kind: 'fx' },
   { id: 'wti', group: 'etc', label: 'WTI 유가', symbol: 'CL=F', kind: 'oil' },
+  { id: 'krmarket', group: 'etc', label: '한국 증시', symbol: '^KS11', kind: 'market', market: 'KR' }, // v0.28.2 개장·휴장
+  { id: 'usmarket', group: 'etc', label: '미국 증시', symbol: '^GSPC', kind: 'market', market: 'US' },
   { id: 'mytoday', group: 'mine', label: '오늘 수익 증감', kind: 'mine' },
   { id: 'myyear', group: 'mine', label: '연간 수익 증감', kind: 'mine' }, // v0.28.1
   { id: 'mytotal', group: 'mine', label: '총 자산', kind: 'mine' }, // v0.28.1
@@ -58,12 +60,48 @@ async function quote(symbol) {
   const prev = Number(m.chartPreviousClose ?? m.previousClose);
   if (!Number.isFinite(value)) throw new Error('시세가 없습니다.');
   const ok = Number.isFinite(prev) && prev !== 0;
+  const reg = m.currentTradingPeriod && m.currentTradingPeriod.regular;
   const v = {
     value, prev: ok ? prev : null, change: ok ? value - prev : null, pct: ok ? (value - prev) / prev : null,
     time: m.regularMarketTime ? new Date(m.regularMarketTime * 1000).toISOString() : null, currency: m.currency || null,
+    periodStart: reg && reg.start ? reg.start * 1000 : null, // 거래소가 알려 주는 현재(또는 다음) 정규장 시작
   };
   cache.set(symbol, { at: Date.now(), v });
   return v;
+}
+
+// 개장 상태 (v0.28.2): 정규장 시간은 거래소 공식 시간, 휴장 여부는 야후 시세(오늘 거래가 있었는지·다음 정규장 날짜)로 판단
+//  한국 KRX 09:00~15:30 (Asia/Seoul) · 미국 NYSE·NASDAQ 09:30~16:00 (America/New_York, 서머타임 자동)
+const MARKETS = {
+  KR: { tz: 'Asia/Seoul', open: [9, 0], close: [15, 30], name: 'KRX' },
+  US: { tz: 'America/New_York', open: [9, 30], close: [16, 0], name: 'NYSE·NASDAQ' },
+};
+const partsIn = (ms, tz) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, mins: Number(p.hour) * 60 + Number(p.minute), wd: p.weekday };
+};
+// 거래소 현지 날짜·시각 → UTC ms (그날의 시간대 오프셋 적용)
+function localToUtc(date, h, mi, tz) {
+  const guess = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, mi);
+  const p = partsIn(guess, tz);
+  const shown = Date.UTC(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10))) + p.mins * 60000;
+  return guess - (shown - guess);
+}
+const hhmm = (ms, tz) => { const p = partsIn(ms, tz); return `${String(Math.floor(p.mins / 60)).padStart(2, '0')}:${String(p.mins % 60).padStart(2, '0')}`; };
+function marketStatus(q, mk) {
+  const M = MARKETS[mk];
+  const now = Date.now();
+  const t = partsIn(now, M.tz);
+  const openMs = localToUtc(t.date, M.open[0], M.open[1], M.tz);
+  const closeMs = localToUtc(t.date, M.close[0], M.close[1], M.tz);
+  const hours = { local: `${hhmm(openMs, M.tz)}~${hhmm(closeMs, M.tz)}`, kst: `${hhmm(openMs, 'Asia/Seoul')}~${hhmm(closeMs, 'Asia/Seoul')}` };
+  if (t.wd === 'Sat' || t.wd === 'Sun') return { status: 'closed', reason: 'weekend', hours, exchange: M.name };
+  const tradedToday = q.time && partsIn(Date.parse(q.time), M.tz).date === t.date;
+  const nextIsToday = q.periodStart && partsIn(q.periodStart, M.tz).date === t.date;
+  if (!tradedToday && !nextIsToday && !(now >= openMs && now < openMs + 20 * 60000)) return { status: 'closed', reason: 'holiday', hours, exchange: M.name };
+  if (now < openMs) return { status: 'pre', hours, exchange: M.name, opensAt: new Date(openMs).toISOString() };
+  if (now < closeMs) return { status: 'open', hours, exchange: M.name, closesAt: new Date(closeMs).toISOString() };
+  return { status: 'after', hours, exchange: M.name };
 }
 
 async function itemData(uid, it, assetsOnce) {
@@ -76,6 +114,7 @@ async function itemData(uid, it, assetsOnce) {
       if (it.id === 'mytotal') return { ...base, value: t.valueKrw ?? null, change: t.todayPnlKrw ?? null, pct: t.todayPct ?? null, costKrw: t.origCostKrw ?? null }; // 매입금액
       return { ...base, value: t.todayPnlKrw ?? null, pct: t.todayPct ?? null, change: t.todayPnlKrw ?? null };
     }
+    if (it.kind === 'market') return marketStatus(await quote(it.symbol), it.market);
     return await quote(it.symbol);
   } catch (e) {
     return { error: e.message || '가져오지 못했습니다.' };
@@ -99,4 +138,4 @@ async function getDashboard(uid) {
   };
 }
 
-module.exports = { GROUPS, ITEMS, IDS, getDashboard, orderOf };
+module.exports = { GROUPS, ITEMS, IDS, getDashboard, orderOf, marketStatus };

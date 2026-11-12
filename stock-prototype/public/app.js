@@ -3449,24 +3449,33 @@
   function dashTile(it) {
     if (it.error) return `<div class="dash-tile err"><div class="dash-label">${esc(it.label)}</div><div class="dash-value">-</div><div class="dash-sub small muted">${esc(it.error)}</div></div>`;
     if (it.kind === 'mine') {
-      const when = it.time && !it.empty ? `${esc(shortTime(it.time))} 기준` : '';
+      const when = ''; // 나의 자산 칸은 기준 시각을 표시하지 않음 (v0.28.2)
       if (it.empty) return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div><div class="dash-value">-</div><div class="dash-change"><span class="muted">보유 종목이 없습니다</span></div></div>`;
       if (it.id === 'mytotal') {
         return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
           <div class="dash-value">${krw(it.value)}</div>
           <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(sKrw(it.change))} <b>(${pct2(it.pct)})</b>`}</div>
-          <div class="dash-sub small muted">${it.costKrw != null ? `매입금액 ${krw(it.costKrw)} · ` : ''}${when}</div></div>`;
+          <div class="dash-sub small muted">${it.costKrw != null ? `매입금액 ${krw(it.costKrw)}` : ''}</div></div>`;
       }
       if (it.id === 'myyear') {
         return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
           <div class="dash-value ${cls(it.value)}">${sKrw(it.value)}</div>
           <div class="dash-change ${cls(it.pct)}">${pct2(it.pct)} <span class="muted small">금년 수익률</span></div>
-          <div class="dash-sub small muted">${it.basisKrw != null ? `손익 기준액 ${krw(it.basisKrw)} · ` : ''}${when}</div></div>`;
+          <div class="dash-sub small muted">${it.basisKrw != null ? `손익 기준액(금년) ${krw(it.basisKrw)}` : ''}</div></div>`;
       }
       return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
         <div class="dash-value ${cls(it.value)}">${sKrw(it.value)}</div>
         <div class="dash-change ${cls(it.pct)}">${pct2(it.pct)} <span class="muted small">전일 대비</span></div>
-        <div class="dash-sub small muted">총자산 ${krw(it.total)}${when ? ` · ${when}` : ''}</div></div>`;
+        <div class="dash-sub small muted">총자산 ${krw(it.total)}</div></div>`;
+    }
+    if (it.kind === 'market') {
+      const ST = { open: ['개장 중', 'mk-open'], pre: ['개장 전', 'mk-wait'], after: ['장 마감', 'mk-wait'], closed: [it.reason === 'weekend' ? '휴장 (주말)' : '휴장', 'mk-closed'] };
+      const [txt, c] = ST[it.status] || ['-', ''];
+      const us = it.id === 'usmarket';
+      return `<div class="dash-tile"><div class="dash-label">${esc(it.label)} <span class="muted small">${esc(it.exchange || '')}</span></div>
+        <div class="dash-value"><span class="mk-badge ${c}">${esc(txt)}</span></div>
+        <div class="dash-change small">정규장 ${esc(us ? it.hours.kst : it.hours.local)}</div>
+        <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div></div>`;
     }
     const f = DASH_FMT[it.kind] || DASH_FMT.index;
     const ch = it.change == null ? '' : it.kind === 'rate' ? `${it.change > 0 ? '+' : ''}${it.change.toFixed(3)}%p` : signed(nf2.format(it.change), it.change);
@@ -3494,7 +3503,7 @@
       const its = d.items.filter((x) => x.group === g.id);
       if (!its.length) return '';
       return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
-    }).join('') + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
+    }).join('') + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
   }
 
   const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
