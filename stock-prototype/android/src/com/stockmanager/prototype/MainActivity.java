@@ -115,6 +115,8 @@ public class MainActivity extends Activity {
     private static final int REQ_SYNC_CREATE = 7003;
     private static final int REQ_SYNC_OPEN = 7004;
     private static final int REQ_GOOGLE_ACCOUNT = 7005; // 기기 구글 계정 고르기 (v0.27.1)
+    private static final int REQ_FILE_CHOOSER = 7006; // <input type="file"> 파일 고르기 (v0.30.41, 프로필 사진 올리기)
+    private android.webkit.ValueCallback<Uri[]> fileCallback;
     private static final String KEY_GACCT = "gdriveAccount:";
     private static final String DRIVE_SCOPE = "oauth2:https://www.googleapis.com/auth/drive.file";
     private String pendingAcctId;
@@ -166,7 +168,26 @@ public class MainActivity extends Activity {
                 if (request.isForMainFrame() && response.getStatusCode() >= 500 && isServerUrl(request.getUrl().toString())) showCloudError();
             }
         });
-        webView.setWebChromeClient(new WebChromeClient()); // alert/confirm 대화상자
+        // alert/confirm 대화상자 + <input type="file"> 파일 고르기 (v0.30.41: 이게 없으면 사진 올리기가 반응하지 않음)
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, android.webkit.ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                try {
+                    Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    String[] types = params != null ? params.getAcceptTypes() : null;
+                    String type = types != null && types.length > 0 && types[0] != null && !types[0].isEmpty() ? types[0] : "*/*";
+                    i.setType(type);
+                    startActivityForResult(Intent.createChooser(i, "사진 선택"), REQ_FILE_CHOOSER);
+                    return true;
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+            }
+        });
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
         setContentView(webView);
         openStart();
@@ -184,6 +205,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_FILE_CHOOSER) {
+            android.webkit.ValueCallback<Uri[]> cb = fileCallback;
+            fileCallback = null;
+            if (cb != null) cb.onReceiveValue(resultCode == RESULT_OK && data != null && data.getData() != null ? new Uri[] { data.getData() } : null);
+            return;
+        }
         if (requestCode == REQ_SYNC_CREATE || requestCode == REQ_SYNC_OPEN) { onSyncPicked(requestCode, resultCode, data); return; }
         if (requestCode == REQ_GOOGLE_ACCOUNT) {
             String id = pendingAcctId;
