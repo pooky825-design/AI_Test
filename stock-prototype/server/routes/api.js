@@ -201,7 +201,7 @@ const SHARE_SCREENS = [
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
-  { m: ['GET'], re: /^\/dashboard(\/keywords)?$/, s: ['home'] },
+  { m: ['GET'], re: /^\/dashboard(\/keywords|\/detail)?$/, s: ['home'] },
   { m: ['GET'], re: /^\/(assets|export\/assets\.xlsx)$/, s: ['assets'] },
   { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
   { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
@@ -943,6 +943,17 @@ router.get('/dashboard/keywords', async (req, res) => {
     return { code, name: i.name || code, type: i.type || null, ...(await newskw.keywordsFor(code, i.name || code, req.query.lang === 'en' ? 'en' : 'ko')) };
   });
   res.json({ enabled: true, rows, at: now() });
+});
+
+// 대시보드 항목 상세 (v0.30.6): 기간별 그래프·주요 수치
+router.get('/dashboard/detail', async (req, res) => {
+  try {
+    const d = await dashboard.getDetail(req.user.id, String(req.query.id || ''), String(req.query.range || '1mo'));
+    if (!d) return res.status(404).json({ error: '상세 정보가 없는 항목입니다.', code: 'NOT_FOUND' });
+    res.json(d);
+  } catch (e) {
+    res.status(502).json({ error: e.message || '가져오지 못했습니다.', code: 'SOURCE_ERROR' });
+  }
 });
 
 router.get('/dashboard/items', (req, res) => {

@@ -19,6 +19,7 @@ const ITEMS = [
   { id: 'us30y', group: 'us', label: '미국채 30년물 금리', symbol: '^TYX', kind: 'rate' },
   { id: 'usdkrw', group: 'etc', label: '원/달러 환율', symbol: 'KRW=X', kind: 'fx' },
   { id: 'wti', group: 'etc', label: 'WTI 유가', symbol: 'CL=F', kind: 'oil' },
+  { id: 'gold', group: 'etc', label: '금시세 (1돈)', kind: 'gold' }, // v0.30.6: 국제 금값(GC=F, 달러/트로이온스) × 원달러 환율 ÷ 31.1035g × 3.75g
   { id: 'krmarket', group: 'etc', label: '한국 증시', symbol: '^KS11', kind: 'market', market: 'KR' }, // v0.28.2 개장·휴장
   { id: 'usmarket', group: 'etc', label: '미국 증시', symbol: '^GSPC', kind: 'market', market: 'US' },
   { id: 'mytoday', group: 'mine', label: '오늘 수익 증감', kind: 'mine' },
@@ -104,8 +105,21 @@ function marketStatus(q, mk) {
   return { status: 'after', hours, exchange: M.name };
 }
 
+// 금 1돈(3.75g) 원화 = 금 선물(달러/트로이온스) × 원/달러 ÷ 31.1034768 × 3.75
+const OZ_G = 31.1034768;
+const DON_G = 3.75;
+const toDon = (usdOz, fx) => (usdOz == null || fx == null ? null : (usdOz * fx * DON_G) / OZ_G);
+async function goldQuote() {
+  const [g, f] = await Promise.all([quote('GC=F'), quote('KRW=X')]);
+  const value = toDon(g.value, f.value);
+  const prev = toDon(g.prev, f.prev);
+  const ok = prev != null && prev !== 0;
+  return { value, prev, change: ok ? value - prev : null, pct: ok ? (value - prev) / prev : null, time: [g.time, f.time].filter(Boolean).sort().pop() || null, usdPerOz: g.value, usdPerOzPrev: g.prev, fx: f.value };
+}
+
 async function itemData(uid, it, assetsOnce) {
   try {
+    if (it.kind === 'gold') return await goldQuote();
     if (it.kind === 'mine') {
       const a = await assetsOnce();
       const t = a.total || {};
@@ -138,4 +152,42 @@ async function getDashboard(uid) {
   };
 }
 
-module.exports = { GROUPS, ITEMS, IDS, getDashboard, orderOf, marketStatus };
+// 상세 팝업 (v0.30.6): 기간별 그래프와 주요 수치. 기간 → 야후 chart 간격
+const RANGES = { '1d': '5m', '5d': '30m', '1mo': '1d', '6mo': '1d', '1y': '1d', '5y': '1wk' };
+async function series(symbol, range) {
+  const r = await providers.quoteChart(symbol, range, false, '', RANGES[range]);
+  const ts = r.timestamp || [];
+  const cl = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
+  const pts = [];
+  ts.forEach((t, i) => { if (cl[i] != null) pts.push({ t: t * 1000, v: cl[i] }); });
+  return { meta: r.meta || {}, pts };
+}
+async function getDetail(uid, id, range) {
+  const it = ITEMS.find((x) => x.id === id);
+  if (!it || it.kind === 'mine') return null;
+  if (!providers.quoteChart) throw new Error('샘플 모드에서는 시장 지표를 제공하지 않습니다.');
+  const rg = RANGES[range] ? range : '1mo';
+  const base = { id: it.id, label: it.label, kind: it.kind, group: it.group, range: rg, ranges: Object.keys(RANGES) };
+  if (it.kind === 'gold') {
+    const [g, f, q] = await Promise.all([series('GC=F', rg), series('KRW=X', rg), goldQuote()]);
+    // 같은 시각(없으면 직전) 환율로 1돈 원화 환산
+    let j = 0;
+    const pts = g.pts.map((p) => {
+      while (j + 1 < f.pts.length && f.pts[j + 1].t <= p.t) j++;
+      const fx = f.pts.length ? f.pts[j].v : q.fx;
+      return { t: p.t, v: toDon(p.v, fx) };
+    });
+    return { ...base, ...q, pts, unit: 'KRW', stats: { usdPerOz: q.usdPerOz, usdPerOzPrev: q.usdPerOzPrev, fx: q.fx, high52: toDon(g.meta.fiftyTwoWeekHigh, q.fx), low52: toDon(g.meta.fiftyTwoWeekLow, q.fx) }, source: 'Yahoo Finance (COMEX 금 선물 GC=F, 원/달러 KRW=X)' };
+  }
+  const q = await quote(it.symbol);
+  const s = await series(it.symbol, rg);
+  const m = s.meta;
+  const out = { ...base, ...q, symbol: it.symbol, pts: s.pts, unit: it.kind === 'rate' ? '%' : it.kind === 'fx' ? 'KRW' : it.kind === 'oil' ? 'USD' : 'pt',
+    name: m.longName || m.shortName || it.label, exchange: m.fullExchangeName || m.exchangeName || null,
+    stats: { dayHigh: m.regularMarketDayHigh ?? null, dayLow: m.regularMarketDayLow ?? null, high52: m.fiftyTwoWeekHigh ?? null, low52: m.fiftyTwoWeekLow ?? null, volume: m.regularMarketVolume || null },
+    source: `Yahoo Finance (${it.symbol})` };
+  if (it.kind === 'market') out.market = marketStatus(q, it.market);
+  return out;
+}
+
+module.exports = { GROUPS, ITEMS, IDS, getDashboard, orderOf, marketStatus, getDetail };

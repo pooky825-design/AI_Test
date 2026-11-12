@@ -856,5 +856,16 @@ window.I18N_EN = {
 "프로필 사진을 저장했습니다.": "Saved the profile picture.",
 "공유할 사용자 (별명 또는 아이디)": "User to share with (nickname or ID)",
 "아이디 또는 비밀번호가 올바르지 않습니다.": "Incorrect ID or password.",
-"이미 있는 별명(아이디)입니다.": "That nickname (ID) is already taken."
+"이미 있는 별명(아이디)입니다.": "That nickname (ID) is already taken.",
+"금시세 (1돈)": "Gold (1 don, 3.75 g)",
+"눌러서 자세히": "Tap for details",
+"국제 금값": "International gold",
+"전일 국제 금값": "Previous international gold",
+"52주 최고 (환산)": "52-week high (converted)",
+"52주 최저 (환산)": "52-week low (converted)",
+"오늘 최고": "Day high",
+"오늘 최저": "Day low",
+"52주 최고": "52-week high",
+"52주 최저": "52-week low",
+"국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다": "may differ from Korean retail gold prices (VAT and fees included)"
 };

@@ -252,8 +252,8 @@
   ];
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
-    // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움)
-    '#/home': '<path fill="currentColor" d="M10.8 4.6Q12 3.6 13.2 4.6L20.3 10.6Q21.1 11.4 20 11.5H18.6V18.6Q18.6 20.2 17 20.2H14.4V16.6Q14.4 14.2 12 14.2Q9.6 14.2 9.6 16.6V20.2H7Q5.4 20.2 5.4 18.6V11.5H4Q2.9 11.4 3.7 10.6Z"/>',
+    // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움, v0.30.6: 지붕은 그대로 몸체는 좁게·문은 더 넓게)
+    '#/home': '<path fill="currentColor" d="M10.8 4.6Q12 3.6 13.2 4.6L20.3 10.6Q21.1 11.4 20 11.5H17.8V18.6Q17.8 20.2 16.2 20.2H14.8V16.6Q14.8 14.2 12 14.2Q9.2 14.2 9.2 16.6V20.2H7.8Q6.2 20.2 6.2 18.6V11.5H4Q2.9 11.4 3.7 10.6Z"/>',
     '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
@@ -3559,6 +3559,7 @@
     rate: (v) => `${v.toFixed(3)}%`,
     fx: (v) => (isEn() ? `₩${nf2.format(v)}` : `${nf2.format(v)}원`),
     oil: (v) => `$${nf2.format(v)}`,
+    gold: (v) => (isEn() ? `₩${nf0.format(Math.round(v))}` : `${nf0.format(Math.round(v))}원`),
   };
   // 대시보드 표시: 증감률은 소수 2자리, 기준 시각은 짧게(월.일 시:분)
   const pct2 = (r) => {
@@ -3595,20 +3596,72 @@
         <div class="dash-sub small muted">총자산 ${krw(it.total)}</div></div>`;
     }
     if (it.kind === 'market') {
+      return `<div class="dash-tile click" data-dash-id="${esc(it.id)}" role="button" tabindex="0">${marketTileInner(it)}</div>`;
+    }
+    const f = DASH_FMT[it.kind] || DASH_FMT.index;
+    const ch = it.change == null ? '' : it.kind === 'rate' ? `${it.change > 0 ? '+' : ''}${it.change.toFixed(3)}%p` : it.kind === 'gold' ? signed(nf0.format(Math.round(it.change)), it.change) : signed(nf2.format(it.change), it.change);
+    return `<div class="dash-tile click" data-dash-id="${esc(it.id)}" role="button" tabindex="0" title="눌러서 자세히"><div class="dash-label">${esc(it.label)}</div>
+      <div class="dash-value">${f(it.value)}</div>
+      <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(it.pct)})</b>`}</div>
+      <div class="dash-sub small muted">${it.kind === 'gold' && it.usdPerOz ? `국제 금값 $${nf2.format(it.usdPerOz)}/온스 환산 · ` : ''}${it.time ? `${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+  }
+  function marketTileInner(it) {
+    {
       const ST = { open: ['개장 중', 'mk-open'], pre: ['개장 전', 'mk-wait'], after: ['장 마감', 'mk-wait'], closed: [it.reason === 'weekend' ? '휴장 (주말)' : '휴장', 'mk-closed'] };
       const [txt, c] = ST[it.status] || ['-', ''];
       const us = it.id === 'usmarket';
-      return `<div class="dash-tile"><div class="dash-label">${esc(it.label)} <span class="muted small">${esc(it.exchange || '')}</span></div>
+      return `<div class="dash-label">${esc(it.label)} <span class="muted small">${esc(it.exchange || '')}</span></div>
         <div class="dash-value"><span class="mk-badge ${c}">${esc(txt)}</span></div>
         <div class="dash-change small">정규장 ${esc(us ? it.hours.kst : it.hours.local)}</div>
-        <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div></div>`;
+        <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div>`;
     }
-    const f = DASH_FMT[it.kind] || DASH_FMT.index;
-    const ch = it.change == null ? '' : it.kind === 'rate' ? `${it.change > 0 ? '+' : ''}${it.change.toFixed(3)}%p` : signed(nf2.format(it.change), it.change);
-    return `<div class="dash-tile"><div class="dash-label">${esc(it.label)}</div>
-      <div class="dash-value">${f(it.value)}</div>
-      <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(it.pct)})</b>`}</div>
-      <div class="dash-sub small muted">${it.time ? `${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+  }
+  // 대시보드 항목 상세 팝업 (v0.30.6, 종목 조회와 비슷하게): 기간 버튼 + 그래프 + 주요 수치
+  const DASH_RANGE_LABEL = { '1d': '1일', '5d': '1주', '1mo': '1개월', '6mo': '6개월', '1y': '1년', '5y': '5년' };
+  async function openDashDetail(id, label) {
+    const body = openModal(`${esc(label)} <span class="muted small">상세</span>`, { wide: true, loadingText: `${label} 불러오는 중…` });
+    let chart = null;
+    const load = async (range) => {
+      let d;
+      try { d = await api('GET', `/dashboard/detail?id=${encodeURIComponent(id)}&range=${range}`); } catch (e) { body.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
+      const f = d.kind === 'market' ? DASH_FMT.index : DASH_FMT[d.kind] || DASH_FMT.index;
+      const nz = (v) => (v == null || v === 0 ? null : v);
+      const fv = (v) => (nz(v) == null ? '-' : f(v));
+      const ch = d.change == null ? '-' : d.kind === 'rate' ? `${d.change > 0 ? '+' : ''}${d.change.toFixed(3)}%p` : d.kind === 'gold' ? signed(nf0.format(Math.round(d.change)), d.change) : signed(nf2.format(d.change), d.change);
+      const st = d.stats || {};
+      const rows = d.kind === 'gold'
+        ? [['국제 금값', st.usdPerOz ? `$${nf2.format(st.usdPerOz)} / 온스` : '-'], ['전일 국제 금값', st.usdPerOzPrev ? `$${nf2.format(st.usdPerOzPrev)} / 온스` : '-'], ['적용 환율', st.fx ? `${nf2.format(st.fx)}원` : '-'], ['52주 최고 (환산)', fv(st.high52)], ['52주 최저 (환산)', fv(st.low52)], ['계산', '금 선물(달러/트로이온스) × 원/달러 ÷ 31.1035g × 3.75g']]
+        : [['전일 종가', fv(d.prev)], ['오늘 최고', fv(st.dayHigh)], ['오늘 최저', fv(st.dayLow)], ['52주 최고', fv(st.high52)], ['52주 최저', fv(st.low52)], ...(st.volume ? [['거래량', nf0.format(st.volume)]] : [])];
+      const mk = d.market;
+      const MST = { open: '개장 중', pre: '개장 전', after: '장 마감', closed: '휴장' };
+      body.innerHTML = `
+        ${mk ? `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)} (한국 시간)${id === 'usmarket' ? ` · 현지 ${esc(mk.hours.local)}` : ''}${mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>` : ''}
+        <div class="dd-head">
+          <div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}${mk ? ` <span class="muted small">(${esc(id === 'krmarket' ? '코스피' : 'S&P 500')} 지수)</span>` : ''}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
+          <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
+        </div>
+        <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${DASH_RANGE_LABEL[r] || r}</button>`).join('')}</div>
+        <div class="dd-chart"><canvas></canvas></div>
+        <div class="table-wrap"><table class="dd-stats"><tbody>${rows.map(([k, v]) => `<tr><th class="left">${esc(k)}</th><td class="right" data-noi18n>${esc(v)}</td></tr>`).join('')}</tbody></table></div>
+        <p class="small muted" style="margin:8px 0 0">출처 ${esc(d.source)} · 시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
+      body.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => load(b.dataset.range)));
+      if (chart) { chart.destroy(); chart = null; }
+      const canvas = body.querySelector('canvas');
+      const pts = d.pts || [];
+      const up = pts.length > 1 && pts[pts.length - 1].v >= pts[0].v;
+      const color = up ? '#d63031' : '#1e63c7';
+      const intraday = d.range === '1d' || d.range === '5d';
+      const lbl = (t) => { const x = new Date(t); return intraday ? x.toLocaleString(isEn() ? 'en-US' : 'ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : x.toISOString().slice(0, 10); };
+      chart = new Chart(canvas, {
+        type: 'line',
+        data: { labels: pts.map((p) => lbl(p.t)), datasets: [{ data: pts.map((p) => p.v), borderColor: color, backgroundColor: color + '18', fill: true, pointRadius: 0, borderWidth: 1.8, tension: 0.15 }] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => f(c.parsed.y) } } },
+          scales: { x: { ticks: { maxTicksLimit: 7, autoSkip: true }, grid: { display: false } }, y: { ticks: { callback: (v) => (d.kind === 'rate' ? `${v}%` : nf0.format(v)) } } } },
+      });
+      state.charts.push(chart);
+    };
+    load('1mo');
   }
   async function viewHome() {
     const main = shell('#/home', `
@@ -3632,6 +3685,12 @@
       return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
     }).join('') + '<div data-kw></div>' + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
     loadKeywords(box.querySelector('[data-kw]'));
+    // 항목을 누르면 상세 팝업 (나의 자산 제외)
+    const openTile = (el) => { const it = d.items.find((x) => x.id === el.dataset.dashId); if (it) openDashDetail(it.id, it.label); };
+    box.querySelectorAll('[data-dash-id]').forEach((el) => {
+      el.addEventListener('click', () => openTile(el));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTile(el); } });
+    });
   }
 
   // 홈 화면 맨 아래: 보유 종목 주요 키워드 (v0.29.0). 대시보드를 먼저 그리고 나중에 채운다
