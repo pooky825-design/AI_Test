@@ -154,14 +154,45 @@ async function getDashboard(uid) {
 
 // 상세 팝업 (v0.30.6): 기간별 그래프와 주요 수치. 기간 → 야후 chart 간격
 const RANGES = { '1d': '5m', '5d': '30m', '1mo': '1d', '6mo': '1d', '1y': '1d', '5y': '1wk' };
-async function series(symbol, range) {
-  const r = await providers.quoteChart(symbol, range, false, '', RANGES[range]);
+async function series(symbol, range, interval) {
+  const r = await providers.quoteChart(symbol, range, false, '', interval || RANGES[range]);
   const ts = r.timestamp || [];
   const cl = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
   const pts = [];
   ts.forEach((t, i) => { if (cl[i] != null) pts.push({ t: t * 1000, v: cl[i] }); });
   return { meta: r.meta || {}, pts };
 }
+// 일자별 표 (v0.30.13): 기간의 일별(5년은 주별) 종가, 새 날짜가 위. 1일·1주는 최근 5거래일
+function dailySpec(rg) {
+  if (rg === '1d' || rg === '5d') return { range: '1mo', interval: '1d', keep: 5 };
+  if (rg === '5y') return { range: '5y', interval: '1wk', keep: 0 };
+  return { range: rg, interval: '1d', keep: 0 };
+}
+function toRows(pts, tz, prevClose, keep) {
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });
+  // 같은 날짜가 두 번이면 뒤의 것(최신)
+  const byDate = new Map();
+  for (const p of pts) if (p.v != null) byDate.set(fmt.format(new Date(p.t)), p.v);
+  const list = [...byDate.entries()].map(([date, v]) => ({ date, v }));
+  const start = keep ? Math.max(0, list.length - keep) : 0;
+  const rows = [];
+  for (let i = start; i < list.length; i++) {
+    const prev = i > 0 ? list[i - 1].v : prevClose;
+    const ok = prev != null && prev !== 0;
+    rows.push({ date: list[i].date, v: list[i].v, ch: ok ? list[i].v - prev : null, pct: ok ? (list[i].v - prev) / prev : null });
+  }
+  return rows.reverse();
+}
+// 같은 시각(없으면 직전) 환율로 1돈 원화 환산
+function goldPts(g, f, fx0) {
+  let j = 0;
+  return g.pts.map((p) => {
+    while (j + 1 < f.pts.length && f.pts[j + 1].t <= p.t) j++;
+    const fx = f.pts.length ? f.pts[j].v : fx0;
+    return { t: p.t, v: toDon(p.v, fx) };
+  });
+}
+
 async function getDetail(uid, id, range) {
   const it = ITEMS.find((x) => x.id === id);
   if (!it || it.kind === 'mine') return null;
@@ -169,20 +200,18 @@ async function getDetail(uid, id, range) {
   const rg = RANGES[range] ? range : '1mo';
   const base = { id: it.id, label: it.label, kind: it.kind, group: it.group, range: rg, ranges: Object.keys(RANGES) };
   if (it.kind === 'gold') {
-    const [g, f, q] = await Promise.all([series('GC=F', rg), series('KRW=X', rg), goldQuote()]);
-    // 같은 시각(없으면 직전) 환율로 1돈 원화 환산
-    let j = 0;
-    const pts = g.pts.map((p) => {
-      while (j + 1 < f.pts.length && f.pts[j + 1].t <= p.t) j++;
-      const fx = f.pts.length ? f.pts[j].v : q.fx;
-      return { t: p.t, v: toDon(p.v, fx) };
-    });
-    return { ...base, ...q, pts, unit: 'KRW', stats: { usdPerOz: q.usdPerOz, usdPerOzPrev: q.usdPerOzPrev, fx: q.fx, high52: toDon(g.meta.fiftyTwoWeekHigh, q.fx), low52: toDon(g.meta.fiftyTwoWeekLow, q.fx) }, source: 'Yahoo Finance (COMEX 금 선물 GC=F, 원/달러 KRW=X)' };
+    const ds = dailySpec(rg);
+    const [g, f, q, gd, fd] = await Promise.all([series('GC=F', rg), series('KRW=X', rg), goldQuote(), series('GC=F', ds.range, ds.interval), series('KRW=X', ds.range, ds.interval)]);
+    const pts = goldPts(g, f, q.fx);
+    const prev0 = toDon(gd.meta.chartPreviousClose, fd.meta.chartPreviousClose);
+    const daily = toRows(goldPts(gd, fd, q.fx), gd.meta.exchangeTimezoneName || 'America/New_York', prev0, ds.keep);
+    return { ...base, ...q, pts, daily, dailyInterval: ds.interval, unit: 'KRW', stats: { usdPerOz: q.usdPerOz, usdPerOzPrev: q.usdPerOzPrev, fx: q.fx, high52: toDon(g.meta.fiftyTwoWeekHigh, q.fx), low52: toDon(g.meta.fiftyTwoWeekLow, q.fx) }, source: 'Yahoo Finance (COMEX 금 선물 GC=F, 원/달러 KRW=X)' };
   }
-  const q = await quote(it.symbol);
-  const s = await series(it.symbol, rg);
+  const ds = dailySpec(rg);
+  const [q, s, sd] = await Promise.all([quote(it.symbol), series(it.symbol, rg), series(it.symbol, ds.range, ds.interval)]);
   const m = s.meta;
-  const out = { ...base, ...q, symbol: it.symbol, pts: s.pts, unit: it.kind === 'rate' ? '%' : it.kind === 'fx' ? 'KRW' : it.kind === 'oil' ? 'USD' : 'pt',
+  const daily = toRows(sd.pts, sd.meta.exchangeTimezoneName, sd.meta.chartPreviousClose ?? null, ds.keep);
+  const out = { ...base, ...q, symbol: it.symbol, pts: s.pts, daily, dailyInterval: ds.interval, unit: it.kind === 'rate' ? '%' : it.kind === 'fx' ? 'KRW' : it.kind === 'oil' ? 'USD' : 'pt',
     name: m.longName || m.shortName || it.label, exchange: m.fullExchangeName || m.exchangeName || null,
     stats: { dayHigh: m.regularMarketDayHigh ?? null, dayLow: m.regularMarketDayLow ?? null, high52: m.fiftyTwoWeekHigh ?? null, low52: m.fiftyTwoWeekLow ?? null, volume: m.regularMarketVolume || null },
     source: `Yahoo Finance (${it.symbol})` };

@@ -805,3 +805,8 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .mobile-top .user-bar .avatar.av-sm .av-emoji { font-size: 14px; }
 .mobile-top .user-bar .who-name { max-width: 90px; }
 .mobile-top .sync-btn { font-size: 12px; }
+
+/* v0.30.13 대시보드 상세 일자별 표 */
+.dd-daily { max-height: 320px; margin-bottom: 12px; }
+.dd-daily th, .dd-daily td { white-space: nowrap; }
+@media (max-width: 640px) { .dd-daily { max-height: 260px; } .dd-daily th, .dd-daily td { font-size: 13px; padding-left: 6px; padding-right: 6px; } }

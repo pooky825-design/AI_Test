@@ -3617,7 +3617,21 @@
         <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${us ? '' : it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div>`;
     }
   }
+  // 대시보드 상세의 일자별 표 (v0.30.13, 종목 조회 표와 비슷하게): 일자 | 값 | 전일 대비
+  const DD_VAL_HEAD = { rate: '금리', fx: '환율', gold: '1돈 시세', oil: '종가', index: '종가' };
+  function dailyTable(d, f) {
+    const rows = d.daily || [];
+    if (!rows.length) return '<div class="empty">표시할 지표가 없습니다.</div>';
+    const fch = (r) => {
+      if (r.ch == null) return '-';
+      if (d.kind === 'rate') return `${r.ch > 0 ? '+' : ''}${r.ch.toFixed(3)}%p`;
+      const amt = d.kind === 'gold' ? signed(nf0.format(Math.round(r.ch)), r.ch) : signed(nf2.format(r.ch), r.ch);
+      return `${amt} (${pct2(r.pct)})`;
+    };
+    return `<div class="table-wrap scroll-y dd-daily"><table><thead><tr><th>${d.dailyInterval === '1wk' ? '주 시작일' : '일자'}</th><th class="num">${DD_VAL_HEAD[d.kind] || '종가'}</th><th class="num">${d.dailyInterval === '1wk' ? '전주 대비' : '전일 대비'}</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.date)}</td><td class="num" data-noi18n>${f(r.v)}</td><td class="num ${cls(r.ch)}" data-noi18n>${fch(r)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
   // 대시보드 항목 상세 팝업 (v0.30.6, 종목 조회와 비슷하게): 기간 버튼 + 그래프 + 주요 수치
+  const DASH_RANGE_EN = { '1d': '1D', '5d': '1W', '1mo': '1M', '6mo': '6M', '1y': '1Y', '5y': '5Y' };
   const DASH_RANGE_LABEL = { '1d': '1일', '5d': '1주', '1mo': '1개월', '6mo': '6개월', '1y': '1년', '5y': '5년' };
   async function openDashDetail(id, label) {
     const body = openModal(`${esc(label)} <span class="muted small">상세</span>`, { wide: true, loadingText: `${label} 불러오는 중…` });
@@ -3643,7 +3657,9 @@
       box.innerHTML = `<div class="cal-head"><button type="button" class="sm secondary" data-cal="${shift(-1)}" aria-label="이전 달">‹</button><b>${cy}년 ${cm}월 · ${esc(c.exchange)} 개장·휴장</b><button type="button" class="sm secondary" data-cal="${shift(1)}" aria-label="다음 달">›</button></div>
         <div class="cal-grid">${W.map((w, i) => `<div class="cal-w${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${w}</div>`).join('')}${cells.join('')}</div>
         <div class="cal-legend small"><span><i class="lg open"></i>개장</span><span><i class="lg closed"></i>휴장</span>${c.days.some((d) => d.status === 'early') ? '<span><i class="lg early"></i>조기 폐장</span>' : ''}<span><i class="lg weekend"></i>주말</span><span><i class="lg today"></i>오늘</span></div>
-        <p class="small muted" style="margin:6px 0 0">${closed.length ? `이번 달 평일 휴장 ${closed.length}일 · ` : ''}지난 날은 실제 거래 기록, 앞날은 ${market === 'US' ? 'NYSE 휴장 규칙' : 'KRX 휴장일표'} 기준 예정(거래소 공지로 바뀔 수 있음)${c.note ? ` · ${esc(c.note)}` : ''}</p>`;
+        <p class="small muted" style="margin:6px 0 0">${isEn()
+          ? `${closed.length ? `<span data-noi18n>${closed.length} weekday closure${closed.length > 1 ? 's' : ''} this month · Past days from actual trading records; upcoming days are scheduled per ${market === 'US' ? 'NYSE holiday rules' : 'the KRX holiday table'} (subject to exchange notices)</span>` : `<span data-noi18n>Past days from actual trading records; upcoming days are scheduled per ${market === 'US' ? 'NYSE holiday rules' : 'the KRX holiday table'} (subject to exchange notices)</span>`}`
+          : `${closed.length ? `이번 달 평일 휴장 ${closed.length}일 · ` : ''}지난 날은 실제 거래 기록, 앞날은 ${market === 'US' ? 'NYSE 휴장 규칙' : 'KRX 휴장일표'} 기준 예정(거래소 공지로 바뀔 수 있음)`}${c.note ? ` · ${esc(c.note)}` : ''}</p>`;
       box.querySelectorAll('[data-cal]').forEach((b) => b.addEventListener('click', () => loadCalendar(box, market, b.dataset.cal)));
     };
     const load = async (range) => {
@@ -3655,24 +3671,29 @@
       const ch = d.change == null ? '-' : d.kind === 'rate' ? `${d.change > 0 ? '+' : ''}${d.change.toFixed(3)}%p` : d.kind === 'gold' ? signed(nf0.format(Math.round(d.change)), d.change) : signed(nf2.format(d.change), d.change);
       const st = d.stats || {};
       const rows = d.kind === 'gold'
-        ? [['국제 금값', st.usdPerOz ? `$${nf2.format(st.usdPerOz)} / 온스` : '-'], ['전일 국제 금값', st.usdPerOzPrev ? `$${nf2.format(st.usdPerOzPrev)} / 온스` : '-'], ['적용 환율', st.fx ? `${nf2.format(st.fx)}원` : '-'], ['52주 최고 (환산)', fv(st.high52)], ['52주 최저 (환산)', fv(st.low52)], ['계산', '금 선물(달러/트로이온스) × 원/달러 ÷ 31.1035g × 3.75g']]
+        ? [['국제 금값', st.usdPerOz ? `$${nf2.format(st.usdPerOz)} / ${isEn() ? 'oz' : '온스'}` : '-'], ['전일 국제 금값', st.usdPerOzPrev ? `$${nf2.format(st.usdPerOzPrev)} / ${isEn() ? 'oz' : '온스'}` : '-'], ['적용 환율', st.fx ? DASH_FMT.fx(st.fx) : '-'], ['52주 최고 (환산)', fv(st.high52)], ['52주 최저 (환산)', fv(st.low52)], ['계산', isEn() ? 'Gold futures (USD/troy oz) × USD/KRW ÷ 31.1035 g × 3.75 g' : '금 선물(달러/트로이온스) × 원/달러 ÷ 31.1035g × 3.75g']]
         : [['전일 종가', fv(d.prev)], ['오늘 최고', fv(st.dayHigh)], ['오늘 최저', fv(st.dayLow)], ['52주 최고', fv(st.high52)], ['52주 최저', fv(st.low52)], ...(st.volume ? [['거래량', nf0.format(st.volume)]] : [])];
       const mk = d.market;
       const MST = { open: '개장 중', pre: '개장 전', after: '장 마감', closed: '휴장' };
       // 증시 칸 (v0.30.10): 개장 상태 + 달력만 (지수 값·그래프·수치 없음)
       if (mk) {
-        body.innerHTML = `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)}${id === 'usmarket' ? ` 한국 시간 · 현지 ${esc(mk.hours.local)}` : ' (한국 시간)'}${id === 'usmarket' ? '' : mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>
+        const mstEn = { open: 'Open', pre: 'Pre-open', after: 'Closed for the day', closed: 'Closed' };
+        const noticeEn = `<b>${esc(mstEn[mk.status] || '-')}${mk.reason === 'weekend' ? ' (weekend)' : ''}</b> · ${esc(mk.exchange)} regular session ${esc(mk.hours.kst)} KST${id === 'usmarket' ? ` · local ${esc(mk.hours.local)}` : mk.closesAt ? ` · closes ${esc(shortTime(mk.closesAt))}` : mk.opensAt ? ` · opens ${esc(shortTime(mk.opensAt))}` : ''}`;
+        body.innerHTML = `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small">${isEn() ? `<div data-noi18n>${noticeEn}</div>` : `<div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)}${id === 'usmarket' ? ` 한국 시간 · 현지 ${esc(mk.hours.local)}` : ' (한국 시간)'}${id === 'usmarket' ? '' : mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div>`}</div>
           <div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div>`;
         loadCalendar(body.querySelector('[data-mkcal]'), id === 'krmarket' ? 'KR' : 'US', calMonth);
         return;
       }
       body.innerHTML = `
         <div class="dd-head">
-          <div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
+          <div>${d.name && d.name !== d.label ? `<div class="dd-name" data-noi18n>${esc(d.name)}</div>` : `<div class="dd-name">${esc(d.label)}</div>`}<div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
           <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
         </div>
-        <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${DASH_RANGE_LABEL[r] || r}</button>`).join('')}</div>
+        <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${(isEn() ? DASH_RANGE_EN : DASH_RANGE_LABEL)[r] || r}</button>`).join('')}</div>
         <div class="dd-chart"><canvas></canvas></div>
+        <h3 class="dd-sub">${d.dailyInterval === '1wk' ? '주별 지표' : '일자별 지표'}${d.range === '1d' || d.range === '5d' ? ` <span class="muted small" data-noi18n>${isEn() ? '(last 5 trading days)' : '(최근 5거래일)'}</span>` : ''}</h3>
+        ${dailyTable(d, f)}
+        <h3 class="dd-sub">주요 수치</h3>
         <div class="table-wrap"><table class="dd-stats"><tbody>${rows.map(([k, v]) => `<tr><th class="left">${esc(k)}</th><td class="right" data-noi18n>${esc(v)}</td></tr>`).join('')}</tbody></table></div>
         <p class="small muted" style="margin:8px 0 0">출처 ${esc(d.source)} · 시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
       body.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => load(b.dataset.range)));
