@@ -2810,58 +2810,20 @@
   // 휴대폰 앱: 기기 구글 계정 고르기 → 드라이브 권한 허용(처음 한 번) → 연결 완료
   // 구글 'G' 아이콘 (v0.30.29)
   const GOOGLE_G = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
-  // 구글 계정 선택 화면 (v0.30.29): 구글 계정 선택 화면과 비슷한 모양. 이 앱이 볼 수 있는 계정 + '다른 계정 사용'(시스템 선택 창)
-  function pickGoogleAccount() {
-    let list = [];
-    try { list = JSON.parse(window.AndroidBridge.gdriveAccounts ? window.AndroidBridge.gdriveAccounts() : '[]') || []; } catch (_) { list = []; }
-    const COLORS = ['#1a73e8', '#e8710a', '#188038', '#d93025', '#9334e6', '#12b5cb', '#c5221f', '#f29900'];
-    const color = (s) => COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
-    const cur = gdDevice();
-    return new Promise((resolve, reject) => {
-      const back = document.createElement('div');
-      back.className = 'gacct-back';
-      back.innerHTML = `<div class="gacct" role="dialog" aria-modal="true" aria-label="계정 선택">
-          <div class="gacct-top">${GOOGLE_G}<span>Google 계정으로 연결</span><button type="button" class="gacct-x" aria-label="닫기">✕</button></div>
-          <div class="gacct-head"><h2>계정 선택</h2><p data-noi18n>${isEn() ? 'to continue to <b>K-Stock</b>' : '<b>K-Stock</b>(으)로 이동'}</p></div>
-          <ul class="gacct-list">
-            ${list.map((e) => `<li><button type="button" class="gacct-row" data-acct="${esc(e)}">
-              <span class="gacct-av" style="background:${color(e)}">${esc(e.charAt(0).toUpperCase())}</span>
-              <span class="gacct-txt"><span class="gacct-name" data-noi18n>${esc(e.split('@')[0])}</span><span class="gacct-mail" data-noi18n>${esc(e)}</span></span>
-              ${e === cur ? '<span class="gacct-cur">연결됨</span>' : ''}
-            </button></li>`).join('')}
-            <li><button type="button" class="gacct-row" data-other>
-              <span class="gacct-av other"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
-              <span class="gacct-txt"><span class="gacct-name">다른 계정 사용</span>${list.length ? '' : '<span class="gacct-mail">이 휴대폰의 구글 계정 목록에서 고릅니다</span>'}</span>
-            </button></li>
-          </ul>
-          <p class="gacct-note">K-Stock은 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다.</p>
-        </div>`;
-      document.body.appendChild(back);
-      document.body.classList.add('modal-open');
-      const close = () => { back.remove(); if (!document.querySelector('.modal-back, .gacct-back')) document.body.classList.remove('modal-open'); };
-      back.addEventListener('click', async (e) => {
-        if (e.target === back || e.target.closest('.gacct-x')) { close(); reject(new Error('구글 계정 선택을 취소했습니다.')); return; }
-        const row = e.target.closest('[data-acct]');
-        if (row) {
-          close();
-          if (window.AndroidBridge.gdriveAccountUse(syncKey(), row.dataset.acct)) resolve(row.dataset.acct);
-          else reject(new Error('이 휴대폰에서 그 구글 계정을 찾을 수 없습니다. 다른 계정 사용을 눌러 주세요.'));
-          return;
-        }
-        if (e.target.closest('[data-other]')) {
-          close();
-          try { resolve(await nativeDoc('gdriveAccountPick', syncKey())); } catch (err) { reject(err); }
-        }
-      });
-    });
-  }
   async function gdriveConnectDevice(after) {
-    const name = window.AndroidBridge.gdriveAccounts ? await pickGoogleAccount() : await nativeDoc('gdriveAccountPick', syncKey());
+    // v0.30.30: 구글 공식 계정 선택 창(구글 Play 서비스)을 바로 연다 — 휴대폰의 모든 구글 계정이 처음부터 보임
+    const official = !!window.AndroidBridge.gdriveAccountPickGoogle;
+    let name = await nativeDoc(official ? 'gdriveAccountPickGoogle' : 'gdriveAccountPick', syncKey());
     try {
       await nativeDoc('gdriveToken', syncKey(), false); // 처음이면 구글의 권한 허용 화면
     } catch (e) {
-      window.AndroidBridge.gdriveUnlink(syncKey());
-      throw e;
+      // 구글 창에서 고른 계정을 이 앱이 아직 쓸 수 없으면(휴대폰 정책) 휴대폰 기본 선택 창으로 한 번 더 고르게 한다
+      if (!official || /취소/.test(e.message || '')) { window.AndroidBridge.gdriveUnlink(syncKey()); throw e; }
+      try {
+        toast('이 계정을 K-Stock에서 쓰도록 휴대폰에서 한 번 더 골라 주세요.');
+        name = await nativeDoc('gdriveAccountPick', syncKey());
+        await nativeDoc('gdriveToken', syncKey(), false);
+      } catch (e2) { window.AndroidBridge.gdriveUnlink(syncKey()); throw e2; }
     }
     saveSyncState(null); // 새 연결이면 처음 맞추는 것으로
     toast(`구글 드라이브에 연결했습니다 (${name}). 이제 지금 동기화를 누르세요.`);

@@ -27,7 +27,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -38,6 +37,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -592,30 +592,44 @@ public class MainActivity extends Activity {
         }
 
         /**
-         * 이 앱이 볼 수 있는 기기의 구글 계정 목록 (v0.30.29) — 앱 안의 계정 선택 화면에 보여 준다.
-         * Android 8 이상은 사용자가 시스템 선택 창에서 한 번 고른 계정만 앱에 보인다. JSON 배열 ["a@gmail.com", ...]
+         * 구글 공식 계정 선택 창 (v0.30.30): 구글 Play 서비스의 계정 선택 화면(AccountPicker 와 같은 인텐트)을 연다.
+         * 휴대폰의 모든 구글 계정이 처음부터 보인다. Play 서비스가 없으면 휴대폰 기본 선택 창으로. 결과는 window.__docDone(계정 이메일)
          */
         @JavascriptInterface
-        public String gdriveAccounts() {
-            JSONArray out = new JSONArray();
-            try {
-                for (Account a : AccountManager.get(MainActivity.this).getAccountsByType("com.google")) out.put(a.name);
-            } catch (Exception ignored) { }
-            return out.toString();
-        }
-
-        /** 목록에서 고른 계정으로 연결 (시스템 선택 창 없이). 기기에 그 계정이 있어야 한다 */
-        @JavascriptInterface
-        public boolean gdriveAccountUse(String key, String name) {
-            try {
-                for (Account a : AccountManager.get(MainActivity.this).getAccountsByType("com.google")) {
-                    if (a.name.equals(name)) {
-                        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GACCT + key, name).apply();
-                        return true;
+        public void gdriveAccountPickGoogle(final String key, final String id) {
+            if (!pageIsLocal) { docDone(id, false, "서버 화면에서는 사용할 수 없습니다."); return; }
+            main.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        pendingAcctId = id;
+                        pendingAcctKey = key;
+                        Intent i = new Intent("com.google.android.gms.common.account.CHOOSE_ACCOUNT");
+                        i.setPackage("com.google.android.gms");
+                        i.putExtra("allowableAccounts", (ArrayList<Account>) null);
+                        i.putExtra("allowableAccountTypes", new String[] { "com.google" });
+                        i.putExtra("addAccountOptions", (Bundle) null);
+                        String cur = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_GACCT + key, "");
+                        i.putExtra("selectedAccount", cur.isEmpty() ? null : new Account(cur, "com.google"));
+                        i.putExtra("selectedAccountIsNotClickable", false);
+                        i.putExtra("alwaysPromptForAccount", true);
+                        i.putExtra("descriptionTextOverride", "K-Stock 동기화 파일을 저장할 구글 계정을 선택하세요");
+                        i.putExtra("setGmsCoreAccount", false);
+                        i.putExtra("realClientPackage", (String) null);
+                        i.putExtra("overrideTheme", 0);
+                        i.putExtra("overrideCustomTheme", 0);
+                        i.putExtra("hostedDomainFilter", (String) null);
+                        if (i.resolveActivity(getPackageManager()) == null) {
+                            @SuppressWarnings("deprecation")
+                            Intent sys = AccountManager.newChooseAccountIntent(null, null, new String[] { "com.google" }, true, null, null, null, null);
+                            i = sys;
+                        }
+                        startActivityForResult(i, REQ_GOOGLE_ACCOUNT);
+                    } catch (Exception e) {
+                        pendingAcctId = null;
+                        docDone(id, false, "구글 계정 선택 창을 열 수 없습니다: " + e.getMessage());
                     }
                 }
-            } catch (Exception ignored) { }
-            return false;
+            });
         }
 
         /** 연결한 구글 계정 이메일 (없으면 빈 문자열) */
