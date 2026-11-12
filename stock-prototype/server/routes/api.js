@@ -278,7 +278,10 @@ router.get('/shares', (req, res) => {
     .filter((r) => Object.keys(r.perms).length);
   const pending = db.all('SELECT viewer_email AS email, perms, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY viewer_email', [req.user.id])
     .map((r) => { let perms = {}; try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ } return { email: r.email, perms, updated_at: r.updated_at }; });
-  res.json({ screens: SHARE_SCREENS, given, received, pending });
+  // 공유할 사용자 고르기 (v0.30.22): 이 기기(개인 서버)의 다른 사용자 목록. 공개 클라우드 서버는 목록을 보이지 않음(null → 직접 입력)
+  const users = config.CLOUD ? null : db.all('SELECT email, nickname FROM users WHERE id != ? AND id NOT IN (SELECT user_id FROM mirror_users) ORDER BY created_at, id', [req.user.id])
+    .map((u) => ({ id: u.email, name: u.nickname || u.email }));
+  res.json({ screens: SHARE_SCREENS, given, received, pending, users });
 });
 
 router.post('/shares', (req, res) => {

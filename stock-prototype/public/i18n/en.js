@@ -953,5 +953,20 @@ window.I18N_EN = {
 "별명에는 @를 쓸 수 없습니다.": "Nicknames cannot contain @.",
 "2~20자, 한글·영문·숫자(공백·_·-·. 가능). 다른 사용자와 같은 별명은 쓸 수 없습니다.": "2–20 characters: Korean, English letters, digits (space · _ · - · . allowed). Must differ from other users' nicknames.",
 "(새 별명으로도 로그인 가능)": "(you can also log in with the new nickname)",
-"로그인 아이디": "Login ID"
+"로그인 아이디": "Login ID",
+"데이터 동기화": "Data sync",
+"사용자 관리": "User management",
+"대시보드 설정": "Dashboard settings",
+"화면 테마 설정": "Theme settings",
+"환경설정 → 데이터 동기화": "Settings → Data sync",
+"환경설정 → 대시보드 설정": "Settings → Dashboard settings",
+"데이터 동기화를 먼저 설정해야 화면 공유 · 권한 관리를 쓸 수 있습니다.": "Set up data sync first to use screen sharing & permissions.",
+"데이터 동기화 설정": "Set up data sync",
+"데이터 동기화를 먼저 설정하세요.": "Set up data sync first.",
+"공유할 사용자": "User to share with",
+"사용자 선택": "Select a user",
+"공유할 사용자를 고르세요.": "Select a user to share with.",
+"모든 사용자에게 이미 공유했습니다": "Already shared with every user",
+"공유할 다른 사용자가 없습니다": "No other users to share with",
+"종목명 또는 코드": "Name or code"
 };

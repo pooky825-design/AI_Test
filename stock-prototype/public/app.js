@@ -299,7 +299,7 @@
     // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
     const mlinks = nav.map(([h, label]) => `${state.actAs && h === '#/me' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
     // 내 사진·별명 | 로그아웃 (v0.30.12)
-    const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 정보">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
+    const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 관리">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
@@ -1675,7 +1675,7 @@
         <form class="inline edit-mode" data-add novalidate>
           <input type="hidden" name="id" />
           <div class="field" data-f="group" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
-          <div class="field" data-f="code" style="width:150px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="005930 / AAPL" autocomplete="off" /><span class="hint" data-hint></span><span class="err" data-err="code"></span></div>
+          <div class="field ac-field code-ac" data-f="code" style="width:190px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="종목명 또는 코드" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" /><div class="ac-menu" data-ac hidden role="listbox"></div><span class="hint code-hint" data-hint></span><span class="err" data-err="code"></span></div>
           <div class="field" data-f="category" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
           <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
@@ -1712,8 +1712,34 @@
       form.code.classList.remove('invalid');
       form.querySelector('[data-err="code"]').textContent = '';
     };
+    // 종목코드 칸 (v0.30.22): 종목 조회와 같이 종목명·코드 일부를 넣으면 목록이 뜨고 골라서 넣는다
+    const codeAc = mountStockSearch(form.code, form.querySelector('[data-ac]'), () => lookup());
+    form.code.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const it = codeAc.current();
+      if (!it) return;
+      e.preventDefault();
+      form.code.value = it.code;
+      form.code.blur();
+      lookup();
+    });
+    const looksLikeName = (v) => /[가-힣\s&]/.test(v) || v.length > 10;
+    let liveTimer = null;
+    form.code.addEventListener('input', () => {
+      clearTimeout(liveTimer);
+      const v = form.code.value.trim().toUpperCase();
+      if (!/^([0-9][0-9A-Z]{5}|[A-Z]{1,5}(\.[A-Z])?)$/.test(v)) { hint.textContent = ''; return; }
+      liveTimer = setTimeout(() => { if (form.code.value.trim().toUpperCase() === v && v !== lookedUp) lookup(); }, 450);
+    });
     const lookup = async () => {
-      const code = form.code.value.trim();
+      clearTimeout(liveTimer);
+      let code = form.code.value.trim();
+      // 종목명을 넣었으면 첫 번째 검색 결과의 코드로
+      if (code && looksLikeName(code)) {
+        hint.textContent = '확인 중…';
+        const items = await codeAc.search(code);
+        if (items.length) { code = items[0].code; form.code.value = code; }
+      }
       lookedUp = code.toUpperCase();
       hint.textContent = '';
       curLabel.textContent = '';
@@ -1734,7 +1760,7 @@
         form.querySelector('[data-err="code"]').textContent = err.message;
       }
     };
-    form.code.addEventListener('change', lookup);
+    form.code.addEventListener('change', () => { if (form.code.value.trim().toUpperCase() !== lookedUp) lookup(); });
     // 평균 매입단가 자동 계산 = 매입금액 ÷ 보유 수량
     const calcAvg = () => {
       const q = calcValue(form.quantity);
@@ -1771,6 +1797,7 @@
       form.code.disabled = false;
       form.groupId.disabled = false;
       hint.textContent = '';
+      lookedUp = '';
       curLabel.textContent = '';
       showFieldErrors(form, {});
       if (groups.length) form.groupId.value = String(groupId || groups[0].id);
@@ -2798,8 +2825,22 @@
       ${help}
     </div>`;
   }
+  // 데이터 동기화를 설정하지 않으면 화면 공유 · 권한 관리를 쓰지 못하게 (v0.30.22)
+  //  - 클라우드 서버에 연결된 앱은 기기끼리 이미 같은 서버를 쓰므로 동기화 없이도 공유 가능
+  function shareLocked() { return !REMOTE_APP && !state.syncName; }
+  function updateShareLock() {
+    const card = document.querySelector('[data-share-card]');
+    if (!card) return;
+    const locked = shareLocked();
+    card.classList.toggle('share-locked', locked);
+    card.querySelector('[data-share-lock]').hidden = !locked;
+    const body = card.querySelector('[data-share-body]');
+    body.inert = locked;
+    body.setAttribute('aria-disabled', locked ? 'true' : 'false');
+  }
   function mountSyncCard(card) {
-    const paint = async () => {
+    const paint = async () => { try { await paintSync(); } finally { updateShareLock(); } };
+    const paintSync = async () => {
       const name = await refreshSyncName();
       const m = syncMode();
       const st = syncState();
@@ -2888,7 +2929,7 @@
     });
   }
   function openSyncSetup() {
-    toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경설정 → 기기 간 동기화에서 연결해 주세요.`);
+    toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경설정 → 데이터 동기화에서 연결해 주세요.`);
     goMeCard('[data-sync-card]');
   }
   // 환경설정 화면의 상자로 이동해 펴고 보이게 (v0.30.20)
@@ -2957,10 +2998,16 @@
       const { screens, given, received } = r;
       const pending = r.pending || [];
       const head = screens.map((sc) => `<th class="center">${esc(sc.label)}</th>`).join('');
+      // 공유할 사용자: 등록된 사용자 목록에서 고른다(이미 공유한 사용자는 아래 표에서 권한을 바꿈). 목록을 못 받으면(공개 클라우드 서버) 직접 입력
+      const givenIds = new Set(given.map((g) => String(g.email).toLowerCase()));
+      const cands = Array.isArray(r.users) ? r.users.filter((u) => !givenIds.has(String(u.id).toLowerCase())) : null;
+      const userField = cands
+        ? `<select name="email"${cands.length ? '' : ' disabled'}>${cands.length ? `<option value="">사용자 선택</option>${cands.map((u) => `<option value="${esc(u.id)}" data-noi18n>${esc(u.name)}</option>`).join('')}` : `<option value="">${r.users.length ? '모든 사용자에게 이미 공유했습니다' : '공유할 다른 사용자가 없습니다'}</option>`}</select>`
+        : '<input name="email" placeholder="예: 엄마, Tom" autocomplete="off" autocapitalize="off" />';
       body.innerHTML = `
         <form class="field-row share-add" data-add novalidate>
-          <div class="field" style="min-width:220px;flex:1"><label>공유할 사용자 (별명 또는 아이디)</label><input name="email" placeholder="예: 엄마, Tom" autocomplete="off" autocapitalize="off" /><span class="err" data-err="email"></span></div>
-          ${screens.map((sc) => `<div class="field"><label>${esc(sc.label)}</label>${permSelect(sc, sc.id === 'assets' || sc.id === 'yearly' ? 'view' : '')}</div>`).join('')}
+          <div class="field" style="min-width:180px;flex:1"><label>공유할 사용자</label>${userField}<span class="err" data-err="email"></span></div>
+          ${screens.map((sc) => `<div class="field"><label>${esc(sc.label)}</label>${permSelect(sc, 'view')}</div>`).join('')}
           <button type="submit">공유 추가</button>
         </form>
         <h3 style="margin:16px 0 8px">내가 공유한 회원 <span class="muted small">${given.length}명</span></h3>
@@ -2985,8 +3032,11 @@
         load();
       }));
       const add = body.querySelector('[data-add]');
+      add.querySelectorAll('select[data-sc]').forEach((sel) => sel.addEventListener('change', () => { sel.className = `perm-sel ${sel.value || 'none'}`; }));
       add.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (shareLocked()) { toast('데이터 동기화를 먼저 설정하세요.'); return; }
+        if (!add.email.value) { showFieldErrors(add, { email: '공유할 사용자를 고르세요.' }); return; }
         try {
           await api('POST', '/shares', { email: add.email.value, perms: permsOf(add) });
           toast('공유했습니다.');
@@ -3032,7 +3082,7 @@
     const main = shell('#/me', `
       <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1></div></div>
       <div class="card" data-fold="profile">
-        <h2>사용자 정보</h2>
+        <h2>사용자 관리</h2>
         <div class="me-info">${avatarHtml(state.user.avatar, displayName(state.user), 'av-md')}<div class="me-info-text">
           <div class="me-name-row"><span class="me-name" data-noi18n>${esc(displayName(state.user))}</span><button type="button" class="sm secondary" data-nick-edit>별명 변경</button></div>
           <form class="nick-form" data-nick-form hidden novalidate><input name="nickname" maxlength="20" autocomplete="off" value="${esc(displayName(state.user))}" aria-label="새 별명" /><button type="submit" class="sm">저장</button><button type="button" class="sm secondary" data-nick-cancel>취소</button><span class="err" data-err="nickname"></span><span class="hint">2~20자, 한글·영문·숫자(공백·_·-·. 가능). 다른 사용자와 같은 별명은 쓸 수 없습니다.</span></form>
@@ -3043,7 +3093,7 @@
         <div class="field-row" style="margin-top:10px"><button data-avsave>저장</button></div>
       </div>
       <div class="card" data-fold="lang">
-        <h2><span data-noi18n>언어 (Language)</span> ${req('FR-COM-07')}</h2>
+        <h2><span data-noi18n>${isEn() ? 'Change language (언어)' : '언어 (Language) 변경'}</span> ${req('FR-COM-07')}</h2>
         <div class="field-row" style="align-items:center;gap:12px">${langSelectHtml()}<span class="small muted">화면에 보이는 글자를 고른 언어로 표시합니다. 엑셀 파일과 종목명은 원래 언어 그대로입니다.</span></div>
       </div>
       <div class="card" data-fold="reqcodes">
@@ -3052,7 +3102,7 @@
         <p class="small muted" style="margin:8px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.</p>
       </div>
       <div class="card" data-fold="dash">
-        <h2>홈 대시보드 ${req('FR-DSH-02')}</h2>
+        <h2>대시보드 설정 ${req('FR-DSH-02')}</h2>
         <p style="margin:0 0 10px">홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목과 순서를 정하세요. <b>홈을 공유받은 사람에게도 여기서 고른 항목만</b> 보입니다(공유받은 사람은 바꿀 수 없음).</p>
         <div data-dash-items><span class="small muted">불러오는 중…</span></div>
       </div>
@@ -3066,10 +3116,16 @@
           <p class="small muted" style="margin:10px 0 0">데이터 옮기기: 연결 전에 아래 <b>백업 파일 저장</b> → 연결 후 서버에서 사용자 추가·로그인 → <b>백업 파일로 복원</b>. 서버 만드는 방법은 README의 ‘클라우드 서버(Oracle Cloud)’ 안내를 보세요.</p>`}
       </div>` : ''}
       <div class="card" data-sync-card data-fold="sync">
-        <h2>기기 간 동기화 ${req('FR-BAK-03')}</h2>
+        <h2>데이터 동기화 ${req('FR-BAK-03')}</h2>
         <p style="margin:0 0 10px">네이버 MYBOX·구글 드라이브 같은 클라우드 폴더에 동기화 파일 하나를 두고, 각 기기에서 [지금 동기화]를 누를 때 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 파일에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한을 맞추며, 파일 안에서 로그인한 사용자(이메일)별로 따로 저장되어 같은 이메일로 로그인한 기기끼리만 맞춰집니다.</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
         <p class="small muted" style="margin:10px 0 0">${IN_APP ? '휴대폰: 파일 선택 창 왼쪽 메뉴에서 MYBOX나 Google Drive를 고르세요(해당 앱이 설치되어 있고 파일 선택 창에 나타나야 합니다). 클라우드 앱이 꺼져 있어 예전 파일을 받으면 가져오지 않고 알려 드립니다.' : 'PC: Chrome·Edge에서 MYBOX 탐색기·Google Drive처럼 클라우드와 이어진 폴더의 파일을 고르세요.'} 동기화 파일에는 보유 종목·배당 데이터가 그대로(암호화 없이) 들어 있으니 믿을 수 있는 사람만 쓰는 폴더에 두세요.</p>
+      </div>
+      <div class="card" data-share-card data-fold="share">
+        <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
+        <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
+        <div class="notice warn small share-lock" data-share-lock hidden><div class="grow">데이터 동기화를 먼저 설정해야 화면 공유 · 권한 관리를 쓸 수 있습니다. <button type="button" class="sm" data-go-sync>데이터 동기화 설정</button></div></div>
+        <div data-share-body><div class="empty">불러오는 중…</div></div>
       </div>
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
@@ -3081,7 +3137,7 @@
         <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
       </div>
       <div class="card" data-theme-card data-fold="theme">
-        <h2>화면 테마 ${req('FR-UI-01')}</h2>
+        <h2>화면 테마 설정 ${req('FR-UI-01')}</h2>
         <p style="margin:0 0 6px">기준 색을 고르면 왼쪽 메뉴·버튼·탭·합계 행·배경 등 <b>전체 화면 색</b>이 그 색에 맞춰 바뀝니다. 계정에 저장되어 PC·앱 어디서나 같은 테마로 보입니다.</p>
         <div class="theme-swatches" data-swatches></div>
         <div class="theme-custom">
@@ -3100,11 +3156,6 @@
           </div>
         </div>
         <p class="small muted" style="margin:10px 0 0">연도별 자산·배당 그래프도 테마 색 한 계열로 바뀝니다(조금 진하게·기본·조금 연하게, 환율 선은 아주 진하게). 상승 빨강·하락 파랑(종목 시세 그래프 포함)과 분류 배지 색은 의미가 있는 색이라 그대로 둡니다. 밝은 색을 고르면 흰 글자가 읽히도록 자동으로 조금 진하게 맞춥니다.</p>
-      </div>
-      <div class="card" data-share-card data-fold="share">
-        <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
-        <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
-        <div data-share-body><div class="empty">불러오는 중…</div></div>
       </div>
       <div class="grid c2">
         <div class="card" data-fold="password">
@@ -3135,6 +3186,7 @@
     });
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountSyncCard(main.querySelector('[data-sync-card]'));
+    main.querySelector('[data-go-sync]').addEventListener('click', () => goMeCard('[data-sync-card]'));
     // 홈 대시보드 항목·순서 (v0.28.0~0.28.1): 내 설정(dash.items, dash.order)만 바꾼다
     (async () => {
       const box = main.querySelector('[data-dash-items]');
@@ -3795,7 +3847,7 @@
     let d;
     try { d = await api('GET', '/dashboard'); } catch (e) { box.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
     if (!d.items.length) {
-      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 홈 대시보드</a>에서 항목을 고르세요.'}</div><div data-kw></div>`;
+      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 대시보드 설정</a>에서 항목을 고르세요.'}</div><div data-kw></div>`;
       loadKeywords(box.querySelector('[data-kw]'));
       return;
     }

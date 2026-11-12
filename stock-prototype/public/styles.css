@@ -850,3 +850,16 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .nick-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .nick-form input { flex: 1 1 120px; width: auto; min-width: 0; max-width: 220px; }
 .nick-form .err, .nick-form .hint { flex-basis: 100%; }
+
+/* v0.30.22 화면 공유: 동기화 전에는 잠금, 권한 색(없음 흰색 · 조회 · 편집 진하게), 종목코드 검색 칸 */
+.share-locked [data-share-body] { opacity: .45; filter: grayscale(.6); pointer-events: none; user-select: none; }
+.share-lock { margin: 0 0 10px; }
+.share-lock .grow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.perm-sel, .perm-sel.none { background-color: #fff; border-color: var(--line, #d7dde5); color: #64748b; font-weight: 400; }
+.perm-sel.view { background-color: var(--t-100); border-color: var(--t-300); color: var(--t-700); font-weight: 600; }
+.perm-sel.edit { background-color: var(--t-200); border-color: var(--t-400); color: var(--t-900); font-weight: 700; }
+.perm-sel option { background: #fff; color: #1f2937; font-weight: 400; }
+.share-add select[name=email] { min-width: 160px; }
+.code-ac .ac-menu { min-width: 300px; right: auto; }
+.code-ac .code-hint { display: block; min-height: 1.2em; font-size: 13px; color: var(--t-900, #1f2937); white-space: normal; }
+@media (max-width: 640px) { .code-ac { width: 100% !important; } .code-ac .ac-menu { min-width: 0; right: 0; } }
