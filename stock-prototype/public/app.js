@@ -270,7 +270,7 @@
     </select></label>`;
   }
   function shareBanner(active) {
-    if (!state.actAs) return '';
+    if (!state.actAs || active === '#/me') return ''; // 환경설정은 공유받은 화면이 아니라 내 메뉴 (v0.27.8)
     const sc = SHARE_PATH[active];
     const perm = sc ? state.actAs.perms[sc] : null;
     const mode = perm === 'edit' ? '<span class="perm edit">편집 가능</span>' : perm ? '<span class="perm view">조회 전용</span>' : '';
