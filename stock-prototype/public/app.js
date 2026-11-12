@@ -3073,7 +3073,7 @@
       const gdOk = gdriveAvailable();
       const g = state.gdrive;
       if (m === 'gdrive') {
-        box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 kstock-sync.kst (구글 드라이브 내 드라이브, 암호화)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+        box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 내 드라이브 › K-Stock 폴더 › kstock-sync.kst (암호화)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${syncPw.get() ? '<button class="secondary" data-sync-pw>동기화 비밀번호 변경</button>' : ''}<button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>
           <p class="small muted" style="margin:8px 0 0">🔒 동기화 파일(kstock-sync.kst)은 4자리 동기화 비밀번호로 암호화되어, 파일만으로는 내용을 볼 수 없습니다.</p>`;
         box.querySelector('[data-sync-now]').addEventListener('click', runSync);

@@ -18,6 +18,9 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 // 새 파일을 저장하면 지운다(드라이브에 암호화 안 된 자료가 남지 않게)
 const FILE_NAME = 'kstock-sync.kst';
 const OLD_NAME = 'kstock-sync.json';
+// v0.30.46: 동기화 파일은 내 드라이브의 'K-Stock' 폴더 안에 둔다(없으면 만든다)
+const FOLDER_NAME = 'K-Stock';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const toB64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
 const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const concat = (...parts) => { const n = parts.reduce((a, p) => a + p.length, 0); const out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
@@ -31,9 +34,9 @@ const row = (uid) => db.get('SELECT * FROM gdrive_auth WHERE user_id = ?', [uid]
 function save(uid, fields) {
   const cur = row(uid) || {};
   const v = { ...cur, ...fields };
-  db.run(`INSERT OR REPLACE INTO gdrive_auth (user_id, client_id, client_secret, refresh_token, access_token, expires_at, account, file_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  [uid, v.client_id || null, v.client_secret || null, v.refresh_token || null, v.access_token || null, v.expires_at || null, v.account || null, v.file_id || null, now()]);
+  db.run(`INSERT OR REPLACE INTO gdrive_auth (user_id, client_id, client_secret, refresh_token, access_token, expires_at, account, file_id, folder_id, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  [uid, v.client_id || null, v.client_secret || null, v.refresh_token || null, v.access_token || null, v.expires_at || null, v.account || null, v.file_id || null, v.folder_id || null, now()]);
 }
 
 function status(uid) {
@@ -169,19 +172,41 @@ async function findFile(uid, token) {
   const r = row(uid) || {};
   if (r.file_id) {
     try {
-      const m = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(r.file_id)}?fields=id,name,modifiedTime,trashed`, { token });
+      const m = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(r.file_id)}?fields=id,name,modifiedTime,trashed,parents`, { token });
       if (!m.trashed) return m;
     } catch (e) { if (e.code !== 'GDRIVE_NOTFOUND') throw e; }
   }
   let f = null;
   for (const name of [FILE_NAME, OLD_NAME]) {
     const q = encodeURIComponent(`name = '${name}' and trashed = false`);
-    const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime)&spaces=drive`, { token });
+    const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime,parents)&spaces=drive`, { token });
     f = (list.files || [])[0] || null;
     if (f) break;
   }
   save(uid, { file_id: f ? f.id : null });
   return f;
+}
+
+// K-Stock 폴더: 기억한 폴더 → 이 앱이 만든 같은 이름 폴더(내 드라이브 맨 위) → 없으면 만든다
+async function ensureFolder(uid, token) {
+  const r = row(uid) || {};
+  if (r.folder_id) {
+    try {
+      const m = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(r.folder_id)}?fields=id,trashed,mimeType`, { token });
+      if (!m.trashed && m.mimeType === FOLDER_MIME) return m.id;
+    } catch (e) { if (e.code !== 'GDRIVE_NOTFOUND') throw e; }
+  }
+  const q = encodeURIComponent(`name = '${FOLDER_NAME}' and mimeType = '${FOLDER_MIME}' and trashed = false`);
+  const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=createdTime&pageSize=5&fields=files(id,name)&spaces=drive`, { token });
+  let id = ((list.files || [])[0] || {}).id;
+  if (!id) {
+    const m = await api(uid, 'POST', '/drive/v3/files?fields=id', {
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify({ name: FOLDER_NAME, mimeType: FOLDER_MIME }), token,
+    });
+    id = m.id;
+  }
+  save(uid, { folder_id: id });
+  return id;
 }
 
 // 파일 내용은 base64 로 주고받는다(화면 ↔ 서버). b64 = 파일 그대로의 바이트
@@ -195,8 +220,16 @@ async function readFile(uid, token = null) {
 async function writeFile(uid, b64, token = null) {
   const bytes = fromB64(b64);
   const f = await findFile(uid, token);
+  const folder = await ensureFolder(uid, token);
   let m;
   if (f && f.name !== OLD_NAME) {
+    // 폴더 밖(예전 버전이 내 드라이브 맨 위에 만든 파일)이면 K-Stock 폴더로 옮긴다
+    const parents = f.parents || [];
+    if (!parents.includes(folder)) {
+      await api(uid, 'PATCH', `/drive/v3/files/${encodeURIComponent(f.id)}?addParents=${encodeURIComponent(folder)}${parents.length ? `&removeParents=${encodeURIComponent(parents.join(','))}` : ''}&fields=id`, {
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: '{}', token,
+      });
+    }
     // 내용만 바꿈 (HttpURLConnection 은 PATCH 를 못 보내므로 앱에서는 X-HTTP-Method-Override 로 보냄)
     m = await api(uid, 'PATCH', `/upload/drive/v3/files/${encodeURIComponent(f.id)}?uploadType=media&fields=id,name,modifiedTime`, {
       headers: { 'Content-Type': 'application/octet-stream' }, body: bytes, token,
@@ -205,7 +238,7 @@ async function writeFile(uid, b64, token = null) {
     const boundary = `kstock${crypto.randomBytes(8).toString('hex')}`;
     const enc = new TextEncoder();
     const body = concat(
-      enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: FILE_NAME, mimeType: 'application/octet-stream' })}\r\n`
+      enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: FILE_NAME, mimeType: 'application/octet-stream', parents: [folder] })}\r\n`
         + `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`),
       bytes,
       enc.encode(`\r\n--${boundary}--`),

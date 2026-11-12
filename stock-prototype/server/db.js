@@ -370,6 +370,8 @@ function migrate() {
   db.run('CREATE TABLE IF NOT EXISTS deleted_users (email TEXT PRIMARY KEY, deleted_at TEXT NOT NULL)');
   // 종목명 언어 (v0.30.37): 한글명·영문명
   db.run('CREATE TABLE IF NOT EXISTS stock_names (code TEXT PRIMARY KEY, ko TEXT, en TEXT, tried_at TEXT)');
+  // 구글 드라이브 K-Stock 폴더 (v0.30.46)
+  if (!all('PRAGMA table_info(gdrive_auth)').map((c) => c.name).includes('folder_id')) db.run('ALTER TABLE gdrive_auth ADD COLUMN folder_id TEXT');
   // 받지 않기 (v0.30.26): 공유받은 사람이 거절한 공유. 공유한 사람이 그 뒤에 다시 공유(updated_at 이 더 늦음)하면 다시 보인다
   db.run(`CREATE TABLE IF NOT EXISTS share_declines (
     viewer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
