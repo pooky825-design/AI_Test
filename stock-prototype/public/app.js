@@ -2664,8 +2664,7 @@
       body.innerHTML = `<p style="margin:0 0 12px">${desc}</p>
         <div class="field"><label>비밀번호 (4자리)</label>${pinBoxesHtml('fp1')}</div>
         ${confirm ? `<div class="field" style="margin-top:10px"><label>비밀번호 확인</label>${pinBoxesHtml('fp2', '비밀번호 확인')}</div>` : ''}
-        <div class="notice error small" data-msg hidden style="margin-top:10px"></div>
-        <div class="field-row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="secondary" data-close>취소</button><button data-ok>확인</button></div>`;
+        <div class="notice error small" data-msg hidden style="margin-top:10px"></div>`; // 4자리를 다 넣으면 바로 진행(확인·취소 버튼 없음, 닫으려면 ✕, v0.30.43)
       let done = false;
       const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
       const msg = body.querySelector('[data-msg]');
@@ -2677,8 +2676,6 @@
         if (p2 && p2.value() !== v) { msg.hidden = false; msg.textContent = '비밀번호가 일치하지 않습니다.'; p2.shake(); p2.clear(); return; }
         finish(v);
       };
-      body.querySelector('[data-ok]').addEventListener('click', ok);
-      body.querySelector('[data-close]').addEventListener('click', () => finish(null));
       const back = body.closest('.modal-back');
       if (back) back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('.close')) finish(null); });
       p1.focus();
