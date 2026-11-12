@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Stock 개인정보처리방침</title>
+<meta name="description" content="K-Stock 주식 자산 관리 앱의 개인정보처리방침 (Privacy Policy)" />
+<link rel="canonical" href="https://pooky825-design.github.io/privacy.html" />
+<style>
+:root {
+  --bg: #fdf8f3;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #f0e2d4;
+  --primary: #e26d0e;
+  --primary-soft: #fff1e4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120e;
+    --surface: #221b15;
+    --text: #ede6df;
+    --muted: #a8998b;
+    --border: #3a2e24;
+    --primary: #f59a4a;
+    --primary-soft: #33241a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120e;
+  --surface: #221b15;
+  --text: #ede6df;
+  --muted: #a8998b;
+  --border: #3a2e24;
+  --primary: #f59a4a;
+  --primary-soft: #33241a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { word-break: keep-all; overflow-wrap: anywhere; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+a { color: var(--primary); }
+code { font-size: .9em; background: var(--primary-soft); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+.top { background: var(--surface); border-bottom: 1px solid var(--border); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; flex-wrap: wrap; }
+.brand { font-weight: 800; font-size: 20px; color: var(--primary); text-decoration: none; }
+nav { display: flex; gap: 16px; }
+nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 15px; }
+nav a[aria-current="page"], nav a:hover { color: var(--text); }
+.hero { padding: 40px 0 16px; }
+h1 { font-size: 28px; line-height: 1.3; margin: 24px 0 8px; }
+h2 { font-size: 19px; margin: 28px 0 8px; }
+.lead { font-size: 17px; color: var(--text); }
+.meta { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 8px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.card h2 { margin: 0 0 4px; font-size: 17px; color: var(--primary); }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.doc { padding-bottom: 24px; }
+.doc ul { padding-left: 20px; }
+.doc li { margin: 4px 0; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14.5px; display: block; overflow-x: auto; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--primary-soft); white-space: nowrap; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0 8px; }
+.en { color: var(--text); }
+.foot { color: var(--muted); font-size: 14px; padding: 20px 16px 32px; border-top: 1px solid var(--border); margin-top: 24px; }
+@media (max-width: 520px) { h1 { font-size: 24px; } .hero { padding-top: 24px; } }
+
+/* 소개 페이지 */
+nav { flex-wrap: wrap; gap: 6px 16px; }
+.eyebrow { color: var(--primary); font-weight: 700; font-size: 14px; margin: 0 0 6px; letter-spacing: .02em; }
+.hero { display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: center; padding: 48px 16px 32px; }
+.hero h1 { font-size: 36px; line-height: 1.25; margin: 0 0 14px; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 14px; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 700; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--text); }
+figure { margin: 0; }
+img { max-width: 100%; height: auto; display: block; }
+.phone img { border-radius: 28px; border: 8px solid #1f1a16; box-shadow: 0 18px 40px rgba(60, 30, 0, .18); }
+.phone.small { max-width: 240px; justify-self: center; }
+.section-title { font-size: 26px; margin: 0 0 20px; }
+.features { padding: 40px 16px 8px; }
+.feature { display: grid; grid-template-columns: 1fr 1.5fr; gap: 32px; align-items: center; margin: 0 0 48px; }
+.feature.rev .feature-text { order: 2; }
+.feature h3 { font-size: 22px; margin: 0 0 8px; color: var(--primary); }
+.feature p { margin: 0 0 8px; }
+.feature ul { margin: 0; padding-left: 20px; color: var(--muted); }
+.feature li { margin: 3px 0; }
+.shot img { border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(60, 30, 0, .12); }
+.mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 8px 0 24px; }
+.mini-grid .card h3 { margin: 0 0 4px; font-size: 17px; color: var(--primary); }
+.mini-grid .card p { margin: 0; color: var(--muted); font-size: 15px; }
+.band { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 40px 0; margin: 24px 0; }
+.privacy-grid { display: grid; grid-template-columns: 1fr 240px; gap: 40px; align-items: center; }
+.checks { list-style: none; padding: 0; margin: 0 0 12px; }
+.checks li { position: relative; padding-left: 28px; margin: 10px 0; }
+.checks li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--primary); font-weight: 800; }
+.start { padding: 16px 16px 8px; }
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 0 0 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.steps li::before { content: counter(s); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; margin-bottom: 6px; }
+.steps h3 { margin: 0 0 4px; font-size: 17px; }
+.steps p { margin: 0; color: var(--muted); font-size: 15px; }
+.note { color: var(--muted); font-size: 14px; margin: 4px 0; }
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; padding-top: 28px; gap: 24px; }
+  .hero h1 { font-size: 28px; }
+  .hero .phone { max-width: 260px; justify-self: center; }
+  .feature, .privacy-grid { grid-template-columns: 1fr; gap: 16px; margin-bottom: 36px; }
+  .feature.rev .feature-text { order: 0; }
+  .privacy-grid .phone { display: none; }
+  .section-title { font-size: 22px; }
+}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">K-Stock</a>
+    <nav><a href="/">소개</a><a href="privacy.html" aria-current="page">개인정보처리방침</a></nav>
+  </div>
+</header>
+<main class="wrap doc">
+  <h1>개인정보처리방침</h1>
+  <p class="meta">시행일: 2026년 11월 11일 · 대상: K-Stock 주식 자산 관리 앱 (Android 앱 <code>com.stockmanager.prototype</code> 및 PC 버전)</p>
+
+  <p class="lead">K-Stock은 개발자가 운영하는 서버가 없습니다. 입력한 데이터는 사용자의 기기와, 사용자가 연결한 경우 사용자 본인의 구글 드라이브에만 저장되며 개발자에게 전송되지 않습니다.</p>
+
+  <h2>1. 처리하는 정보</h2>
+  <table>
+    <thead><tr><th>정보</th><th>목적</th><th>저장 위치</th></tr></thead>
+    <tbody>
+      <tr><td>앱 계정 정보 (이메일, 비밀번호의 해시값)</td><td>앱 안에서 사용자 구분·로그인</td><td>사용자 기기 안 (앱 내부 저장소 또는 PC의 data 폴더)</td></tr>
+      <tr><td>보유 종목, 매입 정보, 배당 내역, 분류, 화면 설정</td><td>자산·배당 관리 기능</td><td>사용자 기기 안</td></tr>
+      <tr><td>화면 공유 설정 (공유받는 사용자의 이메일과 권한)</td><td>같은 기기·서버 안의 사용자끼리 화면 공유</td><td>사용자 기기 안</td></tr>
+      <tr><td>구글 계정 이메일 주소</td><td>구글 드라이브 연결 상태 표시</td><td>사용자 기기 안</td></tr>
+      <tr><td>구글 드라이브 접근 토큰</td><td>동기화 파일 읽기·쓰기</td><td>휴대폰: 안드로이드 계정 관리자 / PC: 사용자 기기 안의 DB</td></tr>
+      <tr><td>동기화 파일 <code>kstock-sync.json</code> (위 보유·배당·설정·공유 정보)</td><td>사용자의 여러 기기 간 데이터 맞추기</td><td>사용자 본인의 구글 드라이브</td></tr>
+    </tbody>
+  </table>
+  <p>앱은 광고, 분석(애널리틱스), 위치, 연락처, 사진, 기기 식별자 정보를 수집하지 않습니다.</p>
+
+  <h2>2. 구글 사용자 데이터 (Google API)</h2>
+  <ul>
+    <li>앱은 사용자가 [구글 계정 선택해 연결] 또는 [구글 로그인으로 연결]을 눌렀을 때만 구글 계정에 접근합니다.</li>
+    <li>요청하는 권한은 <code>https://www.googleapis.com/auth/drive.file</code> 하나입니다. 이 권한으로는 <b>K-Stock이 만든 파일(kstock-sync.json)만</b> 읽고 쓸 수 있으며, 구글 드라이브의 다른 파일은 보거나 바꿀 수 없습니다.</li>
+    <li>구글에서 받은 정보는 동기화 기능에만 사용하며, 개발자를 포함한 제3자에게 전송·판매·공유하지 않고, 광고나 사람이 열람하는 용도로 쓰지 않으며, AI 모델 학습에 사용하지 않습니다.</li>
+    <li>K-Stock의 Google API 수신 정보 사용 및 다른 앱으로의 전송은 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API 서비스 사용자 데이터 정책</a>(제한적 사용 요구사항 포함)을 준수합니다.</li>
+  </ul>
+
+  <h2>3. 외부로 보내는 정보</h2>
+  <ul>
+    <li><b>시세·배당·실적 조회</b>: 종목코드만 야후 파이낸스, 네이버 증권, FunETF, 각 자산운용사 사이트에 보냅니다. 개인정보는 보내지 않습니다.</li>
+    <li><b>구글 드라이브</b>: 사용자가 연결한 경우 동기화 파일을 사용자 본인의 구글 드라이브에 저장합니다.</li>
+    <li><b>클라우드 서버 연결(선택)</b>: 사용자가 직접 운영하는 서버 주소를 입력한 경우 그 서버와 데이터를 주고받습니다. 이 서버는 사용자가 관리합니다.</li>
+  </ul>
+
+  <h2>4. 보관 기간과 삭제</h2>
+  <ul>
+    <li>데이터는 사용자가 지울 때까지 기기에 보관됩니다. 앱의 환경설정 → <b>사용자 삭제</b>로 그 사용자의 데이터를 모두 지울 수 있고, 앱을 삭제하면 휴대폰의 앱 데이터도 함께 지워집니다.</li>
+    <li>구글 드라이브 연결은 환경설정 → 기기 간 동기화 → <b>구글 드라이브 연결 해제</b>로 끊을 수 있으며, <a href="https://myaccount.google.com/permissions">구글 계정 → 타사 앱 액세스</a>에서도 권한을 취소할 수 있습니다.</li>
+    <li>구글 드라이브의 <code>kstock-sync.json</code> 파일은 사용자가 드라이브에서 직접 삭제할 수 있습니다.</li>
+  </ul>
+
+  <h2>5. 보안</h2>
+  <p>비밀번호는 원문이 아닌 해시값으로 저장합니다. 외부 통신은 HTTPS로 합니다. 동기화 파일은 암호화되지 않은 JSON이므로 본인만 접근하는 구글 계정에서 사용하세요.</p>
+
+  <h2>6. 아동</h2>
+  <p>이 앱은 만 14세 미만 아동을 대상으로 하지 않습니다.</p>
+
+  <h2>7. 변경과 문의</h2>
+  <p>이 방침을 바꾸면 이 페이지에 시행일과 함께 게시합니다. 문의는 <a href="https://github.com/pooky825-design/AI_Test/issues">GitHub 이슈</a>로 남겨 주세요.</p>
+
+  <hr />
+  <section lang="en" class="en" id="en">
+    <h2>Privacy Policy (English summary)</h2>
+    <p>Effective: November 11, 2026. K-Stock has no developer-operated server. Your data (app account, holdings, dividends, settings, sharing permissions) is stored only on your device and, if you connect it, in a single file <code>kstock-sync.json</code> in your own Google Drive. Nothing is sent to the developer. No ads, analytics, location, contacts or device identifiers are collected.</p>
+    <p>Google user data: the app requests only the <code>drive.file</code> scope, which lets it read and write files it created (the sync file) and nothing else in your Drive. Your Google account email is used only to show the connection status. Data received from Google APIs is used only for syncing, is not transferred to third parties, is not used for advertising or AI model training, and is not read by humans. K-Stock's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+    <p>Market data requests send only stock codes to Yahoo Finance, Naver Finance and fund-company sites. You can delete your data in Settings → Delete user, disconnect Google Drive in Settings, revoke access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, and delete the sync file from your Drive. Contact: <a href="https://github.com/pooky825-design/AI_Test/issues">GitHub issues</a>.</p>
+  </section>
+</main>
+<footer class="wrap foot">© 2026 K-Stock · <a href="/">소개</a> · <a href="privacy.html">개인정보처리방침</a></footer>
+</body>
+</html>
