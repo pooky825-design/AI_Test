@@ -517,7 +517,7 @@ window.I18N_EN = {
 "전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)": "Daily change = price change per share × total qty × current FX (KRW; tap for per-share change)",
 "전일 종가": "Prev. close",
 "전체": "All",
-"전체 그룹": "All groups",
+"전체 그룹": "All Group",
 "전체 선택": "Select all",
 "전체 손익": "Total P/L",
 "전체 수익률": "Total return",
@@ -979,5 +979,13 @@ window.I18N_EN = {
 "다른 계정 사용": "Use another account",
 "연결됨": "Connected",
 "이 휴대폰의 구글 계정 목록에서 고릅니다": "Pick from Google accounts on this phone",
-"K-Stock은 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다.": "K-Stock only reads and writes the sync file it created (kstock-sync.json). It can't see other files in your Drive."
+"K-Stock은 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다.": "K-Stock only reads and writes the sync file it created (kstock-sync.json). It can't see other files in your Drive.",
+"동기화 연결이 필요합니다": "Sync is not connected yet",
+"내 사진 올리기": "Upload my photo",
+"위로": "Move up",
+"아래로": "Move down",
+"공유받은 화면": "Shared screen",
+"홈": "Home",
+"연결된 동기화 파일": "Linked sync file",
+"외부 출처에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.": "Can't reach the data source. Check your internet connection."
 };

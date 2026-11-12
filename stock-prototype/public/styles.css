@@ -884,3 +884,6 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .cloud-box, .demo-box, .who-title { word-break: keep-all; }
 .gd-on { display: inline-flex; align-items: center; gap: 8px; } .gd-on .g-logo { width: 20px; height: 20px; flex: none; }
 .gd-on span { white-space: nowrap; font-weight: 600; } .sync-status .gd-acct { display: block; overflow-wrap: anywhere; }
+
+/* v0.30.33 왼쪽 메뉴: 종목 조회 아래 가로줄 */
+.side .side-sep { border: 0; border-top: 1.5px solid rgba(255, 255, 255, .35); margin: 6px 10px; }

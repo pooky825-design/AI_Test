@@ -129,11 +129,13 @@
   // ---------------------------------------------------------------------------
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
-  const SHARE_PATH = { '#/home': 'home', '#/assets': 'assets', '#/yearly': 'yearly', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
+  const SHARE_PATH = { '#/home': 'home', '#/assets': 'assets', '#/yearly': 'yearly', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' }; // 종목 조회는 공유 대상 아님 (v0.30.33)
+  const MY_MENU = (h) => h === '#/me' || h === '#/stock'; // 공유받은 화면을 볼 때도 내 메뉴로 쓰는 화면
   const NO_AS = /^\/(auth|shares|settings|backup|restore|gdrive|mirror|dashboard\/items)(\/|\?|$)/; // 동기화(v0.27.2)도 항상 내 이름으로
-  const PERM_LABEL = { view: '조회', edit: '편집' };
+  const PERM_LABEL = new Proxy({ view: '조회', edit: '편집' }, { get: (o, k) => (isEn() ? { view: 'View', edit: 'Edit' }[k] : o[k]) }); // v0.30.33
   function withAs(path) {
     if (!state.actAs || NO_AS.test(path)) return path;
+    if (location.hash.startsWith('#/stock')) return path; // 종목 조회는 공유 대상이 아님: 항상 내 이름으로 (v0.30.33)
     return `${path}${path.includes('?') ? '&' : '?'}as=${state.actAs.user_id}`;
   }
   function setActAs(share) {
@@ -246,8 +248,8 @@
   // 레이아웃
   // ---------------------------------------------------------------------------
   const NAV = [
+    ['#/stock', '종목 조회', 'SC-03'], // v0.30.33: 맨 위, 다른 메뉴와 줄로 구분
     ['#/assets', '나의 자산', 'SC-02'],
-    ['#/stock', '종목 조회', 'SC-03'],
     ['#/holdings', '보유 종목 관리', 'SC-04'],
     ['#/divmgmt', '배당 관리', 'SC-08'],
     ['#/yearly', '연도별 자산 · 배당', 'SC-05'],
@@ -275,7 +277,7 @@
     </select></label>`;
   }
   function shareBanner(active) {
-    if (!state.actAs || active === '#/me') return ''; // 환경설정은 공유받은 화면이 아니라 내 메뉴 (v0.27.8)
+    if (!state.actAs || MY_MENU(active)) return ''; // 환경설정·종목 조회는 공유받은 화면이 아니라 내 메뉴 (v0.27.8, v0.30.33)
     const sc = SHARE_PATH[active];
     const perm = sc ? state.actAs.perms[sc] : null;
     const mode = perm === 'edit' ? '<span class="perm edit">편집 가능</span>' : perm ? '<span class="perm view">조회 전용</span>' : '';
@@ -286,7 +288,7 @@
   const SHARE_BADGE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
   const navIconFor = (h) => {
     if (!state.actAs) return navIcon(h);
-    const badge = h !== '#/me' ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
+    const badge = !MY_MENU(h) ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
     return `<span class="nav-ico-wrap">${navIcon(h)}${badge}</span>`;
   };
   // 휴대폰 위쪽 메뉴의 가로 스크롤 위치 (v0.27.6): 화면을 다시 그려도 그대로 둔다
@@ -297,10 +299,10 @@
   function shell(active, inner) {
     const navEl = $app.querySelector('.mobile-top nav');
     if (navEl) mnavScroll = navEl.scrollLeft;
-    const nav = state.actAs ? NAV.filter(([h]) => h === '#/me' || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
+    const nav = state.actAs ? NAV.filter(([h]) => MY_MENU(h) || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
     const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
     // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
-    const mlinks = nav.map(([h, label]) => `${state.actAs && h === '#/me' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
+    const mlinks = nav.map(([h, label], i) => `${state.actAs && h === '#/me' && nav[i - 1] && nav[i - 1][0] !== '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>${h === '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}`).join('');
     // 내 사진·별명 | 로그아웃 (v0.30.12)
     const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 관리">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
@@ -308,7 +310,7 @@
         <aside class="side">
           <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div>${homeBtn(active)}</div>
           ${shareSwitch()}
-          ${links}
+          ${links.replace(/(<a href="#\/stock"[\s\S]*?<\/a>)/, '$1<hr class="side-sep" aria-hidden="true" />')}
           <div class="spacer"></div>
           <span data-sync-slot class="side-sync"></span>
           ${userBar}
@@ -2863,7 +2865,14 @@
   }
   function gdrivePanel(g) {
     if (IN_APP) return gdrivePanelDevice();
-    const help = `<details class="gd-help"><summary>처음 한 번: 구글 클라우드 콘솔에서 클라이언트 ID 만들기</summary><ol>
+    const help = isEn() ? `<details class="gd-help" data-noi18n><summary>One time: create a client ID in Google Cloud Console</summary><ol>
+      <li>Go to <b>console.cloud.google.com</b> → create a new project (e.g. K-Stock)</li>
+      <li>APIs &amp; Services → Library → search <b>Google Drive API</b> → Enable</li>
+      <li>OAuth consent screen (Google Auth Platform): choose External, enter app name and email → in Data access (scopes) add <b>…/auth/drive.file</b> → in Audience choose <b>Publish app (production)</b> <span class="muted">(in testing status you must sign in again every 7 days)</span></li>
+      <li>Clients → Create client → application type <b>Desktop app</b> → Create</li>
+      <li>Enter the <b>client ID</b> and <b>client secret</b> below (same values on phone and PC)</li>
+      <li>[Connect with Google sign-in] → choose a Google account → if you see "Google hasn't verified this app", tap Advanced → Go to → Allow</li></ol>
+      <p class="small muted" style="margin:6px 0 0">This app uses only the <b>drive.file</b> permission, so it reads and writes only the sync file it created (kstock-sync.json). It can't see other files in your Drive. Devices connected with the same Google account and client ID share the same file.</p></details>` : `<details class="gd-help"><summary>처음 한 번: 구글 클라우드 콘솔에서 클라이언트 ID 만들기</summary><ol>
       <li><b>console.cloud.google.com</b> 접속 → 새 프로젝트 만들기(예: K-Stock)</li>
       <li>API 및 서비스 → 라이브러리 → <b>Google Drive API</b> 검색 → 사용</li>
       <li>OAuth 동의 화면(Google 인증 플랫폼): 외부(External) 선택, 앱 이름·이메일 입력 → 데이터 액세스(범위)에 <b>…/auth/drive.file</b> 추가 → 대상(Audience)에서 <b>앱 게시(프로덕션)</b> <span class="muted">(테스트 상태로 두면 7일마다 다시 로그인해야 함)</span></li>
@@ -3045,8 +3054,8 @@
   function permSelect(sc, val, attrs = '') {
     return `<select class="perm-sel ${val || 'none'}" data-sc="${sc.id}" ${attrs}>
       <option value="" ${!val ? 'selected' : ''}>없음</option>
-      <option value="view" ${val === 'view' ? 'selected' : ''}>조회</option>
-      ${sc.edit ? `<option value="edit" ${val === 'edit' ? 'selected' : ''}>편집</option>` : ''}
+      <option value="view" ${val === 'view' ? 'selected' : ''} data-noi18n>${PERM_LABEL.view}</option>
+      ${sc.edit ? `<option value="edit" ${val === 'edit' ? 'selected' : ''} data-noi18n>${PERM_LABEL.edit}</option>` : ''}
     </select>`;
   }
   function mountShareCard(card) {
@@ -3086,7 +3095,9 @@
             <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
-        <p class="small muted" style="margin:10px 0 0">조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산·종목 조회는 조회만 공유됩니다(종목 조회의 ‘내 보유 종목’ 목록은 공유한 회원 기준) · 환경설정(백업·비밀번호·테마)은 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다${window.AndroidBridge ? ' · 안드로이드 앱은 데이터가 휴대폰 안에 있으므로 같은 휴대폰의 다른 계정끼리 공유됩니다' : ''} · <b>다른 기기</b>: 두 기기를 같은 동기화 파일(같은 구글 계정)로 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)</p>`;
+        <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
+          ? 'View: see the screen and export to Excel only · Edit: also change Holdings (add·edit·delete items, carry over, groups) and Dividends (save rounds) · Yearly assets & dividends and My assets can be shared as view only · Settings and Stock lookup are never shared · Setting every permission to None removes the share · <b>Other devices</b>: connect both devices to Google Drive with the same Google account; when the receiver syncs, the sharer\'s latest data arrives as view only (the sharer must sync first; edit becomes view)'
+          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 관리(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 관리(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
       body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
         try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
         load();
@@ -3177,12 +3188,12 @@
       </div>` : ''}
       <div class="card" data-sync-card data-fold="sync">
         <h2>데이터 동기화 ${req('FR-BAK-03')}</h2>
-        <p style="margin:0 0 10px">각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.json)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.</p>
+        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Connect each device to Google Drive with the same Google account, and tapping [Sync] brings the devices up to date through the sync file on Drive (kstock-sync.json; not real time). If only this device changed, it saves to Drive; if another device changed, it takes those changes; if both changed, it asks which to keep. It syncs holdings, dividends, categories, screen settings, sharing permissions and user info (added users, nicknames, photos, passwords). Holdings and other data are stored per user, so devices logged in as the same user stay in sync.' : `각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.json)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.`}</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
       </div>
       <div class="card" data-share-card data-fold="share">
         <h2>화면 공유 · 권한 관리 ${req('FR-SHR-01 · 02 · 03')}</h2>
-        <p style="margin:0 0 10px">다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.</p>
+        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Pick <b>only some</b> of your screens to show to other members. For each screen, grant <b>View</b> (view only) or <b>Edit</b> (can also change holdings and dividend rounds). The recipient picks your name in <b>Viewing</b> above the menu and can open only the allowed screens.' : '다른 회원에게 내 화면 중 <b>일부만</b> 골라 보여줄 수 있습니다. 화면마다 <b>조회</b>(보기만) 또는 <b>편집</b>(보유 종목·배당 회차 수정까지) 권한을 줍니다. 공유받은 사람은 메뉴 위의 <b>보는 자산</b>에서 내 이름을 골라 허용된 화면만 열 수 있습니다.'}</p>
         <div class="notice warn small share-lock" data-share-lock hidden><div class="grow">데이터 동기화를 먼저 설정해야 화면 공유 · 권한 관리를 쓸 수 있습니다. <button type="button" class="sm" data-go-sync>데이터 동기화 설정</button></div></div>
         <div data-share-body><div class="empty">불러오는 중…</div></div>
       </div>
@@ -3193,7 +3204,9 @@
           <button data-backup>백업 파일 저장</button>
           <button class="secondary" data-restore>백업 파일로 복원</button>
         </div>
-        <p class="small muted" style="margin:10px 0 0">${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.</p>
+        <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
+          ? `${window.AndroidBridge ? 'A window opens to choose where to save. Save it to the <b>Download</b> folder or Google Drive so it survives uninstalling the app.' : 'The backup file (.json) is saved to your downloads folder.'} Restoring <b>replaces all</b> of this account\'s data with the backup. Prices and FX rates are downloaded again after restoring.`
+          : `${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.`}</p>
       </div>
       <div class="card" data-theme-card data-fold="theme">
         <h2>화면 테마 설정 ${req('FR-UI-01')}</h2>
@@ -3259,7 +3272,7 @@
             ${cat.items.filter((x) => x.group === g.id).map((x) => `<div class="dash-oi" data-i="${esc(x.id)}"><label class="check-row"><input type="checkbox" value="${esc(x.id)}" ${saved.includes(x.id) ? 'checked' : ''} /> ${esc(x.label)}</label>${ARROWS('i')}</div>`).join('')}
           </div>`).join('')}</div>
           <p class="small muted" style="margin:8px 0 0">▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.</p>
-          <label class="check-row" style="margin-top:10px"><input type="checkbox" data-kw-toggle ${state.settings && state.settings['dash.keywords'] === false ? '' : 'checked'} /> 홈 화면 맨 아래에 <b>보유 종목 주요 키워드</b> 표 보이기 (최근 기사 키워드, 누르면 관련 기사)</label>`;
+          <label class="check-row" style="margin-top:10px"><input type="checkbox" data-kw-toggle ${state.settings && state.settings['dash.keywords'] === false ? '' : 'checked'} /> <span data-noi18n>${isEn() ? 'Show the <b>key keywords of my holdings</b> table at the bottom of Home (recent news keywords; tap to see related articles)' : '홈 화면 맨 아래에 <b>보유 종목 주요 키워드</b> 표 보이기 (최근 기사 키워드, 누르면 관련 기사)'}</span></label>`;
         box.querySelector('[data-kw-toggle]').addEventListener('change', async (e) => {
           e.stopPropagation();
           const v = e.target.checked;
@@ -3914,7 +3927,9 @@
       const its = d.items.filter((x) => x.group === g.id);
       if (!its.length) return '';
       return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
-    }).join('') + '<div data-kw></div>' + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
+    }).join('') + '<div data-kw></div>' + (isEn()
+      ? `<p class="small muted" data-noi18n>Daily change = compared with the previous trading day's close · Market data source ${esc(d.source)} (updated every 3 min, may be delayed) · Yield changes in %p · Market hours are regular sessions (US daylight saving applied automatically); closed means no trading that day and the next regular session is on another day · Today's P&amp;L in My assets = price change since the previous close × shares held × current FX rate · as of ${esc(fmtTime(d.at))}</p>`
+      : `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`);
     loadKeywords(box.querySelector('[data-kw]'));
     // 항목을 누르면 상세 팝업 (나의 자산 제외)
     const openTile = (el) => { const it = d.items.find((x) => x.id === el.dataset.dashId); if (it) openDashDetail(it.id, it.label); };
@@ -3938,7 +3953,7 @@
       ${d.rows.map((r) => `<tr><td class="left kw-name"><div><span data-noi18n>${esc(r.name)}</span><small class="muted">${esc(r.code)}${r.type ? ` · ${esc(r.type)}` : ''}</small></div></td>
         <td class="left">${r.error ? `<span class="small muted">${esc(r.error)}</span>` : r.keywords.length ? `<div class="kw-chips">${r.keywords.map(chip).join('')}</div>` : '<span class="small muted">최근 1일 기사 없음</span>'}</td></tr>`).join('')}
       </tbody></table></div>
-      <p class="small muted" style="margin:8px 0 0">종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 화면 언어에 맞춰 한국어는 한국어 기사(국내 종목 네이버 증권, 미국 종목 구글 뉴스), 영어는 영어 기사(미국 종목 Yahoo Finance, 국내 종목 Google News) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다</p></div>`;
+      <p class="small muted" style="margin:8px 0 0" data-noi18n>${isEn() ? 'Phrases that appear several times in each stock\'s news headlines from the last day (24 hours) — 2–3 word phrases first, otherwise single words, up to 4. Tap one to open the most recent article containing it · Articles follow the screen language: Korean shows Korean articles (Naver Finance for Korean stocks, Google News for US stocks), English shows English articles (Yahoo Finance for US stocks, Google News for Korean stocks) · Updated hourly · Picked by frequency, so some may be off' : `종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 화면 언어에 맞춰 한국어는 한국어 기사(국내 종목 네이버 증권, 미국 종목 구글 뉴스), 영어는 영어 기사(미국 종목 Yahoo Finance, 국내 종목 Google News) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다`}</p></div>`;
   }
 
   const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
@@ -3964,7 +3979,7 @@
     }
     // 공유받은 화면을 보는 중이면 권한 있는 화면만 열고, 조회 권한이면 수정 버튼을 숨긴다
     const sc = path === '/dividends' ? 'yearly' : SHARE_PATH[`#${path}`];
-    if (state.actAs && path !== '/me' && !(sc && state.actAs.perms[sc])) {
+    if (state.actAs && path !== '/me' && path !== '/stock' && !(sc && state.actAs.perms[sc])) {
       const first = Object.keys(SHARE_PATH).find((h) => state.actAs.perms[SHARE_PATH[h]]);
       if (first) return go(first);
       setActAs(null);
