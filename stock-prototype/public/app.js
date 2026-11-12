@@ -268,7 +268,7 @@
     const cur = state.actAs ? state.actAs.user_id : '';
     return `<label class="act-switch"><span>보는 자산</span><select data-actas>
       <option value="">내 자산</option>
-      ${state.received.map((r) => `<option value="${r.user_id}" ${r.user_id === cur ? 'selected' : ''}>${esc(r.email)} ${r.mirror ? '(공유 · 조회 전용)' : '(공유)'}</option>`).join('')}
+      ${state.received.map((r) => `<option value="${r.user_id}" ${r.user_id === cur ? 'selected' : ''}>${esc(r.name || r.email)} ${r.mirror ? '(공유 · 조회 전용)' : '(공유)'}</option>`).join('')}
     </select></label>`;
   }
   function shareBanner(active) {
@@ -276,7 +276,7 @@
     const sc = SHARE_PATH[active];
     const perm = sc ? state.actAs.perms[sc] : null;
     const mode = perm === 'edit' ? '<span class="perm edit">편집 가능</span>' : perm ? '<span class="perm view">조회 전용</span>' : '';
-    return `<div class="share-banner"><span>👥 <b>${esc(state.actAs.email)}</b>님이 공유한 화면을 보고 있습니다 ${mode}</span><button class="sm secondary" data-actexit>내 자산으로 돌아가기</button></div>`;
+    return `<div class="share-banner"><span>👥 <b>${esc(state.actAs.name || state.actAs.email)}</b>님이 공유한 화면을 보고 있습니다 ${mode}</span><button class="sm secondary" data-actexit>내 자산으로 돌아가기</button></div>`;
   }
 
   // 공유받은 화면 메뉴 표시 (v0.27.5): 다른 사람의 자산을 보는 중이면 그 사람에게서 받은 메뉴 아이콘에 공유 배지
@@ -2958,11 +2958,11 @@
     card._paint = paint;
     paint();
   }
-  // 왼쪽 메뉴·휴대폰 상단의 [동기화] 버튼: 동기화 파일을 연결했을 때만 보인다
-  // 공유받은 자산이 있으면 (v0.30.18) 이 사용자가 아직 동기화를 연결하지 않았어도 버튼을 보여 주고, 누르면 연결 안내
+  // 왼쪽 메뉴·휴대폰 상단의 [동기화] 버튼 (v0.30.25): 동기화를 쓸 수 있는 기기면 늘 보이고, 연결 전이면 누를 때 연결 안내
   function renderSyncButtons() {
     const linked = !!state.syncName;
-    const show = linked || (!!syncMode() && (state.received || []).length > 0);
+    // 동기화를 쓸 수 있는 기기면 항상 보인다 (v0.30.25). 이 사용자가 아직 연결하지 않았으면 누를 때 연결 안내
+    const show = linked || !!syncMode();
     document.querySelectorAll('[data-sync-slot]').forEach((slot) => {
       slot.innerHTML = show ? `<button class="linkish sync-btn" data-sync-now title="${linked ? '동기화 파일과 데이터 맞추기' : '동기화 연결이 필요합니다'}">⟳ 동기화</button>` : '';
       const b = slot.querySelector('[data-sync-now]');
@@ -3054,7 +3054,7 @@
         <h3 style="margin:16px 0 8px">내가 공유한 회원 <span class="muted small">${given.length}명</span></h3>
         ${given.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>회원</th>${head}<th class="center">해제</th></tr></thead><tbody>
           ${given.map((g) => `<tr data-id="${g.id}">
-            <td class="left"><b>${esc(g.email)}</b><br/><small class="muted">변경 ${fmtTime(g.updated_at)}</small></td>
+            <td class="left"><b data-noi18n>${esc(g.name || g.email)}</b><br/><small class="muted">변경 ${fmtTime(g.updated_at)}</small></td>
             ${screens.map((sc) => `<td class="center">${permSelect(sc, g.perms[sc.id])}</td>`).join('')}
             <td class="center"><button class="icon-btn danger" data-unshare title="공유 해제" aria-label="공유 해제">${ICON_DEL}</button></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">아직 공유한 회원이 없습니다.</div>'}
@@ -3063,7 +3063,7 @@
         <h3 style="margin:16px 0 8px">나에게 공유된 화면 <span class="muted small">${received.length}명</span></h3>
         ${received.length ? `<div class="table-wrap"><table class="share-table"><thead><tr><th>공유한 회원</th><th>화면 · 권한</th><th class="center">작업</th></tr></thead><tbody>
           ${received.map((g) => `<tr data-id="${g.id}" data-uid="${g.user_id}">
-            <td class="left"><b>${esc(g.email)}</b>${g.mirror ? `<br/><small class="muted">동기화로 받은 자료 · 조회 전용 · ${esc(fmtTime(g.mirror.savedAt || g.mirror.at))} ${esc(g.mirror.device || '')} 저장분</small>` : ''}</td>
+            <td class="left"><b data-noi18n>${esc(g.name || g.email)}</b>${g.mirror ? `<br/><small class="muted">동기화로 받은 자료 · 조회 전용 · ${esc(fmtTime(g.mirror.savedAt || g.mirror.at))} ${esc(g.mirror.device || '')} 저장분</small>` : ''}</td>
             <td class="left">${screens.filter((sc) => g.perms[sc.id]).map((sc) => `<span class="perm-chip ${g.perms[sc.id]}">${esc(sc.label)} · ${PERM_LABEL[g.perms[sc.id]]}</span>`).join(' ')}</td>
             <td class="center"><div class="field-row" style="justify-content:center;flex-wrap:nowrap"><button class="sm" data-open>열기</button><button class="sm secondary" data-leave>받지 않기</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}

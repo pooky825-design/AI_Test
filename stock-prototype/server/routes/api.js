@@ -265,15 +265,15 @@ function applyPendingShares(userId, email) {
 const shareOut = (r, emailKey) => {
   let perms = {};
   try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ }
-  return { id: r.id, user_id: r.uid, email: r[emailKey], perms, updated_at: r.updated_at };
+  return { id: r.id, user_id: r.uid, email: r[emailKey], name: r.nickname || r[emailKey], perms, updated_at: r.updated_at };
 };
 
 router.get('/shares', (req, res) => {
   const given = db.all(
-    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email FROM screen_shares s JOIN users u ON u.id = s.viewer_id
+    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, u.nickname FROM screen_shares s JOIN users u ON u.id = s.viewer_id
      WHERE s.owner_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'));
   const received = db.all(
-    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, m.saved_at AS mirror_saved, m.device AS mirror_device, m.updated_at AS mirror_at
+    `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, u.nickname, m.saved_at AS mirror_saved, m.device AS mirror_device, m.updated_at AS mirror_at
      FROM screen_shares s JOIN users u ON u.id = s.owner_id LEFT JOIN mirror_users m ON m.user_id = u.id
      WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => ({ ...shareOut(r, 'email'), mirror: r.mirror_at ? { savedAt: r.mirror_saved, device: r.mirror_device, at: r.mirror_at } : null }))
     .filter((r) => Object.keys(r.perms).length);
@@ -1333,27 +1333,29 @@ router.post('/mirror/sync', async (req, res) => {
   for (const [rawEmail, sec] of Object.entries(sections)) {
     const email = String(rawEmail || '').trim().toLowerCase();
     if (validateLoginId(email) || email === myEmail || !sec || backupError(sec.backup)) continue;
+    let owner = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
+    if (owner && !isMirror(owner.id)) {
+      // 이 기기에 실제 사용자로도 있는 사람 (v0.27.4, v0.30.25부터 나에게 공유했는지와 상관없이):
+      // 그 사람이 이 기기에서 마지막으로 동기화한 뒤 이 기기의 자료를 고치지 않았을 때만 파일의 최신 자료(화면 공유 포함)로 바꾼다
+      const st = localStates[email];
+      const secHash = String(sec.hash || '');
+      const curB = buildBackup(owner.id, email);
+      // 이 기기에서 한 번도 동기화하지 않았어도 자료가 비어 있으면(다른 기기에서 동기화로 들어온 사용자 등) 받아 온다
+      const empty = Object.values(curB.data).every((v) => !v.length || v === curB.data.settings);
+      if ((!st || !st.lastHash) && !empty) { result.push({ email, status: 'local-unsynced' }); continue; }
+      if (st && st.lastHash && secHash && st.fileHash === secHash) { result.push({ email, status: 'same' }); continue; }
+      if (st && st.lastHash && syncHash(curB) !== st.lastHash) { result.push({ email, status: 'local-changed' }); continue; }
+      restoreData(owner.id, sec.backup, { email });
+      const newHash = syncHash(buildBackup(owner.id, email));
+      result.push({ email, status: 'updated-local', lastHash: newHash, fileHash: secHash, rev: Number(sec.rev) || 0 });
+      continue;
+    }
     const shares = Array.isArray(sec.backup.data.shares) ? sec.backup.data.shares : [];
     const mine = shares.find((x) => String(x.viewer_email || '').trim().toLowerCase() === myEmail);
     let perms = {};
     try { perms = mine ? cleanPerms(typeof mine.perms === 'string' ? JSON.parse(mine.perms) : mine.perms) : {}; } catch (_) { perms = {}; }
     if (!Object.keys(perms).length) continue; // 나에게 공유하지 않은 사람 → 아래에서 정리
     const viewOnly = Object.fromEntries(Object.keys(perms).map((k) => [k, 'view']));
-    let owner = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
-    if (owner && !isMirror(owner.id)) {
-      // 이 기기에 실제 사용자로도 있는 사람 (v0.27.4): 그 사람이 이 기기에서 마지막으로 동기화한 뒤
-      // 이 기기의 자료를 고치지 않았을 때만 파일의 최신 자료로 바꾼다 (고친 내용이 있으면 덮어쓰지 않음)
-      const st = localStates[email];
-      const secHash = String(sec.hash || '');
-      if (!st || !st.lastHash) { result.push({ email, status: 'local-unsynced' }); continue; }
-      if (secHash && st.fileHash === secHash) { result.push({ email, status: 'same' }); continue; }
-      const cur = syncHash(buildBackup(owner.id, email));
-      if (cur !== st.lastHash) { result.push({ email, status: 'local-changed' }); continue; }
-      restoreData(owner.id, sec.backup, { email });
-      const newHash = syncHash(buildBackup(owner.id, email));
-      result.push({ email, status: 'updated-local', lastHash: newHash, fileHash: secHash, rev: Number(sec.rev) || 0 });
-      continue;
-    }
     const t = now();
     let updated = false;
     if (!owner) {
@@ -1475,6 +1477,8 @@ router.post('/sync/profiles', (req, res) => {
     if (sec && !backupError(sec.backup)) {
       restoreData(u.id, sec.backup, { email: e });
       restored.push({ email: e, lastHash: syncHash(buildBackup(u.id, e)), fileHash: String(sec.hash || ''), rev: Number(sec.rev) || 0 });
+    } else {
+      restored.push({ email: e, lastHash: syncHash(buildBackup(u.id, e)), fileHash: '', rev: 0 });
     }
   }
   for (const e of created) {
