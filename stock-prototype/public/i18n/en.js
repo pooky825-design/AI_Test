@@ -989,5 +989,9 @@ window.I18N_EN = {
 "연결된 동기화 파일": "Linked sync file",
 "외부 출처에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.": "Can't reach the data source. Check your internet connection.",
 "나의 자산 조회": "My Assets",
-"연도별 자산 · 배당 조회": "Yearly Assets · Dividends"
+"연도별 자산 · 배당 조회": "Yearly Assets · Dividends",
+"요구사항 ID를 표시합니다.": "Requirement IDs are shown.",
+"요구사항 ID를 숨깁니다.": "Requirement IDs are hidden.",
+"계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.": "Saved to your account, so it applies the same on PC and app.",
+"이 기기에 기억됩니다.": "Remembered on this device."
 };

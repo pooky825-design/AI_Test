@@ -23,18 +23,36 @@
   };
   // 요구사항 ID(FR-AUTH-01 등) 표시 여부 (v0.26.4): 계정에 저장, 로그인 화면용으로 이 기기에도 기억
   // v0.30.27: 요구사항 ID 표시를 숨김(환경 설정 상자도 숨김). 다시 보이게 하려면 SHOW_REQ_UI 를 true 로
+  // v0.30.44: 기본은 숨김. K-Stock 아이콘을 4번 연이어 누르면 켬·끔 창이 뜬다(계정 설정 ui.reqids, 이 기기에도 기억)
   const SHOW_REQ_UI = false;
   function applyReqCodes(show) {
-    if (!SHOW_REQ_UI) { document.documentElement.classList.add('hide-req'); return; }
-    document.documentElement.classList.toggle('hide-req', show === false);
-    try { localStorage.setItem('ui.reqcodes', show === false ? '0' : '1'); } catch (_) { /* 무시 */ }
+    document.documentElement.classList.toggle('hide-req', show !== true);
+    try { localStorage.setItem('ui.reqids', show === true ? '1' : '0'); } catch (_) { /* 무시 */ }
   }
-  try { applyReqCodes(localStorage.getItem('ui.reqcodes') !== '0'); } catch (_) { /* 무시 */ }
+  try { applyReqCodes(localStorage.getItem('ui.reqids') === '1'); } catch (_) { applyReqCodes(false); }
+  // K-Stock 아이콘 4번 연속 누르기 → 요구사항 ID 켬·끔 창
+  let brandTaps = [];
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest || !e.target.closest('.brand-ico, .auth-ico')) return;
+    const now = Date.now();
+    brandTaps = brandTaps.filter((t) => now - t < 2000).concat(now);
+    if (brandTaps.length < 4) return;
+    brandTaps = [];
+    const on = !document.documentElement.classList.contains('hide-req');
+    const body = openModal('요구사항 ID 표시');
+    body.innerHTML = `<label class="check-row"><input type="checkbox" data-reqids ${on ? 'checked' : ''} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
+      <p class="small muted" style="margin:10px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. ${state.user ? '계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.' : '이 기기에 기억됩니다.'}</p>`;
+    body.querySelector('[data-reqids]').addEventListener('change', (ev) => {
+      applyReqCodes(ev.target.checked);
+      if (state.user) settings.set('ui.reqids', ev.target.checked);
+      toast(ev.target.checked ? '요구사항 ID를 표시합니다.' : '요구사항 ID를 숨깁니다.');
+    });
+  });
 
   async function loadSettings() {
     try { state.settings = (await api('GET', '/settings')).settings || {}; } catch (_) { state.settings = {}; }
     applyTheme(state.settings['ui.theme'] || null);
-    if (typeof state.settings['ui.reqcodes'] === 'boolean') applyReqCodes(state.settings['ui.reqcodes']);
+    if (typeof state.settings['ui.reqids'] === 'boolean') applyReqCodes(state.settings['ui.reqids']);
     // 계정에 저장한 언어가 있으면 그 언어로 (v0.26)
     // 로그인 화면에서 언어를 골랐으면 그 선택을 계정에 저장하고, 아니면 계정에 저장한 언어를 쓴다
     const savedLang = state.settings['ui.lang'];
@@ -3399,7 +3417,7 @@
     bindLang(main);
     main.querySelector('[data-reqcodes]').addEventListener('change', (e) => {
       applyReqCodes(e.target.checked);
-      settings.set('ui.reqcodes', e.target.checked);
+      settings.set('ui.reqids', e.target.checked);
     });
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountSyncCard(main.querySelector('[data-sync-card]'));
