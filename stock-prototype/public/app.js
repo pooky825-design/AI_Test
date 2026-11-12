@@ -298,6 +298,8 @@
     const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
     // 공유받은 화면을 보는 중이면 내 메뉴(환경설정) 앞에 구분선 (v0.27.6)
     const mlinks = nav.map(([h, label]) => `${state.actAs && h === '#/me' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
+    // 내 사진·별명 | 로그아웃 (v0.30.12)
+    const userBar = `<span class="user-bar"><span class="who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
@@ -305,13 +307,12 @@
           ${shareSwitch()}
           ${links}
           <div class="spacer"></div>
-          <span data-sync-slot></span>
-          <div class="who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span data-noi18n>${esc(displayName(state.user))}</span></div>
-          <button class="linkish" data-logout>로그아웃</button>
+          <span data-sync-slot class="side-sync"></span>
+          ${userBar}
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span>${homeBtn(active)}</span><span class="mtop-actions"><span data-sync-slot></span><button class="linkish" data-logout>로그아웃</button></span></div>
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span>${homeBtn(active)}</span><span class="mtop-actions">${userBar}<span data-sync-slot></span></span></div>
             ${shareSwitch()}
             <nav>${mlinks}</nav>
           </div>

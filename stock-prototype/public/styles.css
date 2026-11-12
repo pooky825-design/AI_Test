@@ -788,3 +788,20 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .lg.open { background: #bfe8cf; } .lg.closed { background: #f7c4c4; } .lg.early { background: #ffe39a; } .lg.weekend { background: #e5e7eb; } .lg.today { background: #fff; border: 2px solid var(--primary); }
 .dd-sub { font-size: 15px; margin: 6px 0 2px; }
 @media (max-width: 640px) { .cal-cell { min-height: 54px; padding: 4px 3px; } .cal-day { font-size: 13px; } .cal-st { font-size: 10px; } .cal-note { display: none; } .cal-head b { font-size: 21px; text-align: center; } }
+
+/* v0.30.12 내 사진·별명 | 로그아웃, 동기화: 오른쪽 정렬 */
+.user-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.user-bar .who { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; opacity: 1; word-break: normal; }
+.user-bar .who-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-bar .vsep { width: 1px; height: 16px; background: rgba(255, 255, 255, .55); flex: none; }
+.user-bar button.linkish { flex: none; white-space: nowrap; }
+.side .user-bar { padding: 6px 12px 4px; font-size: 13px; }
+.side .user-bar button.linkish { padding: 4px 0; }
+.side .side-sync { display: flex; justify-content: flex-end; padding: 0 12px; }
+.side .side-sync .sync-btn { margin-bottom: 2px; padding: 4px 0; }
+.mtop-actions { flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.mobile-top .user-bar { font-size: 12px; font-weight: 600; }
+.mobile-top .user-bar .avatar.av-sm { width: 22px; height: 22px; border-radius: 7px; }
+.mobile-top .user-bar .avatar.av-sm .av-emoji { font-size: 14px; }
+.mobile-top .user-bar .who-name { max-width: 90px; }
+.mobile-top .sync-btn { font-size: 12px; }
