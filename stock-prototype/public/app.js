@@ -2875,12 +2875,31 @@
     paint();
   }
   // 왼쪽 메뉴·휴대폰 상단의 [동기화] 버튼: 동기화 파일을 연결했을 때만 보인다
+  // 공유받은 자산이 있으면 (v0.30.18) 이 사용자가 아직 동기화를 연결하지 않았어도 버튼을 보여 주고, 누르면 연결 안내
   function renderSyncButtons() {
+    const linked = !!state.syncName;
+    const show = linked || (!!syncMode() && (state.received || []).length > 0);
     document.querySelectorAll('[data-sync-slot]').forEach((slot) => {
-      slot.innerHTML = state.syncName ? `<button class="linkish sync-btn" data-sync-now title="동기화 파일과 데이터 맞추기">⟳ 동기화</button>` : '';
+      slot.innerHTML = show ? `<button class="linkish sync-btn" data-sync-now title="${linked ? '동기화 파일과 데이터 맞추기' : '동기화 연결이 필요합니다'}">⟳ 동기화</button>` : '';
       const b = slot.querySelector('[data-sync-now]');
-      if (b) b.addEventListener('click', runSync);
+      if (b) b.addEventListener('click', linked ? runSync : openSyncSetup);
     });
+  }
+  function openSyncSetup() {
+    toast(`${displayName(state.user)} 사용자는 아직 동기화를 연결하지 않았습니다. 환경설정 → 기기 간 동기화에서 연결해 주세요.`);
+    const show = () => {
+      const card = document.querySelector('[data-sync-card]');
+      if (!card) return false;
+      if (card._unfold) card._unfold();
+      const top = document.querySelector('.mobile-top');
+      const off = top && top.offsetHeight && getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0;
+      window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - off - 12, behavior: 'smooth' });
+      return true;
+    };
+    if (location.hash.split('?')[0] === '#/me') { show(); return; }
+    go('#/me');
+    let n = 0;
+    const t = setInterval(() => { if (show() || ++n > 20) clearInterval(t); }, 150);
   }
 
   // 화면 테마 카드 (v0.17)
