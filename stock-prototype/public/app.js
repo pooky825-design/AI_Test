@@ -3603,7 +3603,7 @@
     return `<div class="dash-tile click" data-dash-id="${esc(it.id)}" role="button" tabindex="0" title="눌러서 자세히"><div class="dash-label">${esc(it.label)}</div>
       <div class="dash-value">${f(it.value)}</div>
       <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(it.pct)})</b>`}</div>
-      <div class="dash-sub small muted">${it.kind === 'gold' && it.usdPerOz ? `국제 금값 $${nf2.format(it.usdPerOz)}/온스 환산 · ` : ''}${it.time ? `${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+      <div class="dash-sub small muted">${it.time ? `${esc(shortTime(it.time))} 기준` : ''}${it.kind === 'gold' && it.usdPerOz ? `<br>국제 금값 $${nf2.format(it.usdPerOz)}/온스 환산` : ''}</div></div>`;
   }
   function marketTileInner(it) {
     {
@@ -3613,7 +3613,7 @@
       return `<div class="dash-label">${esc(it.label)} <span class="muted small">${esc(it.exchange || '')}</span></div>
         <div class="dash-value"><span class="mk-badge ${c}">${esc(txt)}</span></div>
         <div class="dash-change small">정규장 ${esc(us ? it.hours.kst : it.hours.local)}</div>
-        <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div>`;
+        <div class="dash-sub small muted">한국 시간${us ? ` · 현지 ${esc(it.hours.local)}` : ''}${us ? '' : it.status === 'open' && it.closesAt ? ` · ${esc(shortTime(it.closesAt).slice(6))} 마감` : it.status === 'pre' && it.opensAt ? ` · ${esc(shortTime(it.opensAt).slice(6))} 개장` : ''}</div>`;
     }
   }
   // 대시보드 항목 상세 팝업 (v0.30.6, 종목 조회와 비슷하게): 기간 버튼 + 그래프 + 주요 수치
@@ -3660,7 +3660,7 @@
       const MST = { open: '개장 중', pre: '개장 전', after: '장 마감', closed: '휴장' };
       // 증시 칸 (v0.30.10): 개장 상태 + 달력만 (지수 값·그래프·수치 없음)
       if (mk) {
-        body.innerHTML = `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)} (한국 시간)${id === 'usmarket' ? ` · 현지 ${esc(mk.hours.local)}` : ''}${mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>
+        body.innerHTML = `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)}${id === 'usmarket' ? ` 한국 시간 · 현지 ${esc(mk.hours.local)}` : ' (한국 시간)'}${id === 'usmarket' ? '' : mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>
           <div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div>`;
         loadCalendar(body.querySelector('[data-mkcal]'), id === 'krmarket' ? 'KR' : 'US', calMonth);
         return;
