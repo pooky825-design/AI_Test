@@ -867,5 +867,14 @@ window.I18N_EN = {
 "오늘 최저": "Day low",
 "52주 최고": "52-week high",
 "52주 최저": "52-week low",
-"국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다": "may differ from Korean retail gold prices (VAT and fees included)"
+"국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다": "may differ from Korean retail gold prices (VAT and fees included)",
+"개장·휴장": "trading days",
+"조기 폐장": "Early close",
+"달력 불러오는 중…": "Loading calendar…",
+"이번 달 평일 휴장": "Weekday closures this month",
+"추수감사절 다음 날 조기 폐장": "Early close after Thanksgiving",
+"추수감사절": "Thanksgiving",
+"연말 휴장": "Year-end closure",
+"코스피 지수": "KOSPI index",
+"S&P 500 지수": "S&P 500 index"
 };

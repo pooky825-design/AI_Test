@@ -3621,6 +3621,30 @@
   async function openDashDetail(id, label) {
     const body = openModal(`${esc(label)} <span class="muted small">상세</span>`, { wide: true, loadingText: `${label} 불러오는 중…` });
     let chart = null;
+    let calMonth = '';
+    // 개장·휴장 달력 (v0.30.8): 큰 달력, 이전·다음 달
+    const loadCalendar = async (box, market, month) => {
+      if (!box) return;
+      let c;
+      try { c = await api('GET', `/dashboard/calendar?market=${market}&month=${encodeURIComponent(month || '')}`); } catch (e) { box.innerHTML = `<div class="small muted">${esc(e.message)}</div>`; return; }
+      calMonth = c.month;
+      const [cy, cm] = c.month.split('-').map(Number);
+      const shift = (n) => { const d = new Date(Date.UTC(cy, cm - 1 + n, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+      const first = c.days[0].dow;
+      const W = isEn() ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['일', '월', '화', '수', '목', '금', '토'];
+      const LBL = { open: '개장', early: '조기 폐장', closed: '휴장', weekend: '' };
+      const cells = Array.from({ length: first }, () => '<div class="cal-cell blank"></div>').concat(c.days.map((d) => `<div class="cal-cell st-${d.status}${d.today ? ' today' : ''}${d.future ? ' future' : ''}" title="${esc(d.note || LBL[d.status] || '')}">
+          <span class="cal-day">${d.day}</span>
+          ${d.status === 'weekend' ? '' : `<span class="cal-st">${esc(LBL[d.status])}</span>`}
+          ${d.note && d.status !== 'open' ? `<span class="cal-note">${esc(d.note.replace(/\s*\(13:00\)$/, ''))}</span>` : ''}
+        </div>`));
+      const closed = c.days.filter((d) => d.status === 'closed');
+      box.innerHTML = `<div class="cal-head"><button type="button" class="sm secondary" data-cal="${shift(-1)}" aria-label="이전 달">‹</button><b>${cy}년 ${cm}월 · ${esc(c.exchange)} 개장·휴장</b><button type="button" class="sm secondary" data-cal="${shift(1)}" aria-label="다음 달">›</button></div>
+        <div class="cal-grid">${W.map((w, i) => `<div class="cal-w${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${w}</div>`).join('')}${cells.join('')}</div>
+        <div class="cal-legend small"><span><i class="lg open"></i>개장</span><span><i class="lg closed"></i>휴장</span>${c.days.some((d) => d.status === 'early') ? '<span><i class="lg early"></i>조기 폐장</span>' : ''}<span><i class="lg weekend"></i>주말</span><span><i class="lg today"></i>오늘</span></div>
+        <p class="small muted" style="margin:6px 0 0">${closed.length ? `이번 달 평일 휴장 ${closed.length}일 · ` : ''}지난 날은 실제 거래 기록, 앞날은 ${market === 'US' ? 'NYSE 휴장 규칙' : 'KRX 휴장일표'} 기준 예정(거래소 공지로 바뀔 수 있음)${c.note ? ` · ${esc(c.note)}` : ''}</p>`;
+      box.querySelectorAll('[data-cal]').forEach((b) => b.addEventListener('click', () => loadCalendar(box, market, b.dataset.cal)));
+    };
     const load = async (range) => {
       let d;
       try { d = await api('GET', `/dashboard/detail?id=${encodeURIComponent(id)}&range=${range}`); } catch (e) { body.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
@@ -3640,11 +3664,13 @@
           <div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}${mk ? ` <span class="muted small">(${esc(id === 'krmarket' ? '코스피' : 'S&P 500')} 지수)</span>` : ''}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
           <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
         </div>
+        ${mk ? '<div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div><h3 class="dd-sub">' + (id === 'krmarket' ? '코스피' : 'S&P 500') + ' 지수</h3>' : ''}
         <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${DASH_RANGE_LABEL[r] || r}</button>`).join('')}</div>
         <div class="dd-chart"><canvas></canvas></div>
         <div class="table-wrap"><table class="dd-stats"><tbody>${rows.map(([k, v]) => `<tr><th class="left">${esc(k)}</th><td class="right" data-noi18n>${esc(v)}</td></tr>`).join('')}</tbody></table></div>
         <p class="small muted" style="margin:8px 0 0">출처 ${esc(d.source)} · 시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
       body.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => load(b.dataset.range)));
+      if (mk) loadCalendar(body.querySelector('[data-mkcal]'), id === 'krmarket' ? 'KR' : 'US', calMonth);
       if (chart) { chart.destroy(); chart = null; }
       const canvas = body.querySelector('canvas');
       const pts = d.pts || [];

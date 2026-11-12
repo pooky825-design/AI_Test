@@ -763,3 +763,28 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 /* v0.30.7 대시보드 칸 테두리를 조금 진하게 (테마 색에 맞춰) */
 .dash-tile { border-color: #d9c6b4; border-color: color-mix(in srgb, var(--border) 72%, #6b4a2e); }
 .dash-tile.mine { border-color: #f0b98a; border-color: color-mix(in srgb, var(--t-200) 78%, var(--primary)); }
+
+/* v0.30.8 증시 개장·휴장 달력 */
+.mk-cal { margin: 10px 0 14px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.cal-head b { font-size: 16px; }
+.cal-head .sm { min-width: 40px; font-size: 18px; line-height: 1; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-w { text-align: center; font-size: 13px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.cal-w.sun { color: #c0392b; } .cal-w.sat { color: #1e63c7; }
+.cal-cell { min-height: 68px; border-radius: 10px; padding: 6px 6px 5px; display: flex; flex-direction: column; gap: 2px; border: 1px solid transparent; }
+.cal-cell.blank { background: none; }
+.cal-day { font-weight: 800; font-size: 15px; }
+.cal-st { font-size: 11.5px; font-weight: 700; }
+.cal-note { font-size: 10.5px; line-height: 1.25; color: inherit; opacity: .9; overflow-wrap: anywhere; }
+.cal-cell.st-open { background: #e9f7ef; color: #157a3c; }
+.cal-cell.st-early { background: #fff4d6; color: #8a5a00; }
+.cal-cell.st-closed { background: #fdecec; color: #b42318; }
+.cal-cell.st-weekend { background: #f3f4f6; color: #9ca3af; }
+.cal-cell.future { opacity: .85; }
+.cal-cell.today { border: 2px solid var(--primary); box-shadow: 0 0 0 2px var(--t-50); }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--muted); }
+.cal-legend .lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.lg.open { background: #bfe8cf; } .lg.closed { background: #f7c4c4; } .lg.early { background: #ffe39a; } .lg.weekend { background: #e5e7eb; } .lg.today { background: #fff; border: 2px solid var(--primary); }
+.dd-sub { font-size: 15px; margin: 6px 0 2px; }
+@media (max-width: 640px) { .cal-cell { min-height: 54px; padding: 4px 3px; } .cal-day { font-size: 13px; } .cal-st { font-size: 10px; } .cal-note { display: none; } .cal-head b { font-size: 14px; } }

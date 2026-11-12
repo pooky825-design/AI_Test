@@ -8,6 +8,7 @@ const portfolio = require('../services/portfolio');
 const gdrive = require('../services/gdrive');
 const dashboard = require('../services/dashboard');
 const newskw = require('../services/newskw');
+const marketcal = require('../services/marketcal');
 const excel = require('../services/excel');
 const { ValidationError } = market;
 const categories = require('../services/categories');
@@ -201,7 +202,7 @@ const SHARE_SCREENS = [
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
-  { m: ['GET'], re: /^\/dashboard(\/keywords|\/detail)?$/, s: ['home'] },
+  { m: ['GET'], re: /^\/dashboard(\/keywords|\/detail|\/calendar)?$/, s: ['home'] },
   { m: ['GET'], re: /^\/(assets|export\/assets\.xlsx)$/, s: ['assets'] },
   { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
   { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
@@ -954,6 +955,13 @@ router.get('/dashboard/detail', async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: e.message || '가져오지 못했습니다.', code: 'SOURCE_ERROR' });
   }
+});
+
+// 증시 개장·휴장 달력 (v0.30.8)
+router.get('/dashboard/calendar', async (req, res) => {
+  const c = await marketcal.getCalendar(String(req.query.market || 'KR').toUpperCase(), String(req.query.month || ''));
+  if (!c) return res.status(400).json({ error: '시장을 확인해 주세요.', code: 'VALIDATION' });
+  res.json(c);
 });
 
 router.get('/dashboard/items', (req, res) => {

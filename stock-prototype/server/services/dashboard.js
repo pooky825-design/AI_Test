@@ -20,8 +20,8 @@ const ITEMS = [
   { id: 'usdkrw', group: 'etc', label: '원/달러 환율', symbol: 'KRW=X', kind: 'fx' },
   { id: 'wti', group: 'etc', label: 'WTI 유가', symbol: 'CL=F', kind: 'oil' },
   { id: 'gold', group: 'etc', label: '금시세 (1돈)', kind: 'gold' }, // v0.30.6: 국제 금값(GC=F, 달러/트로이온스) × 원달러 환율 ÷ 31.1035g × 3.75g
-  { id: 'krmarket', group: 'etc', label: '한국 증시', symbol: '^KS11', kind: 'market', market: 'KR' }, // v0.28.2 개장·휴장
-  { id: 'usmarket', group: 'etc', label: '미국 증시', symbol: '^GSPC', kind: 'market', market: 'US' },
+  { id: 'krmarket', group: 'domestic', label: '한국 증시', symbol: '^KS11', kind: 'market', market: 'KR' }, // v0.28.2 개장·휴장, v0.30.8 국내 묶음으로
+  { id: 'usmarket', group: 'us', label: '미국 증시', symbol: '^GSPC', kind: 'market', market: 'US' }, // v0.30.8 미국 묶음으로
   { id: 'mytoday', group: 'mine', label: '오늘 수익 증감', kind: 'mine' },
   { id: 'myyear', group: 'mine', label: '연간 수익 증감', kind: 'mine' }, // v0.28.1
   { id: 'mytotal', group: 'mine', label: '총 자산', kind: 'mine' }, // v0.28.1
