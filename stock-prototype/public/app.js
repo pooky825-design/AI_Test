@@ -964,6 +964,12 @@
         apply();
       });
       card._unfold = () => { if (current().has(key)) btn.click(); }; // 수정 버튼 등으로 상자를 써야 할 때 자동으로 펴기
+      // 접힌 상자는 막대 어디를 눌러도 펴기 (v0.30.16). 막대 안의 버튼·입력칸·링크는 원래 동작
+      card.addEventListener('click', (e) => {
+        if (!card.classList.contains('collapsed') || e.target.closest('.fold-btn')) return;
+        if (e.target.closest('button, a, input, select, textarea, label, [role="button"]')) return;
+        btn.click();
+      });
       card.appendChild(btn);
       apply();
     });
