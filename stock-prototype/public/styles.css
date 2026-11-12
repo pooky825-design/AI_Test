@@ -889,3 +889,5 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .side .side-sep { border: 0; border-top: 1.5px solid rgba(255, 255, 255, .35); margin: 6px 10px; }
 /* v0.30.39 배당 내역 조회: 그룹 이름 배지 */
 .badge.grp-tag { background: var(--t-50); color: var(--t-700); border-color: var(--t-200); margin-left: 2px; }
+/* v0.30.40 보유 종목 등록(변경) 표: 메모 칸 폭 30% 줄임 (약 15% → 10.7%) */
+th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; overflow-wrap: anywhere; } /* 기존 폭의 70% */
