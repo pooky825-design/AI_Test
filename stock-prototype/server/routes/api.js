@@ -1152,6 +1152,30 @@ router.post('/restore', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// 구글 드라이브 직접 연결 (v0.27.0): 동기화 파일을 Drive API 로 읽고 쓴다 (토큰은 이 기기 DB 에만)
+// ---------------------------------------------------------------------------
+const driveRoute = (fn) => async (req, res) => {
+  if (req.viewer) return res.status(403).json({ error: "공유받은 화면에서는 사용할 수 없습니다.", code: "FORBIDDEN" });
+  try {
+    res.json(await fn(req));
+  } catch (e) {
+    if (e instanceof gdrive.DriveError || e.code === 'SOURCE_ERROR') return res.status(e.status || 502).json({ error: e.message, code: e.code });
+    throw e;
+  }
+};
+router.get('/gdrive', driveRoute(async (req) => gdrive.status(req.user.id)));
+router.put('/gdrive/client', driveRoute(async (req) => gdrive.setClient(req.user.id, req.body.clientId, req.body.clientSecret)));
+router.post('/gdrive/auth-start', driveRoute(async (req) => gdrive.startAuth(req.user.id, req.body.redirectUri)));
+router.post('/gdrive/auth-finish', driveRoute(async (req) => gdrive.finishAuth(req.user.id, req.body.code, req.body.state)));
+// accessToken 이 있으면 휴대폰의 구글 계정 토큰으로 (v0.27.1), 없으면 클라이언트 ID 방식(PC)
+router.post('/gdrive/read', driveRoute(async (req) => gdrive.readFileWith(req.user.id, req.body.accessToken)));
+router.post('/gdrive/write', driveRoute(async (req) => {
+  if (typeof req.body.text !== 'string' || !req.body.text) throw new gdrive.DriveError('저장할 내용이 없습니다.');
+  return { file: await gdrive.writeFileWith(req.user.id, req.body.accessToken, req.body.text) };
+}));
+router.delete('/gdrive', driveRoute(async (req) => gdrive.disconnect(req.user.id)));
+
+// ---------------------------------------------------------------------------
 // 공유받은 자료 동기화 (v0.27.2)
 // 같은 동기화 파일(같은 구글 계정)에 있는 다른 사용자 칸 중, 나에게 화면을 공유한 사람의 자료를
 // 이 기기에 조회 전용 사용자(mirror_users)로 받아 둔다. 권한은 모두 '조회'로 바꾼다(여기서 고쳐도 원래 기기로 돌아가지 않으므로)
