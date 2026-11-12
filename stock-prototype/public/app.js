@@ -126,8 +126,8 @@
   // ---------------------------------------------------------------------------
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
-  const SHARE_PATH = { '#/assets': 'assets', '#/yearly': 'yearly', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
-  const NO_AS = /^\/(auth|shares|settings|backup|restore|gdrive|mirror)(\/|\?|$)/; // 동기화(v0.27.2)도 항상 내 이름으로
+  const SHARE_PATH = { '#/home': 'home', '#/assets': 'assets', '#/yearly': 'yearly', '#/stock': 'stock', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' };
+  const NO_AS = /^\/(auth|shares|settings|backup|restore|gdrive|mirror|dashboard\/items)(\/|\?|$)/; // 동기화(v0.27.2)도 항상 내 이름으로
   const PERM_LABEL = { view: '조회', edit: '편집' };
   function withAs(path) {
     if (!state.actAs || NO_AS.test(path)) return path;
@@ -252,6 +252,7 @@
   ];
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
+    '#/home': '<path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M6 10v9.5h4.5V15h3v4.5H18V10"/>',
     '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
@@ -286,6 +287,9 @@
   };
   // 휴대폰 위쪽 메뉴의 가로 스크롤 위치 (v0.27.6): 화면을 다시 그려도 그대로 둔다
   let mnavScroll = 0;
+  // 홈 버튼 (v0.28.0): K-Stock 옆. 공유받은 화면을 보는 중이면 홈을 공유받았을 때만
+  const homeBtn = (active) => (!state.actAs || state.actAs.perms.home
+    ? `<a href="#/home" class="home-btn ${active === '#/home' ? 'active' : ''}" title="홈 (대시보드)" aria-label="홈">${navIconFor('#/home')}</a>` : '');
   function shell(active, inner) {
     const navEl = $app.querySelector('.mobile-top nav');
     if (navEl) mnavScroll = navEl.scrollLeft;
@@ -296,7 +300,7 @@
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
-          <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div></div>
+          <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div>${homeBtn(active)}</div>
           ${shareSwitch()}
           ${links}
           <div class="spacer"></div>
@@ -306,7 +310,7 @@
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span></span><span class="mtop-actions"><span data-sync-slot></span><button class="linkish" data-logout>로그아웃</button></span></div>
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span>${homeBtn(active)}</span><span class="mtop-actions"><span data-sync-slot></span><button class="linkish" data-logout>로그아웃</button></span></div>
             ${shareSwitch()}
             <nav>${mlinks}</nav>
           </div>
@@ -2892,6 +2896,11 @@
         <label class="check-row"><input type="checkbox" data-reqcodes ${document.documentElement.classList.contains('hide-req') ? '' : 'checked'} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
         <p class="small muted" style="margin:8px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. 끄면 모든 화면에서 숨깁니다. 계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.</p>
       </div>
+      <div class="card" data-fold="dash">
+        <h2>홈 대시보드 ${req('FR-DSH-02')}</h2>
+        <p style="margin:0 0 10px">홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목을 고르세요. <b>홈을 공유받은 사람에게도 여기서 고른 항목만</b> 보입니다(공유받은 사람은 바꿀 수 없음).</p>
+        <div data-dash-items><span class="small muted">불러오는 중…</span></div>
+      </div>
       ${IN_APP ? `<div class="card" data-fold="cloud">
         <h2>클라우드 서버 연결 ${req('FR-CLD-01')}</h2>
         ${REMOTE_APP ? `<p style="margin:0 0 10px">지금 <b>클라우드 서버(${esc(hostOf(appServerUrl() || location.origin))})</b>에 연결되어 있습니다. 다른 기기(PC 브라우저·다른 휴대폰)에서도 같은 주소로 접속하면 같은 데이터를 보고, 화면 공유도 기기에 상관없이 됩니다.</p>
@@ -2969,6 +2978,19 @@
     });
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountSyncCard(main.querySelector('[data-sync-card]'));
+    // 홈 대시보드 항목 (v0.28.0): 내 설정(dash.items)만 바꾼다
+    (async () => {
+      const box = main.querySelector('[data-dash-items]');
+      try {
+        const cat = await api('GET', '/dashboard/items');
+        const saved = Array.isArray(state.settings && state.settings['dash.items']) ? state.settings['dash.items'] : cat.items.map((x) => x.id);
+        box.innerHTML = cat.groups.map((g) => `<div class="dash-pick"><b data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</b>${cat.items.filter((x) => x.group === g.id).map((x) => `<label class="check-row"><input type="checkbox" value="${esc(x.id)}" ${saved.includes(x.id) ? 'checked' : ''} /> ${esc(x.label)}</label>`).join('')}</div>`).join('');
+        box.addEventListener('change', async () => {
+          const v = [...box.querySelectorAll('input:checked')].map((x) => x.value);
+          try { await api('PUT', '/settings/dash.items', { value: v }); state.settings = { ...(state.settings || {}), 'dash.items': v }; toast('홈 대시보드 항목을 저장했습니다.'); } catch (e) { toast(e.message); }
+        });
+      } catch (e) { box.innerHTML = `<span class="small muted">${esc(e.message)}</span>`; }
+    })();
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
@@ -3380,7 +3402,63 @@
     load();
   }
 
-  const PRIVATE = { '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
+  // SC-09 홈 대시보드 (v0.28.0)
+  const DASH_FMT = {
+    index: (v) => nf2.format(v),
+    rate: (v) => `${v.toFixed(3)}%`,
+    fx: (v) => (isEn() ? `₩${nf2.format(v)}` : `${nf2.format(v)}원`),
+    oil: (v) => `$${nf2.format(v)}`,
+  };
+  // 대시보드 표시: 증감률은 소수 2자리, 기준 시각은 짧게(월.일 시:분)
+  const pct2 = (r) => {
+    if (r == null) return '-';
+    const v = Number((r * 100).toFixed(2));
+    return signed(`${(v === 0 ? 0 : v).toFixed(2)}%`, v);
+  };
+  const shortTime = (iso) => {
+    if (!iso) return '';
+    const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(iso));
+    const g = (t) => (p.find((x) => x.type === t) || {}).value;
+    return `${g('month')}.${g('day')} ${g('hour')}:${g('minute')}`;
+  };
+  function dashTile(it) {
+    if (it.error) return `<div class="dash-tile err"><div class="dash-label">${esc(it.label)}</div><div class="dash-value">-</div><div class="dash-sub small muted">${esc(it.error)}</div></div>`;
+    if (it.kind === 'mine') {
+      return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
+        <div class="dash-value ${cls(it.value)}">${it.empty ? '-' : sKrw(it.value)}</div>
+        <div class="dash-change ${cls(it.pct)}">${it.empty ? '<span class="muted">보유 종목이 없습니다</span>' : `${pct2(it.pct)} <span class="muted small">전일 대비</span>`}</div>
+        <div class="dash-sub small muted">${it.empty ? '' : `총자산 ${krw(it.total)}`}${it.time && !it.empty ? ` · ${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+    }
+    const f = DASH_FMT[it.kind] || DASH_FMT.index;
+    const ch = it.change == null ? '' : it.kind === 'rate' ? `${it.change > 0 ? '+' : ''}${it.change.toFixed(3)}%p` : signed(nf2.format(it.change), it.change);
+    return `<div class="dash-tile"><div class="dash-label">${esc(it.label)}</div>
+      <div class="dash-value">${f(it.value)}</div>
+      <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(it.pct)})</b>`}</div>
+      <div class="dash-sub small muted">${it.time ? `${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+  }
+  async function viewHome() {
+    const main = shell('#/home', `
+      <div class="page-head">
+        <div><h1><span data-noi18n>${isEn() ? 'Home' : '홈'}</span> ${req('SC-09')}</h1><p>주요 지수·금리·환율·유가와 내 자산의 오늘 손익을 전일 대비로 보여 줍니다.${state.actAs ? ' 공유한 사람이 고른 항목만 보입니다.' : ' 보여 줄 항목은 환경설정에서 고를 수 있습니다.'}</p></div>
+        <div class="field-row head-ctrl"><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div>
+      </div>
+      <div data-dash><div class="card empty">대시보드를 불러오는 중…</div></div>`);
+    main.querySelector('[data-refresh]').addEventListener('click', () => render());
+    const box = main.querySelector('[data-dash]');
+    let d;
+    try { d = await api('GET', '/dashboard'); } catch (e) { box.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
+    if (!d.items.length) {
+      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 홈 대시보드</a>에서 항목을 고르세요.'}</div>`;
+      return;
+    }
+    box.innerHTML = d.groups.map((g) => {
+      const its = d.items.filter((x) => x.group === g.id);
+      if (!its.length) return '';
+      return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
+    }).join('') + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
+  }
+
+  const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
 
   async function render() {
     destroyCharts();

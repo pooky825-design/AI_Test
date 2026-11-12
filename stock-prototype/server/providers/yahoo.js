@@ -153,4 +153,4 @@ async function search(q) {
   return out;
 }
 
-module.exports = { NAME, load, loadFx, loadDividends, search };
+module.exports = { NAME, load, loadFx, loadDividends, search, fetchChart };

@@ -6,6 +6,7 @@ const auth = require('../auth');
 const market = require('../services/market');
 const portfolio = require('../services/portfolio');
 const gdrive = require('../services/gdrive');
+const dashboard = require('../services/dashboard');
 const excel = require('../services/excel');
 const { ValidationError } = market;
 const categories = require('../services/categories');
@@ -161,6 +162,7 @@ router.use(auth.requireAuth);
 // 요청 경로를 화면에 대응시켜, 그 화면에 권한(view: 조회, edit: 조회+수정)이 있을 때만 통과시킨다.
 // ---------------------------------------------------------------------------
 const SHARE_SCREENS = [
+  { id: 'home', label: '홈', edit: false }, // 대시보드 (v0.28.0): 공유한 사람이 설정한 항목만 보임
   { id: 'assets', label: '나의 자산', edit: false },
   { id: 'stock', label: '종목 조회', edit: false },
   { id: 'holdings', label: '보유 종목 관리', edit: true },
@@ -169,6 +171,7 @@ const SHARE_SCREENS = [
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
+  { m: ['GET'], re: /^\/dashboard$/, s: ['home'] },
   { m: ['GET'], re: /^\/(assets|export\/assets\.xlsx)$/, s: ['assets'] },
   { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
   { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
@@ -884,7 +887,11 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items'];
+
+// 홈 대시보드 (v0.28.0): 공유받은 사람이 보면 req.user 가 공유한 사람이므로 그 사람의 항목 설정대로
+router.get('/dashboard', async (req, res) => res.json(await dashboard.getDashboard(req.user.id)));
+router.get('/dashboard/items', (req, res) => res.json({ groups: dashboard.GROUPS, items: dashboard.ITEMS.map(({ id, group, label }) => ({ id, group, label })) }));
 
 router.get('/settings', (req, res) => {
   const out = {};

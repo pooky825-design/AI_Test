@@ -622,3 +622,34 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .mobile-top nav a, .mobile-top nav a:hover, .mobile-top nav a:focus, .mobile-top nav a:active { text-decoration: none; -webkit-tap-highlight-color: transparent; }
 .mobile-top nav a:active { background: rgba(255, 255, 255, .12); }
 .mobile-top nav a:focus:not(:focus-visible) { outline: none; }
+
+/* v0.28.0 홈 버튼 (K-Stock 옆) */
+.home-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border-radius: 9px; color: #fff; background: rgba(255, 255, 255, .14); text-decoration: none; flex: none; -webkit-tap-highlight-color: transparent; }
+.home-btn:hover { background: rgba(255, 255, 255, .24); text-decoration: none; }
+.home-btn.active { background: rgba(255, 255, 255, .32); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .55); }
+.home-btn .nav-ico { width: 19px; height: 19px; opacity: 1; }
+.home-btn .nav-ico-wrap { margin-right: 0; }
+.mobile-top .mbrand .home-btn { width: 30px; height: 30px; margin-left: 10px; }
+.mobile-top .mbrand .home-btn .nav-ico { width: 17px; height: 17px; }
+
+/* v0.28.0 홈 대시보드 */
+.dash-group h2 { margin-bottom: 12px; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.dash-tile { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dash-tile.mine { background: var(--t-50); border-color: var(--t-200); }
+.dash-label { font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.dash-value { font-size: 24px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.dash-change { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dash-change b { font-weight: 800; }
+.dash-sub { margin-top: 2px; }
+.dash-tile.err .dash-value { color: var(--muted); }
+.dash-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.dash-pick:last-child { border-bottom: 0; }
+.dash-pick > b { min-width: 70px; font-size: 14px; }
+.dash-pick .check-row { margin: 0; }
+@media (max-width: 640px) {
+  .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dash-tile { padding: 10px 11px; }
+  .dash-value { font-size: 19px; }
+  .dash-change { font-size: 12.5px; }
+}

@@ -9,5 +9,5 @@ const mode = (process.env.DATA_PROVIDER || 'live').toLowerCase();
 
 module.exports =
   mode === 'sample'
-    ? { mode, primary: sample, backup: null, fx: sample, taxBase: null, koreanName: async () => null, search: [], fundamentals: null }
-    : { mode, primary: yahoo, backup: naver, fx: yahoo, taxBase: etfTax, koreanName: naver.koreanName, search: [naver.search, yahoo.search], fundamentals: naver.fundamentals };
+    ? { mode, primary: sample, backup: null, fx: sample, taxBase: null, koreanName: async () => null, search: [], fundamentals: null, quoteChart: null }
+    : { mode, primary: yahoo, backup: naver, fx: yahoo, taxBase: etfTax, koreanName: naver.koreanName, search: [naver.search, yahoo.search], fundamentals: naver.fundamentals, quoteChart: yahoo.fetchChart };
