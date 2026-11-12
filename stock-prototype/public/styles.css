@@ -813,7 +813,7 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 
 /* v0.30.14 화면 제목 아이콘, 대시보드 제목 줄, 사용자 정보, 비밀번호 칸 */
 .page-head h1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.page-head h1 .title-ico { width: 1.1em; height: 1.1em; flex: none; color: var(--primary); }
+.page-head h1 .title-ico { width: 1.35em; height: 1.35em; flex: none; color: var(--primary); }
 .home-head { flex-direction: column; align-items: stretch; gap: 4px; }
 .home-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .home-title h1 { margin: 0; }
@@ -832,3 +832,11 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .pw-new .pin-box { border-color: var(--t-300); background: var(--t-50); }
 .pw-new .pin-box:focus { border-color: var(--primary); }
 .pw-sep { border-top: 2px solid var(--t-200); margin: 4px 0; }
+
+/* v0.30.19 휴대폰: 보는 자산 선택과 동기화 버튼을 한 줄에 */
+.mtop-row2 { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 16px 8px; }
+.mtop-row2:not(:has(.act-switch, .sync-btn)) { display: none; }
+.mobile-top .mtop-row2 .act-switch { flex: 1; min-width: 0; margin: 0; }
+.mobile-top .mtop-row2 .act-switch select { min-width: 0; }
+.mtop-row2 .mtop-sync { flex: none; }
+.mobile-top .mobile-top-sync, .mtop-row2 .sync-btn { white-space: nowrap; }

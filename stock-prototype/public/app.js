@@ -314,8 +314,8 @@
         </aside>
         <div>
           <div class="mobile-top">
-            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span>${homeBtn(active)}</span><span class="mtop-actions">${userBar}<span data-sync-slot></span></span></div>
-            ${shareSwitch()}
+            <div class="bar"><span class="mbrand"><img src="icon-192.png" alt="" class="brand-ico" /><span class="brand-name">K-Stock</span>${homeBtn(active)}</span><span class="mtop-actions">${userBar}</span></div>
+            <div class="mtop-row2">${shareSwitch()}<span data-sync-slot class="mtop-sync"></span></div>
             <nav>${mlinks}</nav>
           </div>
           <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
