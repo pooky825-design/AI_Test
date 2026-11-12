@@ -27,6 +27,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -588,6 +589,33 @@ public class MainActivity extends Activity {
                     }
                 }
             });
+        }
+
+        /**
+         * 이 앱이 볼 수 있는 기기의 구글 계정 목록 (v0.30.29) — 앱 안의 계정 선택 화면에 보여 준다.
+         * Android 8 이상은 사용자가 시스템 선택 창에서 한 번 고른 계정만 앱에 보인다. JSON 배열 ["a@gmail.com", ...]
+         */
+        @JavascriptInterface
+        public String gdriveAccounts() {
+            JSONArray out = new JSONArray();
+            try {
+                for (Account a : AccountManager.get(MainActivity.this).getAccountsByType("com.google")) out.put(a.name);
+            } catch (Exception ignored) { }
+            return out.toString();
+        }
+
+        /** 목록에서 고른 계정으로 연결 (시스템 선택 창 없이). 기기에 그 계정이 있어야 한다 */
+        @JavascriptInterface
+        public boolean gdriveAccountUse(String key, String name) {
+            try {
+                for (Account a : AccountManager.get(MainActivity.this).getAccountsByType("com.google")) {
+                    if (a.name.equals(name)) {
+                        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GACCT + key, name).apply();
+                        return true;
+                    }
+                }
+            } catch (Exception ignored) { }
+            return false;
         }
 
         /** 연결한 구글 계정 이메일 (없으면 빈 문자열) */

@@ -526,7 +526,7 @@
         ? `<div class="notice error small"><div class="grow"><b>클라우드 서버(${esc(hostOf(saved))})에 연결하지 못했습니다.</b><br/>인터넷 연결이나 서버 상태를 확인하세요. 지금 화면은 휴대폰 안의 데이터입니다.</div></div>
            <div class="field-row" style="margin-bottom:10px"><button type="button" class="sm" data-cretry>다시 연결</button><button type="button" class="sm secondary" data-clocal>이 휴대폰 모드로 사용</button></div>`
         : '';
-      return `${err}<div class="cloud-box">☁️ 다른 기기와 공유하려면 구글 드라이브에 서로 연결</div>`;
+      return `${err}<div class="cloud-box">☁️ 타 기기와 공유하려면 구글 드라이브에 서로 연결</div>`;
     }
     if (REMOTE_APP) return `<div class="cloud-box">☁️ 연결된 서버: <b>${esc(hostOf(appServerUrl() || location.origin))}</b> · <button type="button" class="linkish" data-clocal>이 휴대폰 모드로 전환</button></div>`;
     return '';
@@ -2808,8 +2808,55 @@
   }
   // 구글 드라이브 연결: 구글 로그인 → 결과(code)를 받아 서버에서 토큰으로 바꾼다
   // 휴대폰 앱: 기기 구글 계정 고르기 → 드라이브 권한 허용(처음 한 번) → 연결 완료
+  // 구글 'G' 아이콘 (v0.30.29)
+  const GOOGLE_G = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+  // 구글 계정 선택 화면 (v0.30.29): 구글 계정 선택 화면과 비슷한 모양. 이 앱이 볼 수 있는 계정 + '다른 계정 사용'(시스템 선택 창)
+  function pickGoogleAccount() {
+    let list = [];
+    try { list = JSON.parse(window.AndroidBridge.gdriveAccounts ? window.AndroidBridge.gdriveAccounts() : '[]') || []; } catch (_) { list = []; }
+    const COLORS = ['#1a73e8', '#e8710a', '#188038', '#d93025', '#9334e6', '#12b5cb', '#c5221f', '#f29900'];
+    const color = (s) => COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+    const cur = gdDevice();
+    return new Promise((resolve, reject) => {
+      const back = document.createElement('div');
+      back.className = 'gacct-back';
+      back.innerHTML = `<div class="gacct" role="dialog" aria-modal="true" aria-label="계정 선택">
+          <div class="gacct-top">${GOOGLE_G}<span>Google 계정으로 연결</span><button type="button" class="gacct-x" aria-label="닫기">✕</button></div>
+          <div class="gacct-head"><h2>계정 선택</h2><p data-noi18n>${isEn() ? 'to continue to <b>K-Stock</b>' : '<b>K-Stock</b>(으)로 이동'}</p></div>
+          <ul class="gacct-list">
+            ${list.map((e) => `<li><button type="button" class="gacct-row" data-acct="${esc(e)}">
+              <span class="gacct-av" style="background:${color(e)}">${esc(e.charAt(0).toUpperCase())}</span>
+              <span class="gacct-txt"><span class="gacct-name" data-noi18n>${esc(e.split('@')[0])}</span><span class="gacct-mail" data-noi18n>${esc(e)}</span></span>
+              ${e === cur ? '<span class="gacct-cur">연결됨</span>' : ''}
+            </button></li>`).join('')}
+            <li><button type="button" class="gacct-row" data-other>
+              <span class="gacct-av other"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></span>
+              <span class="gacct-txt"><span class="gacct-name">다른 계정 사용</span>${list.length ? '' : '<span class="gacct-mail">이 휴대폰의 구글 계정 목록에서 고릅니다</span>'}</span>
+            </button></li>
+          </ul>
+          <p class="gacct-note">K-Stock은 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다.</p>
+        </div>`;
+      document.body.appendChild(back);
+      document.body.classList.add('modal-open');
+      const close = () => { back.remove(); if (!document.querySelector('.modal-back, .gacct-back')) document.body.classList.remove('modal-open'); };
+      back.addEventListener('click', async (e) => {
+        if (e.target === back || e.target.closest('.gacct-x')) { close(); reject(new Error('구글 계정 선택을 취소했습니다.')); return; }
+        const row = e.target.closest('[data-acct]');
+        if (row) {
+          close();
+          if (window.AndroidBridge.gdriveAccountUse(syncKey(), row.dataset.acct)) resolve(row.dataset.acct);
+          else reject(new Error('이 휴대폰에서 그 구글 계정을 찾을 수 없습니다. 다른 계정 사용을 눌러 주세요.'));
+          return;
+        }
+        if (e.target.closest('[data-other]')) {
+          close();
+          try { resolve(await nativeDoc('gdriveAccountPick', syncKey())); } catch (err) { reject(err); }
+        }
+      });
+    });
+  }
   async function gdriveConnectDevice(after) {
-    const name = await nativeDoc('gdriveAccountPick', syncKey());
+    const name = window.AndroidBridge.gdriveAccounts ? await pickGoogleAccount() : await nativeDoc('gdriveAccountPick', syncKey());
     try {
       await nativeDoc('gdriveToken', syncKey(), false); // 처음이면 구글의 권한 허용 화면
     } catch (e) {
@@ -2848,7 +2895,7 @@
     return `<div class="gd-box">
       <div class="gd-title">구글 드라이브 직접 연결 <span class="badge">권장</span></div>
       <p class="small muted" style="margin:2px 0 8px">이 휴대폰에 로그인된 구글 계정을 골라 연결합니다(비밀번호 입력 없음). 구글 드라이브 앱을 켜 두지 않아도 항상 최신 파일로 맞춥니다.</p>
-      <div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-gd-device>구글 계정 선택해 연결</button></div>
+      <div class="field-row" style="gap:8px;flex-wrap:wrap"><button class="gbtn" data-gd-device>${GOOGLE_G}<span>구글 계정 연결</span></button></div>
       <p class="small muted" style="margin:8px 0 0">처음 연결할 때 구글의 권한 허용 화면이 한 번 뜹니다. 이 앱은 자기가 만든 동기화 파일(kstock-sync.json)만 읽고 쓰며, 드라이브의 다른 파일은 볼 수 없습니다.</p>
     </div>`;
   }
@@ -2869,7 +2916,7 @@
         <label class="field"><span>클라이언트 ID</span><input data-gd-id placeholder="1234…-abc….apps.googleusercontent.com" value="${esc((g && g.clientId) || '')}" autocomplete="off" spellcheck="false" /></label>
         <label class="field"><span>클라이언트 보안 비밀</span><input data-gd-secret type="password" placeholder="${g && g.hasSecret ? '저장됨 (바꿀 때만 입력)' : 'GOCSPX-…'}" autocomplete="off" /></label>
       </div>
-      <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button class="secondary" data-gd-save>저장</button><button data-gd-connect ${g && g.configured ? '' : 'disabled'}>구글 로그인으로 연결</button></div>
+      <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button class="secondary" data-gd-save>저장</button><button class="gbtn" data-gd-connect ${g && g.configured ? '' : 'disabled'}>${GOOGLE_G}<span>구글 로그인으로 연결</span></button></div>
       ${help}
     </div>`;
   }

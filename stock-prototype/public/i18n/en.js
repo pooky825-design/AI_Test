@@ -971,5 +971,13 @@ window.I18N_EN = {
 "종목명 또는 코드": "Name or code",
 "로그인 사용자 선택": "Choose who's logging in",
 "샘플 계정:": "Sample account:",
-"다른 기기와 공유하려면 구글 드라이브에 서로 연결": "To share with other devices, connect each to Google Drive"
+"다른 기기와 공유하려면 구글 드라이브에 서로 연결": "To share with other devices, connect each to Google Drive",
+"타 기기와 공유하려면 구글 드라이브에 서로 연결": "To share with other devices, connect each to Google Drive",
+"구글 계정 연결": "Connect Google account",
+"Google 계정으로 연결": "Connect with Google",
+"계정 선택": "Choose an account",
+"다른 계정 사용": "Use another account",
+"연결됨": "Connected",
+"이 휴대폰의 구글 계정 목록에서 고릅니다": "Pick from Google accounts on this phone",
+"K-Stock은 이 앱이 만든 동기화 파일(kstock-sync.json)만 읽고 씁니다. 드라이브의 다른 파일은 볼 수 없습니다.": "K-Stock only reads and writes the sync file it created (kstock-sync.json). It can't see other files in your Drive."
 };
