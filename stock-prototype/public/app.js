@@ -3658,19 +3658,23 @@
         : [['전일 종가', fv(d.prev)], ['오늘 최고', fv(st.dayHigh)], ['오늘 최저', fv(st.dayLow)], ['52주 최고', fv(st.high52)], ['52주 최저', fv(st.low52)], ...(st.volume ? [['거래량', nf0.format(st.volume)]] : [])];
       const mk = d.market;
       const MST = { open: '개장 중', pre: '개장 전', after: '장 마감', closed: '휴장' };
+      // 증시 칸 (v0.30.10): 개장 상태 + 달력만 (지수 값·그래프·수치 없음)
+      if (mk) {
+        body.innerHTML = `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)} (한국 시간)${id === 'usmarket' ? ` · 현지 ${esc(mk.hours.local)}` : ''}${mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>
+          <div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div>`;
+        loadCalendar(body.querySelector('[data-mkcal]'), id === 'krmarket' ? 'KR' : 'US', calMonth);
+        return;
+      }
       body.innerHTML = `
-        ${mk ? `<div class="notice ${mk.status === 'open' ? 'ok' : mk.status === 'closed' ? 'warn' : 'info'} small"><div><b>${esc(MST[mk.status] || '-')}${mk.reason === 'weekend' ? ' (주말)' : ''}</b> · ${esc(mk.exchange)} 정규장 ${esc(mk.hours.kst)} (한국 시간)${id === 'usmarket' ? ` · 현지 ${esc(mk.hours.local)}` : ''}${mk.closesAt ? ` · ${esc(shortTime(mk.closesAt))} 마감` : mk.opensAt ? ` · ${esc(shortTime(mk.opensAt))} 개장` : ''}</div></div>` : ''}
         <div class="dd-head">
-          ${mk ? '<div></div>' : `<div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>`}
+          <div><div class="dd-name" data-noi18n>${esc(d.name || d.label)}</div><div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
           <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
         </div>
-        ${mk ? '<div class="mk-cal" data-mkcal><div class="empty">달력 불러오는 중…</div></div><h3 class="dd-sub">' + (id === 'krmarket' ? '코스피' : 'S&P 500') + ' 지수</h3>' : ''}
         <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${DASH_RANGE_LABEL[r] || r}</button>`).join('')}</div>
         <div class="dd-chart"><canvas></canvas></div>
         <div class="table-wrap"><table class="dd-stats"><tbody>${rows.map(([k, v]) => `<tr><th class="left">${esc(k)}</th><td class="right" data-noi18n>${esc(v)}</td></tr>`).join('')}</tbody></table></div>
         <p class="small muted" style="margin:8px 0 0">출처 ${esc(d.source)} · 시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
       body.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => load(b.dataset.range)));
-      if (mk) loadCalendar(body.querySelector('[data-mkcal]'), id === 'krmarket' ? 'KR' : 'US', calMonth);
       if (chart) { chart.destroy(); chart = null; }
       const canvas = body.querySelector('canvas');
       const pts = d.pts || [];
