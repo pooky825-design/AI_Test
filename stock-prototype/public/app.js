@@ -4064,7 +4064,7 @@
         data: { labels: pts.map((p) => lbl(p.t)), datasets: [{ data: pts.map((p) => p.v), borderColor: color, backgroundColor: color + '18', fill: true, pointRadius: 0, borderWidth: 1.8, tension: 0.15 }] },
         options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => f(c.parsed.y) } } },
-          scales: { x: { ticks: { maxTicksLimit: 7, autoSkip: true }, grid: { display: false } }, y: { ticks: { callback: (v) => (d.kind === 'rate' ? `${v}%` : nf0.format(v)) } } } },
+          scales: { x: { ticks: { maxTicksLimit: 7, autoSkip: true }, grid: { display: false } }, y: { ticks: { callback: (v) => (d.kind === 'rate' ? `${Number(v).toFixed(2)}%` : nf0.format(v)) } } } },
       });
       state.charts.push(chart);
     };
