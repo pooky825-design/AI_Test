@@ -1024,8 +1024,7 @@ const COLS = {
   holdingDividends: ['group_id', 'code', 'ex_date', 'pay_date', 'per_share', 'tax_per_share', 'quantity', 'amount', 'tax_amount', 'created_at', 'updated_at'],
 };
 
-router.get('/backup', (req, res) => {
-  const uid = req.user.id;
+function buildBackup(uid, email) {
   const data = {
     groups: db.all('SELECT * FROM holding_groups WHERE user_id = ? ORDER BY sort_order, id', [uid]).map((r) => pick(r, COLS.groups)),
     items: db.all('SELECT * FROM holding_items WHERE user_id = ? ORDER BY year, id', [uid]).map((r) => pick(r, COLS.items)),
@@ -1038,8 +1037,29 @@ router.get('/backup', (req, res) => {
       UNION SELECT lower(viewer_email), perms, created_at, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY 1`, [uid, uid]),
   };
   const counts = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length]));
-  res.json({ format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now(), account: req.user.email, counts, data });
-});
+  return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: now(), account: email, counts, data };
+}
+router.get('/backup', (req, res) => res.json(buildBackup(req.user.id, req.user.email)));
+
+// 동기화 데이터 지문 — public/app.js 의 dataHash 와 똑같이 계산해야 한다 (v0.27.4, 두 곳을 함께 고칠 것)
+function syncHash(backup) {
+  const d = backup.data || {};
+  const strip = (rows) => (rows || []).map((r) => { const o = { ...r }; delete o.created_at; delete o.updated_at; return o; });
+  const gname = new Map((d.groups || []).map((g) => [g.id, g.name]));
+  const withG = (rows) => strip(rows).map((r) => ({ ...r, group_id: gname.get(r.group_id) || r.group_id }));
+  const shares = (d.shares || []).map((x) => [String(x.viewer_email || '').toLowerCase(), typeof x.perms === 'string' ? x.perms : JSON.stringify(x.perms)]).sort();
+  const text = JSON.stringify([(d.groups || []).map((g) => [g.name, g.sort_order]), withG(d.items), strip(d.categories), strip(d.dividends), withG(d.holdingDividends), shares]);
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
 
 // 백업 형식 검사 (복원·공유받은 자료 공용). 문제가 있으면 오류 메시지
 function backupError(b) {
@@ -1192,6 +1212,7 @@ router.post('/mirror/sync', async (req, res) => {
   const me = req.user;
   const myEmail = String(me.email).toLowerCase();
   const sections = req.body && typeof req.body.sections === 'object' && req.body.sections ? req.body.sections : {};
+  const localStates = req.body && typeof req.body.localStates === 'object' && req.body.localStates ? req.body.localStates : {};
   const result = [];
   const keep = new Set();
   for (const [rawEmail, sec] of Object.entries(sections)) {
@@ -1205,8 +1226,17 @@ router.post('/mirror/sync', async (req, res) => {
     const viewOnly = Object.fromEntries(Object.keys(perms).map((k) => [k, 'view']));
     let owner = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
     if (owner && !isMirror(owner.id)) {
-      // 이 기기에 실제 사용자로 있으면 그 사람의 자료는 본인 동기화로 맞추고, 여기서는 건드리지 않는다
-      result.push({ email, status: 'local' });
+      // 이 기기에 실제 사용자로도 있는 사람 (v0.27.4): 그 사람이 이 기기에서 마지막으로 동기화한 뒤
+      // 이 기기의 자료를 고치지 않았을 때만 파일의 최신 자료로 바꾼다 (고친 내용이 있으면 덮어쓰지 않음)
+      const st = localStates[email];
+      const secHash = String(sec.hash || '');
+      if (!st || !st.lastHash) { result.push({ email, status: 'local-unsynced' }); continue; }
+      if (secHash && st.fileHash === secHash) { result.push({ email, status: 'same' }); continue; }
+      const cur = syncHash(buildBackup(owner.id, email));
+      if (cur !== st.lastHash) { result.push({ email, status: 'local-changed' }); continue; }
+      restoreData(owner.id, sec.backup, { email });
+      const newHash = syncHash(buildBackup(owner.id, email));
+      result.push({ email, status: 'updated-local', lastHash: newHash, fileHash: secHash, rev: Number(sec.rev) || 0 });
       continue;
     }
     const t = now();

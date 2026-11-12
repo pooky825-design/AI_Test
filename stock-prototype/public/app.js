@@ -2377,6 +2377,7 @@
   }
   async function refreshSyncName() { state.syncName = await syncFileName(); return state.syncName; }
   // 데이터 지문: 화면 설정(접기·마지막 연도 등)은 자주 바뀌므로 빼고, 보유·배당 데이터만으로 계산
+  // ※ server/routes/api.js 의 syncHash 와 똑같이 계산해야 한다 (v0.27.4, 두 곳을 함께 고칠 것)
   function dataHash(backup) {
     const d = backup.data || {};
     const strip = (rows) => (rows || []).map((r) => { const o = { ...r }; delete o.created_at; delete o.updated_at; return o; });
@@ -2504,20 +2505,34 @@
   }
   async function syncMirrors(whole) {
     const sections = {};
-    for (const [k, v] of Object.entries(whole.users || {})) if (k !== syncKey() && v && v.backup) sections[k] = { backup: v.backup, hash: v.hash, savedAt: v.savedAt, device: v.device };
+    const localStates = {};
+    for (const [k, v] of Object.entries(whole.users || {})) {
+      if (k === syncKey() || !v || !v.backup) continue;
+      sections[k] = { backup: v.backup, hash: v.hash, rev: v.rev, savedAt: v.savedAt, device: v.device };
+      try { const st = JSON.parse(localStorage.getItem(`sync.state.${k}`) || 'null'); if (st) localStates[k] = { lastHash: st.lastHash, fileHash: st.fileHash }; } catch (_) { /* 없음 */ }
+    }
     const hadMirror = (state.received || []).some((r) => r.mirror);
     if (!Object.keys(sections).length && !hadMirror) return;
     let mr;
-    try { mr = await api('POST', '/mirror/sync', { sections }); } catch (e) { toast(`공유받은 자료를 받지 못했습니다: ${e.message}`); return; }
+    try { mr = await api('POST', '/mirror/sync', { sections, localStates }); } catch (e) { toast(`공유받은 자료를 받지 못했습니다: ${e.message}`); return; }
     const list = mr.result || [];
-    const ch = list.filter((x) => x.status === 'updated' || x.status === 'removed');
+    // 이 기기의 실제 사용자 자료를 대신 맞췄으면 그 사람의 동기화 기록도 함께 맞춘다(그 사람이 나중에 동기화할 때 '이미 최신')
+    for (const x of list.filter((y) => y.status === 'updated-local')) {
+      try { localStorage.setItem(`sync.state.${x.email}`, JSON.stringify({ lastHash: x.lastHash, fileHash: x.fileHash, rev: x.rev, at: new Date().toISOString() })); } catch (_) { /* 무시 */ }
+    }
+    const held = list.filter((x) => x.status === 'local-changed' || x.status === 'local-unsynced');
+    const ch = list.filter((x) => x.status === 'updated' || x.status === 'removed' || x.status === 'updated-local');
     await loadReceived();
     if (state.actAs && !(state.received || []).some((r) => r.user_id === state.actAs.user_id)) setActAs(null); // 공유가 해제됨
     if (ch.length) {
       const t = document.getElementById('toast');
       const prev = t && !t.hidden ? `${t.textContent} · ` : '';
-      toast(`${prev}공유받은 자료 ${ch.map((x) => `${x.email} ${x.status === 'removed' ? '삭제' : '갱신'}`).join(', ')} (조회 전용)`);
+      toast(`${prev}공유받은 자료 ${ch.map((x) => `${x.email} ${x.status === 'removed' ? '삭제' : '갱신'}`).join(', ')}${held.length ? ` · ${held.map((x) => x.email).join(', ')}은(는) 이 기기에서 그 사용자로 동기화해야 함` : ''}`);
       render();
+    } else if (held.length) {
+      const t = document.getElementById('toast');
+      const prev = t && !t.hidden ? `${t.textContent} · ` : '';
+      toast(`${prev}${held.map((x) => x.email).join(', ')}의 자료는 이 기기에서 ${held.some((x) => x.status === 'local-changed') ? '동기화하지 않은 변경이 있어' : '아직 동기화한 적이 없어'} 가져오지 않았습니다. 그 사용자로 로그인해 한 번 동기화해 주세요.`);
     }
   }
   // 클라우드 앱(구글 드라이브 등)이 아직 최신 파일을 받지 않아 예전 사본을 준 경우 (v0.26.18)
