@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>K-Stock 주식 자산 관리</title>
+<meta name="description" content="K-Stock: 국내·미국 주식과 ETF의 보유 종목, 배당, 연도별 자산을 관리하는 개인용 앱. 데이터는 내 기기와 내 구글 드라이브에만 저장됩니다." />
+<link rel="canonical" href="https://pooky825-design.github.io/" />
+<style>
+:root {
+  --bg: #fdf8f3;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #f0e2d4;
+  --primary: #e26d0e;
+  --primary-soft: #fff1e4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120e;
+    --surface: #221b15;
+    --text: #ede6df;
+    --muted: #a8998b;
+    --border: #3a2e24;
+    --primary: #f59a4a;
+    --primary-soft: #33241a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120e;
+  --surface: #221b15;
+  --text: #ede6df;
+  --muted: #a8998b;
+  --border: #3a2e24;
+  --primary: #f59a4a;
+  --primary-soft: #33241a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { word-break: keep-all; overflow-wrap: anywhere; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+a { color: var(--primary); }
+code { font-size: .9em; background: var(--primary-soft); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+.top { background: var(--surface); border-bottom: 1px solid var(--border); }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; flex-wrap: wrap; }
+.brand { font-weight: 800; font-size: 20px; color: var(--primary); text-decoration: none; }
+nav { display: flex; gap: 16px; }
+nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 15px; }
+nav a[aria-current="page"], nav a:hover { color: var(--text); }
+.hero { padding: 40px 0 16px; }
+h1 { font-size: 28px; line-height: 1.3; margin: 24px 0 8px; }
+h2 { font-size: 19px; margin: 28px 0 8px; }
+.lead { font-size: 17px; color: var(--text); }
+.meta { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 8px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.card h2 { margin: 0 0 4px; font-size: 17px; color: var(--primary); }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.doc { padding-bottom: 24px; }
+.doc ul { padding-left: 20px; }
+.doc li { margin: 4px 0; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14.5px; display: block; overflow-x: auto; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--primary-soft); white-space: nowrap; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0 8px; }
+.en { color: var(--text); }
+.foot { color: var(--muted); font-size: 14px; padding: 20px 16px 32px; border-top: 1px solid var(--border); margin-top: 24px; }
+@media (max-width: 520px) { h1 { font-size: 24px; } .hero { padding-top: 24px; } }
+
+/* 소개 페이지 */
+nav { flex-wrap: wrap; gap: 6px 16px; }
+.eyebrow { color: var(--primary); font-weight: 700; font-size: 14px; margin: 0 0 6px; letter-spacing: .02em; }
+.hero { display: grid; grid-template-columns: 1fr 300px; gap: 40px; align-items: center; padding: 48px 16px 32px; }
+.hero h1 { font-size: 36px; line-height: 1.25; margin: 0 0 14px; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 14px; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 700; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--text); }
+figure { margin: 0; }
+img { max-width: 100%; height: auto; display: block; }
+.phone img { border-radius: 28px; border: 8px solid #1f1a16; box-shadow: 0 18px 40px rgba(60, 30, 0, .18); }
+.phone.small { max-width: 240px; justify-self: center; }
+.section-title { font-size: 26px; margin: 0 0 20px; }
+.features { padding: 40px 16px 8px; }
+.feature { display: grid; grid-template-columns: 1fr 1.5fr; gap: 32px; align-items: center; margin: 0 0 48px; }
+.feature.rev .feature-text { order: 2; }
+.feature h3 { font-size: 22px; margin: 0 0 8px; color: var(--primary); }
+.feature p { margin: 0 0 8px; }
+.feature ul { margin: 0; padding-left: 20px; color: var(--muted); }
+.feature li { margin: 3px 0; }
+.shot img { border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(60, 30, 0, .12); }
+.mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 8px 0 24px; }
+.mini-grid .card h3 { margin: 0 0 4px; font-size: 17px; color: var(--primary); }
+.mini-grid .card p { margin: 0; color: var(--muted); font-size: 15px; }
+.band { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 40px 0; margin: 24px 0; }
+.privacy-grid { display: grid; grid-template-columns: 1fr 240px; gap: 40px; align-items: center; }
+.checks { list-style: none; padding: 0; margin: 0 0 12px; }
+.checks li { position: relative; padding-left: 28px; margin: 10px 0; }
+.checks li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--primary); font-weight: 800; }
+.start { padding: 16px 16px 8px; }
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 0 0 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.steps li::before { content: counter(s); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; margin-bottom: 6px; }
+.steps h3 { margin: 0 0 4px; font-size: 17px; }
+.steps p { margin: 0; color: var(--muted); font-size: 15px; }
+.note { color: var(--muted); font-size: 14px; margin: 4px 0; }
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; padding-top: 28px; gap: 24px; }
+  .hero h1 { font-size: 28px; }
+  .hero .phone { max-width: 260px; justify-self: center; }
+  .feature, .privacy-grid { grid-template-columns: 1fr; gap: 16px; margin-bottom: 36px; }
+  .feature.rev .feature-text { order: 0; }
+  .privacy-grid .phone { display: none; }
+  .section-title { font-size: 22px; }
+}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/" aria-current="page">K-Stock</a>
+    <nav><a href="#features">기능</a><a href="#privacy">데이터와 보안</a><a href="#start">시작하기</a><a href="https://pooky825-design.github.io/AI_Test/privacy.html">개인정보처리방침</a></nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <div class="hero-text">
+      <p class="eyebrow">개인용 주식 자산 관리 앱</p>
+      <h1>흩어진 증권 계좌를<br />한 화면에서 관리하세요</h1>
+      <p class="lead">국내(KOSPI·KOSDAQ)와 미국 주식·ETF를 그룹별로 모아 평가금액과 손익, 배당, 연도별 자산 변화를 원화 기준으로 보여 줍니다. 데이터는 내 기기와 내 구글 드라이브에만 저장됩니다.</p>
+      <div class="cta">
+        <a class="btn primary" href="#start">시작하기</a>
+        <a class="btn" href="#features">기능 둘러보기</a>
+      </div>
+      <ul class="chips">
+        <li>Android 앱</li><li>PC 버전</li><li>광고 없음</li><li>개발자 서버 없음</li>
+      </ul>
+    </div>
+    <figure class="phone"><img src="https://pooky825-design.github.io/AI_Test/img/m-assets.webp" width="390" height="844" alt="휴대폰에서 본 나의 자산 화면: 총자산, 금년 손익, 전체기간 손익, 환율 요약" /></figure>
+  </section>
+
+  <section id="features" class="wrap features">
+    <h2 class="section-title">주요 기능</h2>
+
+    <article class="feature">
+      <div class="feature-text">
+        <h3>나의 자산</h3>
+        <p>선택한 연도 말 보유 종목의 현재 평가금액과 손익을 원화로 환산해 보여 줍니다.</p>
+        <ul>
+          <li>일반·ISA·연금처럼 계좌를 그룹으로 나눠 그룹별·분류(국내·해외·해외추종)별 합계</li>
+          <li>금년 손익, 전체기간 손익, 오늘 손익과 적용 환율</li>
+          <li>엑셀 내보내기, 보고 싶은 열만 고르는 열 선택</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="https://pooky825-design.github.io/AI_Test/img/pc-assets.webp" width="1280" height="800" alt="PC 나의 자산 화면: 요약 카드와 그룹별 합계 표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature rev">
+      <div class="feature-text">
+        <h3>종목 조회</h3>
+        <p>종목명이나 코드를 입력하면 시세와 기업 정보를 한 번에 확인합니다.</p>
+        <ul>
+          <li>종목명 일부로 검색, 코드를 넣으면 종목명 자동 표시</li>
+          <li>시가총액·PER·PBR, 연간·분기 실적과 전년·전분기 대비</li>
+          <li>배당금 지급내역, 날짜별 종가, 기간 수익률</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="https://pooky825-design.github.io/AI_Test/img/pc-stock.webp" width="1280" height="1100" alt="PC 종목 조회 화면: 보유 종목 목록, 삼성전자 시세, 투자지표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature">
+      <div class="feature-text">
+        <h3>배당 관리</h3>
+        <p>보유 종목의 배당 회차를 골라 저장하면 그해 월 배당과 누적 배당이 자동으로 계산됩니다.</p>
+        <ul>
+          <li>배당 내역 자동 불러오기, 회차별 수량 조정</li>
+          <li>월 배당액·과세표준액, 기간 누적 합계를 제목 옆에 요약</li>
+          <li>국내 ETF는 운용사 공시의 주당 과세표준액 반영</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="https://pooky825-design.github.io/AI_Test/img/pc-divmgmt.webp" width="1280" height="800" alt="PC 배당 관리 화면: 종목별 월 배당액과 누적 배당액 표" loading="lazy" /></figure>
+    </article>
+
+    <article class="feature rev">
+      <div class="feature-text">
+        <h3>연도별 자산 · 배당</h3>
+        <p>연도별로 입력한 연말 보유 수량으로 자산과 배당이 어떻게 늘었는지 그래프와 표로 비교합니다.</p>
+        <ul>
+          <li>국내·해외·해외추종 비중과 전년 대비 증감</li>
+          <li>연도별 환율 추이 함께 표시</li>
+          <li>연도를 누르면 종목별 내역 펼침</li>
+        </ul>
+      </div>
+      <figure class="shot"><img src="https://pooky825-design.github.io/AI_Test/img/pc-yearly.webp" width="1280" height="800" alt="PC 연도별 자산 화면: 연도별 자산 막대그래프와 환율 꺾은선, 연도별 표" loading="lazy" /></figure>
+    </article>
+
+    <div class="mini-grid">
+      <div class="card"><h3>보유 종목 관리</h3><p>연도별 보유 수량·매입 금액을 기록하고, 숫자 칸에 <code>= 10+30</code> 같은 수식을 쓸 수 있습니다.</p></div>
+      <div class="card"><h3>기기 간 동기화</h3><p>휴대폰에 로그인된 구글 계정을 골라 구글 드라이브에 연결하면 휴대폰·PC의 데이터를 버튼 한 번으로 맞춥니다.</p></div>
+      <div class="card"><h3>화면 공유</h3><p>가족 등 다른 사용자에게 화면별로 조회·수정 권한을 나눠 줄 수 있습니다.</p></div>
+      <div class="card"><h3>백업 · 복원</h3><p>모든 데이터를 파일 하나로 저장하고 되살립니다.</p></div>
+      <div class="card"><h3>테마 · 언어</h3><p>여러 색상 테마와 한국어·영어 화면을 지원합니다.</p></div>
+      <div class="card"><h3>휴대폰 화면</h3><p>휴대폰 세로 화면에 맞춘 배치와 접기·펴기 상자로 필요한 정보만 봅니다.</p></div>
+    </div>
+  </section>
+
+  <section id="privacy" class="band">
+    <div class="wrap privacy-grid">
+      <div>
+        <h2 class="section-title">내 데이터는 내 기기와 내 드라이브에만</h2>
+        <ul class="checks">
+          <li><b>개발자 서버가 없습니다.</b> 입력한 자산·배당 데이터는 앱이 설치된 기기 안에 저장됩니다.</li>
+          <li><b>동기화는 내 구글 드라이브로.</b> 앱이 만든 파일 <code>kstock-sync.json</code> 하나만 읽고 씁니다(<code>drive.file</code> 권한). 드라이브의 다른 파일은 볼 수 없습니다.</li>
+          <li><b>광고·사용 통계 수집이 없습니다.</b> 시세 조회 때는 종목코드만 금융 정보 사이트로 보냅니다.</li>
+          <li><b>언제든 삭제·연결 해제.</b> 앱에서 사용자 삭제, 구글 계정에서 권한 취소가 가능합니다.</li>
+        </ul>
+        <p><a href="https://pooky825-design.github.io/AI_Test/privacy.html">개인정보처리방침 전문 보기 →</a></p>
+      </div>
+      <figure class="phone small"><img src="https://pooky825-design.github.io/AI_Test/img/m-divmgmt.webp" width="390" height="844" alt="휴대폰 배당 관리 화면" loading="lazy" /></figure>
+    </div>
+  </section>
+
+  <section id="start" class="wrap start">
+    <h2 class="section-title">시작하기</h2>
+    <ol class="steps">
+      <li><h3>설치</h3><p>Android 6.0 이상 휴대폰에 APK를 설치합니다. PC는 Node.js로 실행하는 버전을 씁니다.</p></li>
+      <li><h3>사용자 추가</h3><p>앱에서 이메일과 비밀번호로 사용자를 만듭니다. 이 정보는 기기 안에만 저장됩니다.</p></li>
+      <li><h3>보유 종목 입력</h3><p>보유 종목 관리에서 그룹과 연도별 보유 수량·매입 금액을 입력하면 나머지 화면이 채워집니다.</p></li>
+      <li><h3>동기화(선택)</h3><p>환경설정 → 기기 간 동기화에서 구글 계정을 골라 연결하면 다른 기기와 데이터를 맞출 수 있습니다.</p></li>
+    </ol>
+    <p class="note">시세는 지연되거나 부정확할 수 있으며, 앱의 정보는 투자 권유가 아닌 참고용입니다. 시세 출처: Yahoo Finance, 네이버 증권 등.</p>
+    <p class="note">문의: <a href="https://github.com/pooky825-design/AI_Test/issues">GitHub 이슈</a></p>
+  </section>
+</main>
+
+<footer class="wrap foot">© 2026 K-Stock · <a href="/">소개</a> · <a href="https://pooky825-design.github.io/AI_Test/privacy.html">개인정보처리방침</a> · <span lang="en">K-Stock is a personal stock portfolio manager that stores data only on your device and your own Google Drive. <a href="https://pooky825-design.github.io/AI_Test/privacy.html#en">Privacy Policy</a></span></footer>
+</body>
+</html>
