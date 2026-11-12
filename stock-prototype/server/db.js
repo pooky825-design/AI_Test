@@ -4,6 +4,8 @@
 //  - PC(Node): data/stock.db 파일
 //  - 안드로이드 앱: 앱 내부 저장소 (mobile/storage.js로 교체되어 번들됨)
 const storage = require('./storage');
+// 데모 계정 4자리 비밀번호 '1234' 의 bcrypt 해시 (v0.30.0, 미리 계산해 둠)
+const DEMO_PIN_HASH = '$2b$10$GLwRtcF03NwWzugrNqUZ2eahZBuK5t2965OlqjxAHtZSUlFgTU.5S';
 
 let db = null;
 let saveTimer = null;
@@ -357,6 +359,15 @@ function migrate() {
       );
     }
     db.run("INSERT INTO app_meta (key, value) VALUES ('holdings_to_trades', ?)", [now]);
+  }
+
+  // 별명·프로필 사진 (v0.30.0): 로그인 아이디(email 칸)는 이메일 또는 별명(소문자로 비교), nickname 은 화면 표시용(입력한 그대로)
+  const ucols = all('PRAGMA table_info(users)').map((c) => c.name);
+  if (!ucols.includes('nickname')) db.run('ALTER TABLE users ADD COLUMN nickname TEXT');
+  if (!ucols.includes('avatar')) db.run('ALTER TABLE users ADD COLUMN avatar TEXT');
+  // 데모 계정: 별명·사진을 붙이고 비밀번호를 4자리(1234)로 (한 번만, 별명이 없을 때)
+  if (get("SELECT 1 FROM users WHERE email = 'demo@example.com' AND nickname IS NULL")) {
+    db.run("UPDATE users SET nickname = '데모', avatar = 'preset:1', password_hash = ? WHERE email = 'demo@example.com'", [DEMO_PIN_HASH]);
   }
 
   const icols = all('PRAGMA table_info(holding_items)').map((c) => c.name);

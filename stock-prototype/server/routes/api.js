@@ -48,9 +48,27 @@ function positiveNumber(v, { maxDecimals } = {}) {
   return { value: n };
 }
 
+// 비밀번호 (v0.30.0): 4자리, 글자 종류 제한 없음 (예전 계정의 긴 비밀번호로도 로그인은 됨)
+const PIN_LEN = 4;
 function validatePassword(pw) {
-  if (!pw || String(pw).length < 8) return '비밀번호는 8자 이상이어야 합니다.';
-  if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return '비밀번호는 영문과 숫자를 모두 포함해야 합니다.';
+  const n = [...String(pw || '')].length;
+  if (n !== PIN_LEN) return `비밀번호는 ${PIN_LEN}자리로 입력하세요.`;
+  if (/\s/.test(String(pw))) return '비밀번호에 공백은 쓸 수 없습니다.';
+  return null;
+}
+// 로그인 아이디 (v0.30.0): 별명(한글·영문·숫자, 2~20자) 또는 예전 방식의 이메일
+function validateLoginId(id) {
+  const v = String(id || '').trim();
+  if (v.includes('@')) return validateEmail(v);
+  if ([...v].length < 2 || [...v].length > 20) return '별명은 2~20자로 입력하세요.';
+  if (!/^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9][가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9 _.-]*$/.test(v)) return '별명은 한글·영문·숫자로 입력하세요(공백·_·-·. 사용 가능).';
+  return null;
+}
+// 프로필 사진: 기본 그림(preset:1~12) 또는 직접 올린 사진(작게 줄인 data URL)
+function cleanAvatar(v) {
+  const s = String(v || '');
+  if (/^preset:(?:[1-9]|1[0-2])$/.test(s)) return s;
+  if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 200000) return s;
   return null;
 }
 
@@ -71,25 +89,27 @@ router.post('/auth/signup', async (req, res) => {
   const wait = signupLimit.blocked(ip);
   if (wait) return tooMany(res, wait);
   signupLimit.hit(ip);
-  const email = String(req.body.email || '').trim().toLowerCase();
+  const nickname = String(req.body.email || req.body.nickname || '').trim().replace(/\s+/g, ' ');
+  const email = nickname.toLowerCase(); // 로그인 아이디 (대소문자 구분 없이 비교)
   const password = String(req.body.password || '');
+  const avatar = cleanAvatar(req.body.avatar) || `preset:${1 + Math.floor(Math.random() * 12)}`;
   // 공개 서버에 가입 코드가 있으면 그 코드를 알아야 가입 (v0.25)
   const codeErr = config.SIGNUP_CODE && String(req.body.signupCode || '').trim() !== config.SIGNUP_CODE ? '가입 코드가 올바르지 않습니다. 서버 관리자에게 받은 코드를 입력하세요.' : null;
-  fieldErrors({ email: validateEmail(email), password: validatePassword(password), signupCode: codeErr });
+  fieldErrors({ email: validateLoginId(nickname), password: validatePassword(password), signupCode: codeErr });
   const exists = db.get('SELECT u.id, m.user_id AS mirror FROM users u LEFT JOIN mirror_users m ON m.user_id = u.id WHERE u.email = ?', [email]);
   if (exists && exists.mirror) {
-    const msg = '이 이메일은 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
+    const msg = '이 아이디는 이 기기에 동기화로 받은 공유 자료(조회 전용)로 있습니다. 공유받은 사용자가 환경설정 → 화면 공유에서 [받지 않기]를 누른 뒤 가입하세요.';
     throw new ValidationError(msg, { email: msg });
   }
   if (exists) {
-    throw new ValidationError('이미 가입된 이메일입니다.', { email: '이미 가입된 이메일입니다.' });
+    throw new ValidationError('이미 있는 별명(아이디)입니다.', { email: '이미 있는 별명(아이디)입니다.' });
   }
   const hash = await bcrypt.hash(password, 10); // NFR-SEC-01 단방향 해시
   // 프로토타입: 이메일 인증 절차 생략 → 가입 즉시 활성화
-  const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [email, hash, now()]);
+  const { lastId } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at, nickname, avatar) VALUES (?, ?, 1, ?, ?, ?)', [email, hash, now(), nickname, avatar]);
   applyPendingShares(lastId, email);
   auth.createSession(res, lastId);
-  res.json({ user: { id: lastId, email } });
+  res.json({ user: { id: lastId, email, nickname, avatar } });
 });
 
 router.post('/auth/login', async (req, res) => {
@@ -103,11 +123,20 @@ router.post('/auth/login', async (req, res) => {
   if (!ok) {
     loginFail.hit(key);
     loginFailIp.hit(ip);
-    return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.', code: 'LOGIN_FAILED' });
+    return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.', code: 'LOGIN_FAILED' });
   }
   loginFail.clear(key);
   auth.createSession(res, user.id);
-  res.json({ user: { id: user.id, email: user.email } });
+  res.json({ user: { id: user.id, email: user.email, nickname: user.nickname, avatar: user.avatar } });
+});
+
+// 로그인 화면의 사용자 목록 (v0.30.0, 넷플릭스 프로필 방식): 이 기기(또는 개인 PC 서버)의 사용자 별명·사진
+// 공개 클라우드 서버에서는 다른 사람에게 사용자 목록이 보이면 안 되므로 비운다
+router.get('/auth/profiles', (req, res) => {
+  if (config.CLOUD) return res.json({ hidden: true, profiles: [] });
+  const profiles = db.all('SELECT email, nickname, avatar FROM users WHERE id NOT IN (SELECT user_id FROM mirror_users) ORDER BY created_at, id')
+    .map((u) => ({ id: u.email, name: u.nickname || u.email, avatar: u.avatar || null }));
+  res.json({ hidden: false, profiles, pinLength: PIN_LEN });
 });
 
 router.post('/auth/logout', (req, res) => {
@@ -122,7 +151,7 @@ router.get('/auth/me', (req, res) => {
 // 비밀번호 재설정: 실제 서비스에서는 메일로 링크를 보내지만, 프로토타입은 화면에 링크를 보여준다.
 router.post('/auth/reset-request', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  fieldErrors({ email: validateEmail(email) });
+  fieldErrors({ email: validateLoginId(email) });
   // 공개 서버: 메일 발송 기능이 없으므로 링크를 화면에 보여주면 누구나 남의 비밀번호를 바꿀 수 있다 → 관리자 도구로만 재설정 (v0.25)
   if (config.CLOUD) {
     return res.json({ message: '이 서버는 비밀번호 재설정 메일을 보내지 않습니다. 서버 관리자에게 재설정을 요청하세요(관리자는 서버에서 kstock-admin reset-password 명령으로 임시 비밀번호를 발급합니다).', demoLink: null });
@@ -136,7 +165,7 @@ router.post('/auth/reset-request', (req, res) => {
     ]);
     demoLink = `#/reset?token=${token}`;
   }
-  res.json({ message: '가입된 이메일이면 재설정 링크를 보냈습니다.', demoLink });
+  res.json({ message: '있는 아이디이면 재설정 링크를 만들었습니다.', demoLink });
 });
 
 router.post('/auth/reset', async (req, res) => {
@@ -252,11 +281,13 @@ router.get('/shares', (req, res) => {
 
 router.post('/shares', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  const emailErr = validateEmail(email);
+  const emailErr = validateLoginId(email);
   if (emailErr) return res.status(400).json({ error: emailErr, code: 'VALIDATION', fields: { email: emailErr } });
-  const viewer = db.get('SELECT id FROM users WHERE lower(email) = ?', [email]);
-  if (!viewer) return res.status(400).json({ error: '등록되지 않은 이메일입니다. 상대방을 먼저 사용자로 추가해야 공유할 수 있습니다.', code: 'VALIDATION', fields: { email: '가입하지 않은 이메일입니다.' } });
-  if (viewer.id === req.user.id) return res.status(400).json({ error: '본인에게는 공유할 수 없습니다.', code: 'VALIDATION', fields: { email: '본인 이메일입니다.' } });
+  // 아이디로 찾고, 없으면 별명으로 (예전 이메일 계정에 별명이 붙은 경우, v0.30.0). 공유받은 자료(mirror)는 제외
+  const viewer = db.get('SELECT id FROM users WHERE lower(email) = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [email])
+    || db.get('SELECT id FROM users WHERE lower(nickname) = ? AND id NOT IN (SELECT user_id FROM mirror_users) AND (SELECT COUNT(*) FROM users WHERE lower(nickname) = ?) = 1', [email, email]);
+  if (!viewer) return res.status(400).json({ error: '등록되지 않은 아이디(별명)입니다. 상대방을 먼저 사용자로 추가해야 공유할 수 있습니다.', code: 'VALIDATION', fields: { email: '없는 아이디입니다.' } });
+  if (viewer.id === req.user.id) return res.status(400).json({ error: '본인에게는 공유할 수 없습니다.', code: 'VALIDATION', fields: { email: '본인 아이디입니다.' } });
   const perms = cleanPerms(req.body.perms);
   if (!Object.keys(perms).length) return res.status(400).json({ error: '공유할 화면을 하나 이상 고르세요.', code: 'VALIDATION' });
   db.run(
@@ -295,6 +326,15 @@ router.delete('/shares/:id', (req, res) => {
   if (db.get('SELECT 1 FROM mirror_users WHERE user_id = ?', [row.owner_id])) dropMirrorShare(row.owner_id, row.viewer_id);
   else db.run('DELETE FROM screen_shares WHERE id = ?', [id]);
   res.json({ ok: true });
+});
+
+// 프로필 사진 바꾸기 (v0.30.0)
+router.put('/auth/profile', (req, res) => {
+  if (req.viewer) return res.status(403).json({ error: '공유받은 화면에서는 바꿀 수 없습니다.', code: 'FORBIDDEN' });
+  const avatar = cleanAvatar(req.body.avatar);
+  if (!avatar) return res.status(400).json({ error: '사진 형식이 올바르지 않거나 너무 큽니다.', code: 'VALIDATION' });
+  db.run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, req.user.id]);
+  res.json({ ok: true, avatar });
 });
 
 router.post('/auth/change-password', async (req, res) => {
@@ -1106,7 +1146,7 @@ function restoreShares(uid, d, ownEmail, t, counts) {
     let waiting = 0;
     for (const r of d.shares) {
       const email = String(r.viewer_email || '').trim().toLowerCase();
-      if (validateEmail(email) || email === String(ownEmail || '').toLowerCase()) continue;
+      if (validateLoginId(email) || email === String(ownEmail || '').toLowerCase()) continue;
       let perms = {};
       try { perms = cleanPerms(typeof r.perms === 'string' ? JSON.parse(r.perms) : r.perms); } catch (_) { /* 무시 */ }
       if (!Object.keys(perms).length) continue;
@@ -1244,7 +1284,7 @@ router.post('/mirror/sync', async (req, res) => {
   const keep = new Set();
   for (const [rawEmail, sec] of Object.entries(sections)) {
     const email = String(rawEmail || '').trim().toLowerCase();
-    if (validateEmail(email) || email === myEmail || !sec || backupError(sec.backup)) continue;
+    if (validateLoginId(email) || email === myEmail || !sec || backupError(sec.backup)) continue;
     const shares = Array.isArray(sec.backup.data.shares) ? sec.backup.data.shares : [];
     const mine = shares.find((x) => String(x.viewer_email || '').trim().toLowerCase() === myEmail);
     let perms = {};

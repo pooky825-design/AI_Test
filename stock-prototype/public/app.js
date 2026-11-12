@@ -305,7 +305,7 @@
           ${links}
           <div class="spacer"></div>
           <span data-sync-slot></span>
-          <div class="who">${esc(state.user.email)}</div>
+          <div class="who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span data-noi18n>${esc(displayName(state.user))}</span></div>
           <button class="linkish" data-logout>로그아웃</button>
         </aside>
         <div>
@@ -371,6 +371,98 @@
   }
   function bindLang(root) {
     root.querySelectorAll('[data-lang]').forEach((sel) => sel.addEventListener('change', () => setLang(sel.value)));
+  }
+
+  // 프로필 사진 (v0.30.0): 기본 그림 12개(preset:1~12) 또는 직접 올린 사진(data URL)
+  const AVATAR_PRESETS = [['🐶', '#fde68a'], ['🐱', '#fbcfe8'], ['🦊', '#fed7aa'], ['🐻', '#ecdcc9'], ['🐼', '#e5e7eb'], ['🐯', '#fde047'],
+    ['🐸', '#bbf7d0'], ['🐵', '#f5d0a9'], ['🐰', '#e9d5ff'], ['🦁', '#fcd34d'], ['🐨', '#cbd5e1'], ['🐧', '#bae6fd']];
+  function avatarHtml(av, name, cls = '') {
+    if (typeof av === 'string' && av.startsWith('data:image/')) return `<span class="avatar ${cls}"><img src="${esc(av)}" alt="" /></span>`;
+    const m = /^preset:(\d+)$/.exec(av || '');
+    if (m) { const [e, bg] = AVATAR_PRESETS[(Number(m[1]) - 1) % AVATAR_PRESETS.length]; return `<span class="avatar ${cls}" style="background:${bg}"><span class="av-emoji" aria-hidden="true">${e}</span></span>`; }
+    const ch = [...String(name || '?')][0].toUpperCase();
+    return `<span class="avatar av-letter ${cls}">${esc(ch)}</span>`;
+  }
+  const displayName = (u) => (u && (u.nickname || u.email)) || '';
+  // 사진 올리기: 가운데를 정사각형으로 잘라 160×160 JPEG 로 줄인다(약 10~30KB)
+  function fileToAvatar(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error('사진 파일을 골라 주세요.'));
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('사진을 읽지 못했습니다.'));
+      fr.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('이 형식의 사진은 쓸 수 없습니다.'));
+        img.onload = () => {
+          const sz = 160;
+          const c = document.createElement('canvas');
+          c.width = sz; c.height = sz;
+          const side = Math.min(img.width, img.height);
+          c.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, sz, sz);
+          resolve(c.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  // 사진 고르기 칸: 기본 그림 12개 + [사진 올리기]
+  function avatarPickerHtml(current) {
+    return `<div class="av-picker" data-avpick>
+      ${AVATAR_PRESETS.map((_, i) => `<button type="button" class="av-opt ${current === `preset:${i + 1}` ? 'on' : ''}" data-av="preset:${i + 1}" aria-label="기본 그림 ${i + 1}">${avatarHtml(`preset:${i + 1}`, '', 'av-md')}</button>`).join('')}
+      <label class="av-opt av-upload ${current && current.startsWith('data:') ? 'on' : ''}" title="내 사진 올리기">${current && current.startsWith('data:') ? avatarHtml(current, '', 'av-md') : '<span class="avatar av-md av-plus">＋</span>'}<span class="small">사진 올리기</span><input type="file" accept="image/*" hidden data-avfile /></label>
+    </div>`;
+  }
+  function bindAvatarPicker(root, onChange) {
+    const box = root.querySelector('[data-avpick]');
+    const on = box.querySelector('.av-opt.on[data-av]');
+    let value = on ? on.dataset.av : null; // 올린 사진이 이미 골라져 있으면 null (저장할 때 지금 사진 유지)
+    const set = (v, el) => { value = v; box.querySelectorAll('.av-opt').forEach((x) => x.classList.toggle('on', x === el)); if (onChange) onChange(v); };
+    box.querySelectorAll('[data-av]').forEach((b) => b.addEventListener('click', () => set(b.dataset.av, b)));
+    const up = box.querySelector('.av-upload');
+    box.querySelector('[data-avfile]').addEventListener('change', async (e) => {
+      try {
+        const v = await fileToAvatar(e.target.files[0]);
+        up.querySelector('.avatar').outerHTML = avatarHtml(v, '', 'av-md');
+        set(v, up);
+      } catch (err) { toast(err.message); }
+      e.target.value = '';
+    });
+    return { get: () => value, set: (v) => { const el = box.querySelector(`[data-av="${v}"]`); if (el) set(v, el); } };
+  }
+  // 4자리 비밀번호 칸 (v0.30.0): 칸마다 한 글자, 자동으로 다음 칸, 지우면 앞 칸, 붙여넣기 가능
+  const PIN_LEN = 4;
+  const pinBoxesHtml = (name, label) => `<div class="pin-boxes" data-pin="${esc(name || '')}" role="group" aria-label="${esc(label || '비밀번호 4자리')}">${Array.from({ length: PIN_LEN }, (_, i) => `<input class="pin-box" type="password" maxlength="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${i + 1}번째 글자" />`).join('')}</div>`;
+  function bindPin(el, onComplete) {
+    const boxes = [...el.querySelectorAll('.pin-box')];
+    const value = () => boxes.map((b) => b.value).join('');
+    const fill = (start, text) => {
+      const chars = [...text.replace(/\s/g, '')];
+      let i = start;
+      for (const ch of chars) { if (i >= boxes.length) break; boxes[i].value = ch; i++; }
+      boxes[Math.min(i, boxes.length - 1)].focus();
+      if (value().length === boxes.length && [...value()].length === PIN_LEN && onComplete) onComplete(value());
+    };
+    boxes.forEach((b, i) => {
+      b.addEventListener('input', () => {
+        const v = b.value;
+        if ([...v].length > 1) { b.value = ''; fill(i, v); return; }
+        if (v) { if (i < boxes.length - 1) boxes[i + 1].focus(); else if (onComplete && boxes.every((x) => x.value)) onComplete(value()); }
+      });
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !b.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); e.preventDefault(); }
+        else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+        else if (e.key === 'ArrowRight' && i < boxes.length - 1) boxes[i + 1].focus();
+        else if (e.key === 'Enter' && onComplete && boxes.every((x) => x.value)) onComplete(value());
+      });
+      b.addEventListener('paste', (e) => { const t = (e.clipboardData || window.clipboardData).getData('text'); if (t) { e.preventDefault(); fill(i, t); } });
+      b.addEventListener('focus', () => b.select());
+    });
+    return {
+      value, focus: () => (boxes.find((x) => !x.value) || boxes[0]).focus(),
+      clear: () => { boxes.forEach((x) => { x.value = ''; }); boxes[0].focus(); },
+      shake: () => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); },
+    };
   }
 
   function authPage(title, sub, body) {
@@ -444,96 +536,103 @@
     setRemember(on) { try { localStorage.setItem('login.remember', on ? '1' : '0'); } catch (_) { /* 무시 */ } },
   };
 
-  function viewLogin(query = {}) {
-    const form = authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
-      <form class="stack" novalidate>
-        <div class="field id-field"><label>이메일(아이디)</label><input name="email" type="email" autocomplete="off" required /><div class="id-menu" data-idmenu hidden></div><span class="err" data-err="email"></span></div>
-        <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="current-password" required /><span class="err" data-err="password"></span></div>
-        <div class="remember-row"><label><input type="checkbox" name="rememberId" /> 아이디 저장</label><span class="small muted" data-idcount></span></div>
-        <div class="notice error" data-msg hidden></div>
-        <button type="submit">로그인</button>
-      </form>
-      <div class="links"><a href="#/signup">사용자 추가</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
-      ${state.server.demo ? '<div class="demo-box">데모 계정: <b>demo@example.com</b> / <b>demo1234</b><br/>보유 종목 5개와 배당 내역이 미리 들어 있습니다.</div>' : ''}
+  async function viewLogin(query = {}) {
+    authPage('<img src="icon-192.png" alt="" class="auth-ico" />K-Stock', '로그인 <span class="req">SC-01 · FR-AUTH-02</span>', `
+      <div data-login-body><div class="empty">불러오는 중…</div></div>
       ${cloudLoginBox(query)}`);
     bindCloudBox($app);
-    // 저장한 아이디: 체크되어 있으면 마지막 아이디를 채우고, 입력칸을 누르면 예전 아이디 목록을 보여준다
-    const menu = form.querySelector('[data-idmenu]');
-    const remember = form.rememberId;
-    remember.checked = loginStore.remember();
-    const countEl = form.querySelector('[data-idcount]');
-    const showCount = () => { const n = loginStore.ids().length; countEl.textContent = n ? `저장된 아이디 ${n}개 · 입력칸을 눌러 선택` : ''; };
-    function openMenu() {
-      const q = form.email.value.trim().toLowerCase();
-      const list = loginStore.ids().filter((id) => !q || id.toLowerCase().includes(q) && id.toLowerCase() !== q);
-      if (!list.length) { menu.hidden = true; return; }
-      menu.innerHTML = list.map((id) => `<div class="id-opt" data-id="${esc(id)}"><span>${esc(id)}</span><button type="button" class="linkish" data-rm title="목록에서 지우기" aria-label="${esc(id)} 지우기">✕</button></div>`).join('');
-      menu.hidden = false;
+    const body = $app.querySelector('[data-login-body]');
+    let profiles = [];
+    let hidden = false;
+    try { const r = await api('GET', '/auth/profiles'); profiles = r.profiles || []; hidden = !!r.hidden; } catch (_) { hidden = true; }
+    const done = (r) => { state.user = r.user; state.settings = null; go('#/home'); };
+    const demoNote = state.server.demo ? '<div class="demo-box">데모 계정: <b>데모</b> · 비밀번호 <b>1234</b><br/>보유 종목과 배당 내역이 미리 들어 있습니다.</div>' : '';
+
+    // ① 누가 사용하나요? (프로필 고르기)
+    function showProfiles() {
+      body.innerHTML = `<h2 class="who-title">누가 사용하나요?</h2>
+        <div class="profile-grid">
+          ${profiles.map((p, i) => `<button type="button" class="profile-tile" data-p="${i}">${avatarHtml(p.avatar, p.name, 'av-xl')}<span class="profile-name" data-noi18n>${esc(p.name)}</span></button>`).join('')}
+          <a class="profile-tile add" href="#/signup"><span class="avatar av-xl av-plus">＋</span><span class="profile-name">사용자 추가</span></a>
+        </div>
+        <div class="links"><a href="#" data-classic>아이디로 로그인</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
+        ${demoNote}`;
+      body.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => showPin(profiles[Number(b.dataset.p)])));
+      body.querySelector('[data-classic]').addEventListener('click', (e) => { e.preventDefault(); showClassic(); });
     }
-    menu.addEventListener('mousedown', (e) => e.preventDefault()); // 고르는 동안 입력칸 포커스 유지
-    menu.addEventListener('click', (e) => {
-      const opt = e.target.closest('[data-id]');
-      if (!opt) return;
-      if (e.target.closest('[data-rm]')) {
-        loginStore.setIds(loginStore.ids().filter((id) => id !== opt.dataset.id));
-        showCount();
-        openMenu();
-        return;
-      }
-      form.email.value = opt.dataset.id;
-      menu.hidden = true;
-      form.password.focus();
-    });
-    form.email.addEventListener('focus', openMenu);
-    form.email.addEventListener('click', openMenu);
-    form.email.addEventListener('input', openMenu);
-    form.email.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; }, 120));
-    form.email.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.hidden = true; });
-    showCount();
-    const saved = loginStore.ids();
-    if (remember.checked && saved.length) {
-      form.email.value = saved[0];
-      form.password.focus();
-    } else form.email.focus();
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      menu.hidden = true;
-      const msg = form.querySelector('[data-msg]');
-      try {
-        const { email, password } = formData(form);
-        const r = await api('POST', '/auth/login', { email, password });
-        // 아이디 저장: 체크하면 목록 맨 앞에 두고 다음에 자동으로 채움, 해제하면 이 아이디를 목록에서 지움
-        const id = String(email || '').trim();
-        const rest = loginStore.ids().filter((x) => x.toLowerCase() !== id.toLowerCase());
-        loginStore.setIds(remember.checked ? [id, ...rest] : rest);
-        loginStore.setRemember(remember.checked);
-        state.user = r.user;
-        state.settings = null;
-        go('#/home'); // 첫 화면 = 홈 대시보드 (v0.28.1)
-      } catch (err) {
-        msg.hidden = false;
-        msg.textContent = err.message;
-      }
-    });
+    // ② 고른 사람의 4자리 비밀번호
+    function showPin(p) {
+      body.innerHTML = `<div class="pin-view">
+          ${avatarHtml(p.avatar, p.name, 'av-xl')}
+          <div class="profile-name big" data-noi18n>${esc(p.name)}</div>
+          <p class="muted small" style="margin:6px 0 12px">비밀번호 4자리를 입력하세요</p>
+          ${pinBoxesHtml('login')}
+          <div class="notice error small" data-msg hidden style="margin-top:12px"></div>
+          <div class="links" style="justify-content:center;gap:18px"><a href="#" data-back>← 다른 사용자</a><a href="#" data-legacy>4자리가 아닌 예전 비밀번호</a></div>
+        </div>`;
+      const msg = body.querySelector('[data-msg]');
+      let busy = false;
+      const pin = bindPin(body.querySelector('[data-pin]'), async (v) => {
+        if (busy) return;
+        busy = true;
+        try { done(await api('POST', '/auth/login', { email: p.id, password: v })); } catch (err) {
+          msg.hidden = false; msg.textContent = err.message; pin.shake(); setTimeout(() => pin.clear(), 250);
+        } finally { busy = false; }
+      });
+      pin.focus();
+      body.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); if (profiles.length && !hidden) showProfiles(); else showClassic(); });
+      body.querySelector('[data-legacy]').addEventListener('click', (e) => { e.preventDefault(); showClassic(p.id); });
+    }
+    // ③ 아이디로 로그인 (공개 서버, 예전 이메일·긴 비밀번호 계정)
+    function showClassic(id = '') {
+      body.innerHTML = `<form class="stack" novalidate>
+          <div class="field"><label>아이디 (별명 또는 이메일)</label><input name="email" autocomplete="username" autocapitalize="off" value="${esc(id)}" /><span class="err" data-err="email"></span></div>
+          <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="current-password" /><span class="hint">4자리 비밀번호, 또는 예전 계정의 비밀번호</span><span class="err" data-err="password"></span></div>
+          <div class="notice error" data-msg hidden></div>
+          <button type="submit">로그인</button>
+        </form>
+        <div class="links">${profiles.length && !hidden ? '<a href="#" data-back>← 사용자 목록</a>' : ''}<a href="#/signup">사용자 추가</a><a href="#/forgot">비밀번호를 잊으셨나요?</a></div>
+        ${hidden ? '' : demoNote}`;
+      const form = body.querySelector('form');
+      (id ? form.password : form.email).focus();
+      const back = body.querySelector('[data-back]');
+      if (back) back.addEventListener('click', (e) => { e.preventDefault(); showProfiles(); });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const m = form.querySelector('[data-msg]');
+        try { const { email, password } = formData(form); done(await api('POST', '/auth/login', { email, password })); } catch (err) { m.hidden = false; m.textContent = err.message; }
+      });
+    }
+    if (!hidden && profiles.length) showProfiles(); else showClassic();
   }
 
   function viewSignup() {
-    const form = authPage('사용자 추가', '이메일과 비밀번호로 새 사용자를 추가합니다. <span class="req">FR-AUTH-01</span>', `
-      ${state.server.cloud ? `<div class="notice info small" style="margin-top:14px">이 서버는 가입 즉시 계정이 활성화됩니다. 비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.</div>` : ''}
+    const first = `preset:${1 + Math.floor(Math.random() * AVATAR_PRESETS.length)}`;
+    const form = authPage('사용자 추가', '별명과 4자리 비밀번호로 새 사용자를 추가합니다. <span class="req">FR-AUTH-01</span>', `
+      ${state.server.cloud ? `<div class="notice info small" style="margin-top:14px">비밀번호를 잊으면 서버 관리자에게 재설정을 요청해야 하니 잘 기억해 두세요.</div>` : ''}
       <form class="stack" novalidate style="margin-top:4px">
-        <div class="field"><label>이메일</label><input name="email" type="email" autocomplete="username" /><span class="err" data-err="email"></span></div>
-        <div class="field"><label>비밀번호</label><input name="password" type="password" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="password"></span></div>
-        <div class="field"><label>비밀번호 확인</label><input name="password2" type="password" autocomplete="new-password" /><span class="err" data-err="password2"></span></div>
+        <div class="field"><label>프로필 사진</label>${avatarPickerHtml(first)}<span class="hint">기본 그림을 고르거나 내 사진을 올리세요</span></div>
+        <div class="field"><label>별명 (아이디)</label><input name="email" autocomplete="username" maxlength="20" placeholder="예: 홍길동, Tom" /><span class="hint">한글·영문·숫자 2~20자, 로그인할 때 이 이름을 고릅니다</span><span class="err" data-err="email"></span></div>
+        <div class="field"><label>비밀번호 (4자리)</label>${pinBoxesHtml('p1')}<span class="hint">숫자·영문·특수문자 아무거나 4자리</span><span class="err" data-err="password"></span></div>
+        <div class="field"><label>비밀번호 확인</label>${pinBoxesHtml('p2', '비밀번호 확인')}<span class="err" data-err="password2"></span></div>
         ${state.server.signupCode ? '<div class="field"><label>가입 코드</label><input name="signupCode" autocomplete="off" /><span class="hint">서버 관리자에게 받은 코드</span><span class="err" data-err="signupCode"></span></div>' : ''}
         <button type="submit">사용자 추가</button>
       </form>
       <div class="links"><a href="#/login">← 로그인으로</a></div>`);
+    const av = bindAvatarPicker(form);
+    av.set(first);
+    const p1 = bindPin(form.querySelector('[data-pin="p1"]'), () => p2.focus());
+    const p2 = bindPin(form.querySelector('[data-pin="p2"]'));
+    form.email.focus();
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = formData(form);
-      if (d.password !== d.password2) return showFieldErrors(form, { password2: '비밀번호가 일치하지 않습니다.' });
+      const a = p1.value();
+      const b = p2.value();
+      if ([...a].length !== PIN_LEN) return showFieldErrors(form, { password: '비밀번호 4자리를 모두 입력하세요.' });
+      if (a !== b) { p2.shake(); p2.clear(); return showFieldErrors(form, { password2: '비밀번호가 일치하지 않습니다.' }); }
       try {
-        const r = await api('POST', '/auth/signup', { email: d.email, password: d.password, signupCode: d.signupCode });
+        const r = await api('POST', '/auth/signup', { email: d.email, password: a, avatar: av.get(), signupCode: d.signupCode });
         state.user = r.user;
         toast('사용자를 추가했습니다.');
         go('#/home');
@@ -545,9 +644,9 @@
   }
 
   function viewForgot() {
-    const form = authPage('비밀번호 재설정', '가입한 이메일로 재설정 링크를 보냅니다. <span class="req">FR-AUTH-03</span>', `
+    const form = authPage('비밀번호 재설정', '아이디(별명 또는 이메일)로 재설정 링크를 만듭니다. <span class="req">FR-AUTH-03</span>', `
       <form class="stack" novalidate>
-        <div class="field"><label>이메일</label><input name="email" type="email" /><span class="err" data-err="email"></span></div>
+        <div class="field"><label>아이디 (별명 또는 이메일)</label><input name="email" autocapitalize="off" /><span class="err" data-err="email"></span></div>
         <button type="submit">재설정 링크 받기</button>
         <div data-result></div>
       </form>
@@ -569,14 +668,16 @@
   function viewReset(query) {
     const form = authPage('새 비밀번호 설정', '새로 사용할 비밀번호를 입력하세요.', `
       <form class="stack" novalidate>
-        <div class="field"><label>새 비밀번호</label><input name="password" type="password" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="password"></span></div>
+        <div class="field"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('np')}<span class="err" data-err="password"></span></div>
         <div class="notice error" data-msg hidden></div>
         <button type="submit">변경하기</button>
       </form>`);
+    const np = bindPin(form.querySelector('[data-pin="np"]'));
+    np.focus();
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await api('POST', '/auth/reset', { token: query.token, password: form.password.value });
+        await api('POST', '/auth/reset', { token: query.token, password: np.value() });
         toast('비밀번호가 변경되었습니다. 다시 로그인해 주세요.');
         go('#/login');
       } catch (err) {
@@ -2815,7 +2916,7 @@
       const head = screens.map((sc) => `<th class="center">${esc(sc.label)}</th>`).join('');
       body.innerHTML = `
         <form class="field-row share-add" data-add novalidate>
-          <div class="field" style="min-width:220px;flex:1"><label>공유할 회원 이메일</label><input name="email" type="email" placeholder="friend@example.com" autocomplete="off" /><span class="err" data-err="email"></span></div>
+          <div class="field" style="min-width:220px;flex:1"><label>공유할 사용자 (별명 또는 아이디)</label><input name="email" placeholder="예: 엄마, Tom" autocomplete="off" autocapitalize="off" /><span class="err" data-err="email"></span></div>
           ${screens.map((sc) => `<div class="field"><label>${esc(sc.label)}</label>${permSelect(sc, sc.id === 'assets' || sc.id === 'yearly' ? 'view' : '')}</div>`).join('')}
           <button type="submit">공유 추가</button>
         </form>
@@ -2886,7 +2987,13 @@
 
   function viewMe() {
     const main = shell('#/me', `
-      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p>${esc(state.user.email)} · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p class="me-who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')} <b data-noi18n>${esc(displayName(state.user))}</b> · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="card" data-fold="profile">
+        <h2>프로필 사진</h2>
+        <p style="margin:0 0 10px">로그인 화면의 사용자 목록에 보이는 사진입니다.</p>
+        ${avatarPickerHtml(state.user.avatar)}
+        <div class="field-row" style="margin-top:10px"><button data-avsave>저장</button></div>
+      </div>
       <div class="card" data-fold="lang">
         <h2><span data-noi18n>언어 (Language)</span> ${req('FR-COM-07')}</h2>
         <div class="field-row" style="align-items:center;gap:12px">${langSelectHtml()}<span class="small muted">화면에 보이는 글자를 고른 언어로 표시합니다. 엑셀 파일과 종목명은 원래 언어 그대로입니다.</span></div>
@@ -2956,7 +3063,8 @@
           <h2>비밀번호 변경</h2>
           <form data-pw novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
             <div class="field"><label>현재 비밀번호</label><input type="password" name="current" autocomplete="current-password" /><span class="err" data-err="current"></span></div>
-            <div class="field"><label>새 비밀번호</label><input type="password" name="next" autocomplete="new-password" /><span class="hint">8자 이상, 영문과 숫자 포함</span><span class="err" data-err="next"></span></div>
+            <div class="field"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('n1')}<span class="err" data-err="next"></span></div>
+            <div class="field"><label>새 비밀번호 확인</label>${pinBoxesHtml('n2', '새 비밀번호 확인')}<span class="err" data-err="next2"></span></div>
             <div><button type="submit">변경</button></div>
           </form>
         </div>
@@ -3025,12 +3133,22 @@
     mountShareCard(main.querySelector('[data-share-card]'));
     main.querySelector('[data-backup]').addEventListener('click', backupData);
     main.querySelector('[data-restore]').addEventListener('click', restoreData);
+    const avCard = main.querySelector('[data-fold="profile"]');
+    const avp = bindAvatarPicker(avCard);
+    avCard.querySelector('[data-avsave]').addEventListener('click', async () => {
+      const v = avp.get() || state.user.avatar;
+      try { const r = await api('PUT', '/auth/profile', { avatar: v }); state.user = { ...state.user, avatar: r.avatar }; toast('프로필 사진을 저장했습니다.'); render(); } catch (err) { toast(err.message); }
+    });
     const pw = main.querySelector('[data-pw]');
+    const n1 = bindPin(pw.querySelector('[data-pin="n1"]'), () => n2.focus());
+    const n2 = bindPin(pw.querySelector('[data-pin="n2"]'));
     pw.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (n1.value() !== n2.value()) { n2.shake(); n2.clear(); return showFieldErrors(pw, { next2: '새 비밀번호가 일치하지 않습니다.' }); }
       try {
-        await api('POST', '/auth/change-password', formData(pw));
+        await api('POST', '/auth/change-password', { current: pw.current.value, next: n1.value() });
         pw.reset();
+        n1.clear(); n2.clear();
         showFieldErrors(pw, {});
         toast('비밀번호를 변경했습니다.');
       } catch (err) {
@@ -3526,9 +3644,9 @@
     box.innerHTML = `<div class="card kw-card"><h2>보유 종목 주요 키워드</h2>
       <div class="table-wrap"><table class="kw-table"><thead><tr><th class="left">종목</th><th class="left">주요 키워드 <span class="muted small">(누르면 관련 기사)</span></th></tr></thead><tbody>
       ${d.rows.map((r) => `<tr><td class="left kw-name"><div><span data-noi18n>${esc(r.name)}</span><small class="muted">${esc(r.code)}${r.type ? ` · ${esc(r.type)}` : ''}</small></div></td>
-        <td class="left">${r.error ? `<span class="small muted">${esc(r.error)}</span>` : r.keywords.length ? `<div class="kw-chips">${r.keywords.map(chip).join('')}</div>` : '<span class="small muted">최근 기사가 없습니다</span>'}</td></tr>`).join('')}
+        <td class="left">${r.error ? `<span class="small muted">${esc(r.error)}</span>` : r.keywords.length ? `<div class="kw-chips">${r.keywords.map(chip).join('')}</div>` : '<span class="small muted">최근 1일 기사 없음</span>'}</td></tr>`).join('')}
       </tbody></table></div>
-      <p class="small muted" style="margin:8px 0 0">종목별 최근 기사 제목에서 자주 나온 단어(최대 4개)이며, 누르면 그 단어가 들어간 가장 최근 기사가 열립니다 · 국내 종목 네이버 증권, 미국 종목 Yahoo Finance(영문) · 1시간마다 갱신 · 단어 빈도로 고르므로 일부 키워드는 정확하지 않을 수 있습니다</p></div>`;
+      <p class="small muted" style="margin:8px 0 0">종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 국내 종목 네이버 증권, 미국 종목 Yahoo Finance(영문) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다</p></div>`;
   }
 
   const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };

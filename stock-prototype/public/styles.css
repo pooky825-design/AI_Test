@@ -703,3 +703,41 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .kw-table td, .kw-table th { white-space: normal; }
 .kw-table td.kw-name { overflow: hidden; }
 .kw-name span { display: block; word-break: keep-all; overflow-wrap: anywhere; }
+
+/* v0.30.0 프로필 사진 */
+.avatar { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; overflow: hidden; background: var(--t-200); color: #fff; font-weight: 800; vertical-align: middle; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar .av-emoji { font-size: 58%; line-height: 1; }
+.avatar.av-letter { background: var(--primary); font-size: 18px; }
+.avatar.av-sm { width: 26px; height: 26px; border-radius: 8px; font-size: 13px; }
+.avatar.av-sm .av-emoji { font-size: 16px; }
+.avatar.av-md { width: 52px; height: 52px; border-radius: 14px; }
+.avatar.av-md .av-emoji { font-size: 30px; }
+.avatar.av-xl { width: 96px; height: 96px; border-radius: 22px; font-size: 40px; }
+.avatar.av-xl .av-emoji { font-size: 56px; }
+.avatar.av-plus { background: var(--bg); color: var(--muted); border: 2px dashed var(--border); font-size: 28px; font-weight: 400; }
+.side .who { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.me-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 사진 고르기 */
+.av-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.av-opt { padding: 3px; border-radius: 17px; border: 2px solid transparent; background: none; cursor: pointer; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.av-opt.on { border-color: var(--primary); }
+.av-opt:hover { background: var(--t-50); }
+.av-upload .small { font-size: 11px; color: var(--muted); }
+/* 누가 사용하나요? */
+.who-title { text-align: center; margin: 18px 0 16px; font-size: 20px; }
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 16px 10px; justify-items: center; margin-bottom: 12px; }
+.profile-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: 0; padding: 6px; border-radius: 16px; cursor: pointer; color: var(--text); text-decoration: none; width: 112px; -webkit-tap-highlight-color: transparent; }
+.profile-tile .avatar { transition: transform .12s, box-shadow .12s; }
+@media (hover: hover) { .profile-tile:hover .avatar { transform: scale(1.05); box-shadow: 0 0 0 3px var(--primary); } .profile-tile:hover { text-decoration: none; } }
+.profile-tile:active .avatar { transform: scale(.97); }
+.profile-name { font-size: 14px; font-weight: 700; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-name.big { font-size: 20px; max-width: none; margin-top: 10px; }
+.pin-view { display: flex; flex-direction: column; align-items: center; padding: 16px 0 4px; }
+/* 4자리 칸 */
+.pin-boxes { display: inline-flex; gap: 10px; }
+.pin-box { width: 52px; height: 58px; padding: 0; text-align: center; font-size: 26px; font-weight: 800; border: 2px solid var(--border); border-radius: 12px; background: var(--surface); }
+.pin-box:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--t-50); }
+.pin-boxes.shake { animation: pin-shake .35s; }
+@keyframes pin-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+@media (max-width: 400px) { .pin-box { width: 46px; height: 52px; } .profile-grid { grid-template-columns: repeat(3, 1fr); } .profile-tile { width: 96px; } .avatar.av-xl { width: 80px; height: 80px; } .avatar.av-xl .av-emoji { font-size: 46px; } }

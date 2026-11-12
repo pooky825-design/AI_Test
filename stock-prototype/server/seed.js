@@ -4,9 +4,9 @@ const db = require('./db');
 
 async function seedDemo() {
   const now = new Date().toISOString();
-  const hash = await bcrypt.hash('demo1234', 10);
-  const { lastId: uid } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at) VALUES (?, ?, 1, ?)', [
-    'demo@example.com', hash, now,
+  const hash = await bcrypt.hash('1234', 10); // 4자리 비밀번호 (v0.30.0)
+  const { lastId: uid } = db.run('INSERT INTO users (email, password_hash, email_verified, created_at, nickname, avatar) VALUES (?, ?, 1, ?, ?, ?)', [
+    'demo@example.com', hash, now, '데모', 'preset:1',
   ]);
   // 데모 그룹과 매수·매도 기록 (그룹별·연도별 관리 예시, 수량·단가는 가상의 값)
   const gid = {};
@@ -50,7 +50,7 @@ async function seedDemo() {
   for (const [code, d, a, c, m] of dividends) {
     db.run('INSERT INTO dividends (user_id, code, pay_date, amount, currency, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid, code, d, a, c, m, now]);
   }
-  console.log('데모 계정 생성: demo@example.com / demo1234');
+  console.log('데모 계정 생성: 데모(demo@example.com) / 1234');
 }
 
 module.exports = { seedDemo };

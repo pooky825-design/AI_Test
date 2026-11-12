@@ -38,7 +38,7 @@ function loadUser(req, _res, next) {
   const token = parseCookies(req.headers.cookie)[COOKIE];
   if (token) {
     const row = db.get(
-      `SELECT u.id, u.email, u.created_at FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.created_at, u.nickname, u.avatar FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
       [sha256(token), new Date().toISOString()]
     );
