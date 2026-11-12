@@ -2691,7 +2691,8 @@
         toast((msg || `동기화 파일(${fmtTime(file.savedAt)} · ${file.device || '다른 기기'})의 데이터로 맞췄습니다.`) + what(fresh.counts));
         render();
       };
-      if (file && knownRev && fileRev < knownRev) await staleSync(file, knownRev);
+      const stale = !!(file && knownRev && fileRev < knownRev);
+      if (stale) await staleSync(file, knownRev);
       else if (!file) await push(others.length ? `동기화 파일에 이 사용자(${state.user.email})의 자료가 없어 새로 저장했습니다. 다른 사용자 자료 ${others.length}명분은 그대로 둡니다.` : '동기화 파일이 비어 있어 이 기기의 데이터를 저장했습니다.');
       else if (file.hash === localHash) { saveSyncState({ lastHash: localHash, fileHash: file.hash, rev: fileRev, at: new Date().toISOString() }); toast(`이미 최신입니다. 바뀐 내용이 없습니다. (파일: ${fmtTime(file.savedAt)} · ${file.device || '다른 기기'} 저장)`); }
       else {
