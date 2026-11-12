@@ -20,6 +20,8 @@ const ITEMS = [
   { id: 'usdkrw', group: 'etc', label: '원/달러 환율', symbol: 'KRW=X', kind: 'fx' },
   { id: 'wti', group: 'etc', label: 'WTI 유가', symbol: 'CL=F', kind: 'oil' },
   { id: 'mytoday', group: 'mine', label: '오늘 수익 증감', kind: 'mine' },
+  { id: 'myyear', group: 'mine', label: '연간 수익 증감', kind: 'mine' }, // v0.28.1
+  { id: 'mytotal', group: 'mine', label: '총 자산', kind: 'mine' }, // v0.28.1
 ];
 const IDS = ITEMS.map((x) => x.id);
 
@@ -32,6 +34,15 @@ function enabledIds(uid) {
     if (Array.isArray(v)) return IDS.filter((id) => v.includes(id));
   } catch (_) { /* 기본값 */ }
   return IDS.slice();
+}
+
+// 표시 순서 (v0.28.1): dash.order = { groups: [그룹 id…], items: [항목 id…] }. 빠진 것은 기본 순서로 뒤에
+function orderOf(uid) {
+  const r = db.get("SELECT value FROM user_settings WHERE user_id = ? AND key = 'dash.order'", [uid]);
+  let v = {};
+  try { v = r ? JSON.parse(r.value) || {} : {}; } catch (_) { v = {}; }
+  const pick = (saved, all) => [...(Array.isArray(saved) ? saved.filter((x) => all.includes(x)) : []), ...all.filter((x) => !(Array.isArray(saved) && saved.includes(x)))];
+  return { groups: pick(v.groups, GROUPS.map((g) => g.id)), items: pick(v.items, IDS) };
 }
 
 // 시세: 3분 동안 다시 쓰기 (전 회원 공통)
@@ -55,13 +66,15 @@ async function quote(symbol) {
   return v;
 }
 
-async function itemData(uid, it) {
+async function itemData(uid, it, assetsOnce) {
   try {
     if (it.kind === 'mine') {
-      const ty = new Date().getFullYear();
-      const a = await portfolio.getAssets(uid, ty, null, false);
+      const a = await assetsOnce();
       const t = a.total || {};
-      return { value: t.todayPnlKrw ?? null, pct: t.todayPct ?? null, change: t.todayPnlKrw ?? null, total: t.valueKrw ?? null, time: (a.basis && a.basis.priceTimeOldest) || null, empty: !a.rows || !a.rows.length };
+      const base = { total: t.valueKrw ?? null, time: (a.basis && a.basis.priceTimeOldest) || null, empty: !a.rows || !a.rows.length };
+      if (it.id === 'myyear') return { ...base, value: t.pnlKrw ?? null, change: t.pnlKrw ?? null, pct: t.returnPct ?? null, basisKrw: t.costKrw ?? null }; // 손익 기준액(나의 자산 화면과 같음)
+      if (it.id === 'mytotal') return { ...base, value: t.valueKrw ?? null, change: t.todayPnlKrw ?? null, pct: t.todayPct ?? null, costKrw: t.origCostKrw ?? null }; // 매입금액
+      return { ...base, value: t.todayPnlKrw ?? null, pct: t.todayPct ?? null, change: t.todayPnlKrw ?? null };
     }
     return await quote(it.symbol);
   } catch (e) {
@@ -71,10 +84,14 @@ async function itemData(uid, it) {
 
 async function getDashboard(uid) {
   const ids = enabledIds(uid);
-  const items = ITEMS.filter((x) => ids.includes(x.id));
-  const data = await portfolio.mapLimit(items, 5, (it) => itemData(uid, it));
+  const ord = orderOf(uid);
+  const items = ord.items.map((id) => ITEMS.find((x) => x.id === id)).filter((x) => ids.includes(x.id));
+  // 나의 자산 항목이 여러 개여도 자산 계산은 한 번만
+  let assetsP = null;
+  const assetsOnce = () => (assetsP || (assetsP = portfolio.getAssets(uid, new Date().getFullYear(), null, false)));
+  const data = await portfolio.mapLimit(items, 5, (it) => itemData(uid, it, assetsOnce));
   return {
-    groups: GROUPS,
+    groups: ord.groups.map((id) => GROUPS.find((g) => g.id === id)),
     items: items.map((it, i) => ({ id: it.id, group: it.group, label: it.label, kind: it.kind, symbol: it.symbol || null, ...data[i] })),
     enabled: ids,
     at: new Date().toISOString(),
@@ -82,4 +99,4 @@ async function getDashboard(uid) {
   };
 }
 
-module.exports = { GROUPS, ITEMS, IDS, getDashboard };
+module.exports = { GROUPS, ITEMS, IDS, getDashboard, orderOf };

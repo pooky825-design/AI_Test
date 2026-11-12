@@ -816,5 +816,10 @@ window.I18N_EN = {
 "홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목을 고르세요.": "Choose the items for the Home screen (house icon next to K-Stock).",
 "홈을 공유받은 사람에게도 여기서 고른 항목만": "People you share Home with also see only these items",
 "보입니다(공유받은 사람은 바꿀 수 없음).": "(they cannot change them).",
-"홈 대시보드 항목을 저장했습니다.": "Saved home dashboard items."
+"홈 대시보드 항목을 저장했습니다.": "Saved home dashboard items.",
+"연간 수익 증감": "Year-to-date P&L",
+"총 자산": "Total assets",
+"홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목과 순서를 정하세요.": "Choose the items and their order for the Home screen (house icon next to K-Stock).",
+"홈 대시보드 항목·순서를 저장했습니다.": "Saved home dashboard items and order.",
+"▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.": "Use ▲▼ to reorder sections and the items within them. Unchecked items are hidden on Home."
 };

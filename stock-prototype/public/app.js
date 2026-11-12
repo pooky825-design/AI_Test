@@ -509,7 +509,7 @@
         loginStore.setRemember(remember.checked);
         state.user = r.user;
         state.settings = null;
-        go('#/assets');
+        go('#/home'); // 첫 화면 = 홈 대시보드 (v0.28.1)
       } catch (err) {
         msg.hidden = false;
         msg.textContent = err.message;
@@ -536,7 +536,7 @@
         const r = await api('POST', '/auth/signup', { email: d.email, password: d.password, signupCode: d.signupCode });
         state.user = r.user;
         toast('사용자를 추가했습니다.');
-        go('#/assets');
+        go('#/home');
       } catch (err) {
         showFieldErrors(form, err.fields || {});
         if (!err.fields || !Object.keys(err.fields).length) toast(err.message);
@@ -2898,7 +2898,7 @@
       </div>
       <div class="card" data-fold="dash">
         <h2>홈 대시보드 ${req('FR-DSH-02')}</h2>
-        <p style="margin:0 0 10px">홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목을 고르세요. <b>홈을 공유받은 사람에게도 여기서 고른 항목만</b> 보입니다(공유받은 사람은 바꿀 수 없음).</p>
+        <p style="margin:0 0 10px">홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목과 순서를 정하세요. <b>홈을 공유받은 사람에게도 여기서 고른 항목만</b> 보입니다(공유받은 사람은 바꿀 수 없음).</p>
         <div data-dash-items><span class="small muted">불러오는 중…</span></div>
       </div>
       ${IN_APP ? `<div class="card" data-fold="cloud">
@@ -2978,16 +2978,41 @@
     });
     mountThemeCard(main.querySelector('[data-theme-card]'));
     mountSyncCard(main.querySelector('[data-sync-card]'));
-    // 홈 대시보드 항목 (v0.28.0): 내 설정(dash.items)만 바꾼다
+    // 홈 대시보드 항목·순서 (v0.28.0~0.28.1): 내 설정(dash.items, dash.order)만 바꾼다
     (async () => {
       const box = main.querySelector('[data-dash-items]');
+      const gName = (g) => (isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label);
+      const ARROWS = (cls) => `<span class="ord-btns"><button type="button" class="ord-btn" data-${cls}-up title="위로" aria-label="위로">▲</button><button type="button" class="ord-btn" data-${cls}-dn title="아래로" aria-label="아래로">▼</button></span>`;
       try {
         const cat = await api('GET', '/dashboard/items');
         const saved = Array.isArray(state.settings && state.settings['dash.items']) ? state.settings['dash.items'] : cat.items.map((x) => x.id);
-        box.innerHTML = cat.groups.map((g) => `<div class="dash-pick"><b data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</b>${cat.items.filter((x) => x.group === g.id).map((x) => `<label class="check-row"><input type="checkbox" value="${esc(x.id)}" ${saved.includes(x.id) ? 'checked' : ''} /> ${esc(x.label)}</label>`).join('')}</div>`).join('');
-        box.addEventListener('change', async () => {
-          const v = [...box.querySelectorAll('input:checked')].map((x) => x.value);
-          try { await api('PUT', '/settings/dash.items', { value: v }); state.settings = { ...(state.settings || {}), 'dash.items': v }; toast('홈 대시보드 항목을 저장했습니다.'); } catch (e) { toast(e.message); }
+        box.innerHTML = `<div class="dash-order">${cat.groups.map((g) => `<div class="dash-og" data-g="${esc(g.id)}">
+            <div class="dash-og-head"><b data-noi18n>${esc(gName(g))}</b>${ARROWS('g')}</div>
+            ${cat.items.filter((x) => x.group === g.id).map((x) => `<div class="dash-oi" data-i="${esc(x.id)}"><label class="check-row"><input type="checkbox" value="${esc(x.id)}" ${saved.includes(x.id) ? 'checked' : ''} /> ${esc(x.label)}</label>${ARROWS('i')}</div>`).join('')}
+          </div>`).join('')}</div>
+          <p class="small muted" style="margin:8px 0 0">▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.</p>`;
+        const save = async () => {
+          const groups = [...box.querySelectorAll('.dash-og')].map((x) => x.dataset.g);
+          const items = [...box.querySelectorAll('.dash-oi')].map((x) => x.dataset.i);
+          const on = [...box.querySelectorAll('.dash-oi input:checked')].map((x) => x.value);
+          try {
+            await api('PUT', '/settings/dash.items', { value: on });
+            await api('PUT', '/settings/dash.order', { value: { groups, items } });
+            state.settings = { ...(state.settings || {}), 'dash.items': on, 'dash.order': { groups, items } };
+            toast('홈 대시보드 항목·순서를 저장했습니다.');
+          } catch (e) { toast(e.message); }
+        };
+        box.addEventListener('change', save);
+        box.addEventListener('click', (e) => {
+          const b = e.target.closest('.ord-btn');
+          if (!b) return;
+          const row = b.closest(b.hasAttribute('data-g-up') || b.hasAttribute('data-g-dn') ? '.dash-og' : '.dash-oi');
+          const up = b.hasAttribute('data-g-up') || b.hasAttribute('data-i-up');
+          const sib = up ? row.previousElementSibling : row.nextElementSibling;
+          if (!sib || !sib.classList.contains(row.classList[0])) return; // 맨 위/아래 (그룹 머리는 건너뛰지 않음)
+          if (up) sib.before(row); else sib.after(row);
+          b.focus();
+          save();
         });
       } catch (e) { box.innerHTML = `<span class="small muted">${esc(e.message)}</span>`; }
     })();
@@ -3424,10 +3449,24 @@
   function dashTile(it) {
     if (it.error) return `<div class="dash-tile err"><div class="dash-label">${esc(it.label)}</div><div class="dash-value">-</div><div class="dash-sub small muted">${esc(it.error)}</div></div>`;
     if (it.kind === 'mine') {
+      const when = it.time && !it.empty ? `${esc(shortTime(it.time))} 기준` : '';
+      if (it.empty) return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div><div class="dash-value">-</div><div class="dash-change"><span class="muted">보유 종목이 없습니다</span></div></div>`;
+      if (it.id === 'mytotal') {
+        return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
+          <div class="dash-value">${krw(it.value)}</div>
+          <div class="dash-change ${cls(it.change)}">${it.change == null ? '-' : `${it.change > 0 ? '▲' : it.change < 0 ? '▼' : ''} ${esc(sKrw(it.change))} <b>(${pct2(it.pct)})</b>`}</div>
+          <div class="dash-sub small muted">${it.costKrw != null ? `매입금액 ${krw(it.costKrw)} · ` : ''}${when}</div></div>`;
+      }
+      if (it.id === 'myyear') {
+        return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
+          <div class="dash-value ${cls(it.value)}">${sKrw(it.value)}</div>
+          <div class="dash-change ${cls(it.pct)}">${pct2(it.pct)} <span class="muted small">금년 수익률</span></div>
+          <div class="dash-sub small muted">${it.basisKrw != null ? `손익 기준액 ${krw(it.basisKrw)} · ` : ''}${when}</div></div>`;
+      }
       return `<div class="dash-tile mine"><div class="dash-label">${esc(it.label)}</div>
-        <div class="dash-value ${cls(it.value)}">${it.empty ? '-' : sKrw(it.value)}</div>
-        <div class="dash-change ${cls(it.pct)}">${it.empty ? '<span class="muted">보유 종목이 없습니다</span>' : `${pct2(it.pct)} <span class="muted small">전일 대비</span>`}</div>
-        <div class="dash-sub small muted">${it.empty ? '' : `총자산 ${krw(it.total)}`}${it.time && !it.empty ? ` · ${esc(shortTime(it.time))} 기준` : ''}</div></div>`;
+        <div class="dash-value ${cls(it.value)}">${sKrw(it.value)}</div>
+        <div class="dash-change ${cls(it.pct)}">${pct2(it.pct)} <span class="muted small">전일 대비</span></div>
+        <div class="dash-sub small muted">총자산 ${krw(it.total)}${when ? ` · ${when}` : ''}</div></div>`;
     }
     const f = DASH_FMT[it.kind] || DASH_FMT.index;
     const ch = it.change == null ? '' : it.kind === 'rate' ? `${it.change > 0 ? '+' : ''}${it.change.toFixed(3)}%p` : signed(nf2.format(it.change), it.change);
@@ -3439,7 +3478,7 @@
   async function viewHome() {
     const main = shell('#/home', `
       <div class="page-head">
-        <div><h1><span data-noi18n>${isEn() ? 'Home' : '홈'}</span> ${req('SC-09')}</h1><p>주요 지수·금리·환율·유가와 내 자산의 오늘 손익을 전일 대비로 보여 줍니다.${state.actAs ? ' 공유한 사람이 고른 항목만 보입니다.' : ' 보여 줄 항목은 환경설정에서 고를 수 있습니다.'}</p></div>
+        <div><p class="dash-intro">주요 지수·금리·환율·유가와 내 자산의 오늘 손익을 전일 대비로 보여 줍니다.${state.actAs ? ' 공유한 사람이 고른 항목만 보입니다.' : ' 보여 줄 항목은 환경설정에서 고를 수 있습니다.'}</p></div>
         <div class="field-row head-ctrl"><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div>
       </div>
       <div data-dash><div class="card empty">대시보드를 불러오는 중…</div></div>`);
@@ -3467,7 +3506,7 @@
     if (PUBLIC[path]) {
       if (state.user && path !== '/reset') {
         if (query.cloudError) toast('클라우드 서버에 연결하지 못해 휴대폰 안의 데이터로 열었습니다. 환경설정에서 다시 연결할 수 있습니다.');
-        return go('#/assets');
+        return go('#/home');
       }
       return PUBLIC[path](query);
     }
@@ -3487,7 +3526,7 @@
       setActAs(null);
     }
     document.body.classList.toggle('ro', !!(state.actAs && sc && state.actAs.perms[sc] !== 'edit'));
-    (PRIVATE[path] || (() => go('#/assets')))(query);
+    (PRIVATE[path] || (() => go('#/home')))(query);
     window.scrollTo(0, 0);
   }
 

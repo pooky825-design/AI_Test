@@ -653,3 +653,25 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
   .dash-value { font-size: 19px; }
   .dash-change { font-size: 12.5px; }
 }
+
+/* v0.28.1 홈 버튼: PC 는 이름 오른쪽 남은 공간의 가운데, 조금 크게 */
+.side .brand .home-btn { margin: 0 auto; width: 40px; height: 40px; border-radius: 10px; }
+.side .brand .home-btn .nav-ico { width: 23px; height: 23px; }
+.side .brand .home-btn .share-badge { right: -7px; bottom: -6px; }
+/* v0.28.1 대시보드: 항목명·증감률 한 단계 크게, 제목 대신 설명만 */
+.dash-intro { margin: 0; }
+.dash-label { font-size: 14.5px; }
+.dash-change { font-size: 15px; }
+@media (max-width: 640px) {
+  .dash-label { font-size: 13.5px; }
+  .dash-change { font-size: 13.5px; }
+}
+/* v0.28.1 환경설정: 대시보드 항목 순서 */
+.dash-order { display: flex; flex-direction: column; gap: 8px; }
+.dash-og { border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px 8px; }
+.dash-og-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 0 6px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
+.dash-oi { display: flex; align-items: center; justify-content: space-between; padding: 2px 0 2px 10px; }
+.dash-oi .check-row { margin: 0; }
+.ord-btns { display: inline-flex; gap: 4px; flex: none; }
+.ord-btn { width: 28px; height: 26px; padding: 0; font-size: 11px; line-height: 1; border-radius: 6px; background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.ord-btn:hover { color: var(--primary); border-color: var(--primary); }
