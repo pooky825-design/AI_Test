@@ -2990,7 +2990,13 @@
             <div class="dash-og-head"><b data-noi18n>${esc(gName(g))}</b>${ARROWS('g')}</div>
             ${cat.items.filter((x) => x.group === g.id).map((x) => `<div class="dash-oi" data-i="${esc(x.id)}"><label class="check-row"><input type="checkbox" value="${esc(x.id)}" ${saved.includes(x.id) ? 'checked' : ''} /> ${esc(x.label)}</label>${ARROWS('i')}</div>`).join('')}
           </div>`).join('')}</div>
-          <p class="small muted" style="margin:8px 0 0">▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.</p>`;
+          <p class="small muted" style="margin:8px 0 0">▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.</p>
+          <label class="check-row" style="margin-top:10px"><input type="checkbox" data-kw-toggle ${state.settings && state.settings['dash.keywords'] === false ? '' : 'checked'} /> 홈 화면 맨 아래에 <b>보유 종목 주요 키워드</b> 표 보이기 (최근 기사 키워드, 누르면 관련 기사)</label>`;
+        box.querySelector('[data-kw-toggle]').addEventListener('change', async (e) => {
+          e.stopPropagation();
+          const v = e.target.checked;
+          try { await api('PUT', '/settings/dash.keywords', { value: v }); state.settings = { ...(state.settings || {}), 'dash.keywords': v }; toast(v ? '보유 종목 주요 키워드를 보입니다.' : '보유 종목 주요 키워드를 숨깁니다.'); } catch (err) { toast(err.message); }
+        });
         const save = async () => {
           const groups = [...box.querySelectorAll('.dash-og')].map((x) => x.dataset.g);
           const items = [...box.querySelectorAll('.dash-oi')].map((x) => x.dataset.i);
@@ -3002,7 +3008,7 @@
             toast('홈 대시보드 항목·순서를 저장했습니다.');
           } catch (e) { toast(e.message); }
         };
-        box.addEventListener('change', save);
+        box.addEventListener('change', (e) => { if (!e.target.matches('[data-kw-toggle]')) save(); });
         box.addEventListener('click', (e) => {
           const b = e.target.closest('.ord-btn');
           if (!b) return;
@@ -3496,14 +3502,33 @@
     let d;
     try { d = await api('GET', '/dashboard'); } catch (e) { box.innerHTML = `<div class="notice error"><div>${esc(e.message)}</div></div>`; return; }
     if (!d.items.length) {
-      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 홈 대시보드</a>에서 항목을 고르세요.'}</div>`;
+      box.innerHTML = `<div class="card empty">보여 줄 항목이 없습니다.${state.actAs ? '' : ' <a href="#/me">환경설정 → 홈 대시보드</a>에서 항목을 고르세요.'}</div><div data-kw></div>`;
+      loadKeywords(box.querySelector('[data-kw]'));
       return;
     }
     box.innerHTML = d.groups.map((g) => {
       const its = d.items.filter((x) => x.group === g.id);
       if (!its.length) return '';
       return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
-    }).join('') + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
+    }).join('') + '<div data-kw></div>' + `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`;
+    loadKeywords(box.querySelector('[data-kw]'));
+  }
+
+  // 홈 화면 맨 아래: 보유 종목 주요 키워드 (v0.29.0). 대시보드를 먼저 그리고 나중에 채운다
+  async function loadKeywords(box) {
+    if (!box) return;
+    box.innerHTML = '<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="empty">최근 기사에서 키워드를 찾는 중…</div></div>';
+    let d;
+    try { d = await api('GET', '/dashboard/keywords'); } catch (e) { box.innerHTML = `<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="small muted">${esc(e.message)}</div></div>`; return; }
+    if (!d.enabled) { box.innerHTML = ''; return; }
+    if (!d.rows.length) { box.innerHTML = '<div class="card kw-card"><h2>보유 종목 주요 키워드</h2><div class="empty">올해 보유 종목이 없습니다.</div></div>'; return; }
+    const chip = (k) => `<a class="kw-chip" href="${esc(k.url)}" target="_blank" rel="noopener noreferrer" title="${esc(k.title)}${k.press ? ` · ${esc(k.press)}` : ''}${k.time ? ` · ${esc(shortTime(k.time))}` : ''}" data-noi18n>${esc(k.word)}</a>`;
+    box.innerHTML = `<div class="card kw-card"><h2>보유 종목 주요 키워드</h2>
+      <div class="table-wrap"><table class="kw-table"><thead><tr><th class="left">종목</th><th class="left">주요 키워드 <span class="muted small">(누르면 관련 기사)</span></th></tr></thead><tbody>
+      ${d.rows.map((r) => `<tr><td class="left kw-name"><div><span data-noi18n>${esc(r.name)}</span><small class="muted">${esc(r.code)}${r.type ? ` · ${esc(r.type)}` : ''}</small></div></td>
+        <td class="left">${r.error ? `<span class="small muted">${esc(r.error)}</span>` : r.keywords.length ? `<div class="kw-chips">${r.keywords.map(chip).join('')}</div>` : '<span class="small muted">최근 기사가 없습니다</span>'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="small muted" style="margin:8px 0 0">종목별 최근 기사 제목에서 자주 나온 단어(최대 4개)이며, 누르면 그 단어가 들어간 가장 최근 기사가 열립니다 · 국내 종목 네이버 증권, 미국 종목 Yahoo Finance(영문) · 1시간마다 갱신 · 단어 빈도로 고르므로 일부 키워드는 정확하지 않을 수 있습니다</p></div>`;
   }
 
   const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };

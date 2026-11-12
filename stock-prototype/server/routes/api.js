@@ -7,6 +7,7 @@ const market = require('../services/market');
 const portfolio = require('../services/portfolio');
 const gdrive = require('../services/gdrive');
 const dashboard = require('../services/dashboard');
+const newskw = require('../services/newskw');
 const excel = require('../services/excel');
 const { ValidationError } = market;
 const categories = require('../services/categories');
@@ -171,7 +172,7 @@ const SHARE_SCREENS = [
 ];
 const ALL_SCREENS = SHARE_SCREENS.map((s) => s.id);
 const SHARE_RULES = [
-  { m: ['GET'], re: /^\/dashboard$/, s: ['home'] },
+  { m: ['GET'], re: /^\/dashboard(\/keywords)?$/, s: ['home'] },
   { m: ['GET'], re: /^\/(assets|export\/assets\.xlsx)$/, s: ['assets'] },
   { m: ['GET'], re: /^\/(yearly|export\/yearly\.xlsx|dividends\/yearly|divmgmt\/history)$/, s: ['yearly'] },
   { m: ['GET'], re: /^\/(holdings|groups)$/, s: ALL_SCREENS },
@@ -887,10 +888,23 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order', 'dash.keywords'];
 
 // 홈 대시보드 (v0.28.0): 공유받은 사람이 보면 req.user 가 공유한 사람이므로 그 사람의 항목 설정대로
 router.get('/dashboard', async (req, res) => res.json(await dashboard.getDashboard(req.user.id)));
+// 보유 종목 주요 키워드 (v0.29.0): 올해 보유 종목(공유받은 사람이 보면 공유한 사람의 종목)
+router.get('/dashboard/keywords', async (req, res) => {
+  const uid = req.user.id;
+  const s = db.get("SELECT value FROM user_settings WHERE user_id = ? AND key = 'dash.keywords'", [uid]);
+  if (s && s.value === 'false') return res.json({ enabled: false, rows: [] });
+  const codes = [...new Set(positions.positionsAt(uid, thisYear(), {}).filter((p) => p.quantity > 0).map((p) => p.code))].slice(0, 30);
+  const rows = await portfolio.mapLimit(codes, 4, async (code) => {
+    const i = db.get('SELECT name, type FROM instruments WHERE code = ?', [code]) || {};
+    return { code, name: i.name || code, type: i.type || null, ...(await newskw.keywordsFor(code, i.name || code)) };
+  });
+  res.json({ enabled: true, rows, at: now() });
+});
+
 router.get('/dashboard/items', (req, res) => {
   const ord = dashboard.orderOf(req.user.id); // 내 순서대로
   res.json({

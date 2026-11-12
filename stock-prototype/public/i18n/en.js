@@ -821,5 +821,14 @@ window.I18N_EN = {
 "총 자산": "Total assets",
 "홈(K-Stock 옆 집 모양 아이콘) 화면에 보여 줄 항목과 순서를 정하세요.": "Choose the items and their order for the Home screen (house icon next to K-Stock).",
 "홈 대시보드 항목·순서를 저장했습니다.": "Saved home dashboard items and order.",
-"▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.": "Use ▲▼ to reorder sections and the items within them. Unchecked items are hidden on Home."
+"▲▼로 순서를 바꿉니다(구분 묶음 순서, 묶음 안 항목 순서). 체크를 끈 항목은 홈에 보이지 않습니다.": "Use ▲▼ to reorder sections and the items within them. Unchecked items are hidden on Home.",
+"보유 종목 주요 키워드": "Key news keywords for my holdings",
+"최근 기사에서 키워드를 찾는 중…": "Finding keywords in recent news…",
+"(누르면 관련 기사)": "(tap for the article)",
+"주요 키워드": "Key keywords",
+"최근 기사가 없습니다": "No recent articles",
+"올해 보유 종목이 없습니다.": "No holdings this year.",
+"종목별 최근 기사 제목에서 자주 나온 단어(최대 4개)이며, 누르면 그 단어가 들어간 가장 최근 기사가 열립니다 · 국내 종목 네이버 증권, 미국 종목 Yahoo Finance(영문) · 1시간마다 갱신 · 단어 빈도로 고르므로 일부 키워드는 정확하지 않을 수 있습니다": "Frequent words (up to 4) in recent headlines for each holding; tap one to open the latest article containing it · Korean stocks: Naver Finance, US stocks: Yahoo Finance (English) · refreshed hourly · chosen by word frequency, so some may be imprecise",
+"보유 종목 주요 키워드를 보입니다.": "Showing holdings news keywords.",
+"보유 종목 주요 키워드를 숨깁니다.": "Hiding holdings news keywords."
 };

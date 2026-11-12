@@ -686,3 +686,20 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .mk-wait { background: #eef1f5; color: #475569; }
 .mk-closed { background: #fdecec; color: #b42318; }
 @media (max-width: 640px) { .mk-badge { font-size: 15px; padding: 2px 10px; } }
+
+/* v0.29.0 홈 화면 보유 종목 주요 키워드 */
+.kw-table td { vertical-align: middle; }
+.kw-table th:first-child, .kw-table td:first-child { width: 30%; }
+.kw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kw-chip { display: inline-block; padding: 3px 11px; border-radius: 999px; background: var(--t-50); border: 1px solid var(--t-200); color: var(--primary-2); font-size: 14px; font-weight: 600; white-space: nowrap; }
+@media (hover: hover) { .kw-chip:hover { background: var(--primary); border-color: var(--primary); color: #fff; text-decoration: none; } }
+.kw-chip:active { background: var(--primary); color: #fff; }
+@media (max-width: 640px) { .kw-table th:first-child, .kw-table td:first-child { width: 38%; } .kw-chip { font-size: 13px; padding: 2px 9px; } }
+
+.kw-table { table-layout: fixed; width: 100%; }
+.kw-name div { display: flex; flex-direction: column; min-width: 0; }
+.kw-name span { overflow-wrap: anywhere; line-height: 1.35; }
+@media (max-width: 640px) { .kw-table th:first-child, .kw-table td:first-child { width: 36%; } .kw-name span { font-size: 13.5px; } .kw-table td { padding-left: 8px; padding-right: 8px; } }
+.kw-table td, .kw-table th { white-space: normal; }
+.kw-table td.kw-name { overflow: hidden; }
+.kw-name span { display: block; word-break: keep-all; overflow-wrap: anywhere; }
