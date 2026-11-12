@@ -2423,16 +2423,20 @@
   async function backupData() {
     try {
       const data = await api('GET', '/backup');
-      const text = JSON.stringify(data, null, 2);
-      const name = `stock-manager-backup-${today()}.json`; // 영문 파일 이름(일부 브라우저는 한글 이름을 무시)
+      const text = JSON.stringify(data);
+      // 암호화한 바이너리 백업 (v0.30.42): 4자리 백업 비밀번호로 잠근다
+      const pw = await askFilePin('백업 비밀번호', '백업 파일을 암호화할 <b>4자리 비밀번호</b>를 정하세요. 복원할 때 이 비밀번호가 필요합니다. <b>잊으면 백업 파일을 열 수 없습니다.</b>', true);
+      if (!pw) { toast('백업을 취소했습니다.'); return; }
+      const bytes = await ksEncrypt(text, pw);
+      const name = `stock-manager-backup-${today()}.ksb`; // 영문 파일 이름(일부 브라우저는 한글 이름을 무시)
       const c = data.counts || {};
       const summary = `주식 항목 ${c.items || 0}건 · 그룹 ${c.groups || 0}개 · 배당 회차 ${c.holdingDividends || 0}건`;
       if (window.AndroidBridge && window.AndroidBridge.createDocument) {
-        const msg = await nativeDoc('createDocument', name, 'application/json', utf8ToB64(text));
+        const msg = await nativeDoc('createDocument', name, 'application/octet-stream', bytesToB64(bytes));
         toast(`${msg} (${summary})`);
       } else {
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
         a.download = name;
         document.body.appendChild(a);
         a.click();
@@ -2445,18 +2449,28 @@
   }
 
   async function readBackupFile() {
-    if (window.AndroidBridge && window.AndroidBridge.openDocument) return b64ToUtf8(await nativeDoc('openDocument'));
-    return new Promise((resolve, reject) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json,application/json';
-      input.addEventListener('change', () => {
-        const f = input.files && input.files[0];
-        if (!f) return reject(new Error('취소했습니다.'));
-        f.text().then(resolve, reject);
+    const bytes = window.AndroidBridge && window.AndroidBridge.openDocument
+      ? b64ToBytes(await nativeDoc('openDocument'))
+      : await new Promise((resolve, reject) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.ksb,.json,application/json,application/octet-stream';
+        input.addEventListener('change', () => {
+          const f = input.files && input.files[0];
+          if (!f) return reject(new Error('취소했습니다.'));
+          f.arrayBuffer().then((b) => resolve(new Uint8Array(b)), reject);
+        });
+        input.click();
       });
-      input.click();
-    });
+    if (!ksIsEnc(bytes)) return new TextDecoder().decode(bytes); // 예전 백업(JSON)도 복원 가능
+    for (let msg = '백업할 때 정한 <b>4자리 백업 비밀번호</b>를 입력하세요.'; ;) {
+      const pw = await askFilePin('백업 비밀번호', msg, false);
+      if (!pw) throw new Error('복원을 취소했습니다.');
+      try { return await ksDecrypt(bytes, pw); } catch (e) {
+        if (e.code !== 'BADPW') throw e;
+        msg = '비밀번호가 맞지 않습니다. 다시 입력하세요.';
+      }
+    }
   }
 
   async function restoreData() {
@@ -2464,7 +2478,7 @@
     try {
       backup = JSON.parse(await readBackupFile());
     } catch (err) {
-      toast(err instanceof SyntaxError ? '백업 파일을 읽을 수 없습니다(JSON 형식 아님).' : err.message);
+      toast(err instanceof SyntaxError ? '백업 파일을 읽을 수 없습니다(K-Stock 백업 파일 아님).' : err.message);
       return;
     }
     if (!backup || backup.format !== 'stock-manager-backup') { toast('K-Stock 백업 파일이 아닙니다.'); return; }
@@ -2587,18 +2601,133 @@
   // 동기화 파일 (v0.26.9): 사용자(이메일)별 칸으로 나눠 저장 { format, version: 2, users: { 이메일: { savedAt, device, hash, counts, backup } } }
   //  - 로그인한 사용자는 자기 칸만 읽고 쓰며, 다른 사용자의 칸은 그대로 둔다
   //  - version 1(한 사용자만 담던 파일)은 그 파일의 계정 칸으로 읽는다
+
+  // ---------------------------------------------------------------------------
+  // 파일 암호화 (v0.30.42): 동기화 파일·백업 파일을 사람이 읽을 수 없는 바이너리로
+  //  - 형식: 'KSTK' + 버전(1) + 옵션(1, 1=gzip 압축) + 반복 횟수(4) + salt(16) + iv(12) + 암호문(AES-256-GCM)
+  //  - 열쇠: 4자리 비밀번호 → PBKDF2-SHA256(600,000번) → AES-256 (틀린 비밀번호·변조는 풀 때 바로 알 수 있음)
+  // ---------------------------------------------------------------------------
+  const KS_MAGIC = [0x4b, 0x53, 0x54, 0x4b];
+  const KS_ITER = 600000;
+  const KS_PEPPER = 'K-Stock file v1|';
+  const ksKeys = new Map();
+  async function ksKey(pw, salt, iter) {
+    const id = `${pw}|${[...salt].join(',')}|${iter}`;
+    if (ksKeys.has(id)) return ksKeys.get(id);
+    if (!(window.crypto && crypto.subtle)) throw new Error('이 기기(브라우저)에서는 파일 암호화를 지원하지 않습니다.');
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(KS_PEPPER + pw), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    ksKeys.set(id, key);
+    return key;
+  }
+  async function ksGzip(bytes, inflate) {
+    if (typeof CompressionStream !== 'function') return null;
+    const s = new Blob([bytes]).stream().pipeThrough(inflate ? new DecompressionStream('gzip') : new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  const ksIsEnc = (b) => b && b.length > 38 && KS_MAGIC.every((v, i) => b[i] === v);
+  async function ksEncrypt(text, pw) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    let plain = new TextEncoder().encode(text);
+    let flags = 0;
+    const z = await ksGzip(plain, false);
+    if (z) { plain = z; flags = 1; }
+    const head = new Uint8Array([...KS_MAGIC, 1, flags, (KS_ITER >>> 24) & 255, (KS_ITER >>> 16) & 255, (KS_ITER >>> 8) & 255, KS_ITER & 255]);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: head }, await ksKey(pw, salt, KS_ITER), plain));
+    const out = new Uint8Array(head.length + 28 + ct.length);
+    out.set(head, 0); out.set(salt, head.length); out.set(iv, head.length + 16); out.set(ct, head.length + 28);
+    return out;
+  }
+  async function ksDecrypt(b, pw) {
+    if (b[4] !== 1) throw new Error('이 앱보다 새 버전에서 만든 파일입니다. 앱을 업데이트해 주세요.');
+    const head = b.subarray(0, 10);
+    const iter = ((b[6] << 24) >>> 0) + (b[7] << 16) + (b[8] << 8) + b[9];
+    const salt = b.slice(10, 26);
+    const iv = b.slice(26, 38);
+    let plain;
+    try {
+      plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: head }, await ksKey(pw, salt, iter), b.subarray(38)));
+    } catch (e) {
+      if (e && e.name === 'OperationError') throw Object.assign(new Error('비밀번호가 맞지 않거나 파일이 손상되었습니다.'), { code: 'BADPW' });
+      throw e;
+    }
+    if (b[5] & 1) plain = await ksGzip(plain, true);
+    return new TextDecoder().decode(plain);
+  }
+  const bytesToB64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  const b64ToBytes = (b64) => Uint8Array.from(atob(b64 || ''), (c) => c.charCodeAt(0));
+  // 4자리 비밀번호 묻기 (동기화·백업 파일용). confirm=true 면 두 번 입력. 취소하면 null
+  function askFilePin(title, desc, confirm) {
+    return new Promise((resolve) => {
+      const body = openModal(title);
+      body.innerHTML = `<p style="margin:0 0 12px">${desc}</p>
+        <div class="field"><label>비밀번호 (4자리)</label>${pinBoxesHtml('fp1')}</div>
+        ${confirm ? `<div class="field" style="margin-top:10px"><label>비밀번호 확인</label>${pinBoxesHtml('fp2', '비밀번호 확인')}</div>` : ''}
+        <div class="notice error small" data-msg hidden style="margin-top:10px"></div>
+        <div class="field-row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="secondary" data-close>취소</button><button data-ok>확인</button></div>`;
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
+      const msg = body.querySelector('[data-msg]');
+      const p2 = confirm ? bindPin(body.querySelector('[data-pin="fp2"]'), () => ok()) : null;
+      const p1 = bindPin(body.querySelector('[data-pin="fp1"]'), () => (p2 ? p2.focus() : ok()));
+      const ok = () => {
+        const v = p1.value();
+        if ([...v].length !== PIN_LEN) { msg.hidden = false; msg.textContent = '4자리를 모두 입력하세요.'; p1.shake(); return; }
+        if (p2 && p2.value() !== v) { msg.hidden = false; msg.textContent = '비밀번호가 일치하지 않습니다.'; p2.shake(); p2.clear(); return; }
+        finish(v);
+      };
+      body.querySelector('[data-ok]').addEventListener('click', ok);
+      body.querySelector('[data-close]').addEventListener('click', () => finish(null));
+      const back = body.closest('.modal-back');
+      if (back) back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('.close')) finish(null); });
+      p1.focus();
+    });
+  }
+  // 동기화 비밀번호: 이 기기에 기억(모든 사용자가 같은 동기화 파일을 쓰므로 기기에 하나)
+  const syncPw = {
+    get() { try { return localStorage.getItem('sync.pw') || ''; } catch (_) { return ''; } },
+    set(v) { try { if (v) localStorage.setItem('sync.pw', v); else localStorage.removeItem('sync.pw'); } catch (_) { /* 무시 */ } },
+  };
+  async function needSyncPw(create) {
+    const cur = syncPw.get();
+    if (cur) return cur;
+    const v = create
+      ? await askFilePin('동기화 비밀번호 정하기', '동기화 파일을 암호화할 <b>4자리 동기화 비밀번호</b>를 정하세요. 다른 기기에서 동기화할 때도 같은 비밀번호를 한 번 입력합니다. <b>잊으면 동기화 파일을 열 수 없으니</b> 꼭 기억해 두세요.', true)
+      : await askFilePin('동기화 비밀번호', '동기화 파일이 암호화되어 있습니다. 처음 동기화를 설정할 때 정한 <b>4자리 동기화 비밀번호</b>를 입력하세요.', false);
+    if (!v) throw Object.assign(new Error('동기화를 취소했습니다.'), { name: 'AbortError' });
+    return v;
+  }
   async function readSyncFile(h) {
     const mode = syncMode();
-    const text = mode === 'gdrive' ? (await driveCall('/gdrive/read')).text : mode === 'android' ? b64ToUtf8(await nativeDoc('syncRead', syncKey())) : await (await h.getFile()).text();
+    const bytes = mode === 'gdrive' ? b64ToBytes((await driveCall('/gdrive/read')).b64) : mode === 'android' ? b64ToBytes(await nativeDoc('syncRead', syncKey())) : new Uint8Array(await (await h.getFile()).arrayBuffer());
+    let text;
+    let legacy = false;
+    if (ksIsEnc(bytes)) {
+      // 암호화된 파일 (v0.30.42): 기억한 비밀번호로 풀고, 맞지 않으면(다른 기기에서 바꿈 등) 다시 묻는다
+      let pw = await needSyncPw(false);
+      for (;;) {
+        try { text = await ksDecrypt(bytes, pw); syncPw.set(pw); break; } catch (e) {
+          if (e.code !== 'BADPW') throw e;
+          pw = await askFilePin('동기화 비밀번호', '동기화 비밀번호가 맞지 않습니다. 다른 기기에서 바꿨다면 <b>새 4자리 동기화 비밀번호</b>를 입력하세요.', false);
+          if (!pw) throw Object.assign(new Error('동기화를 취소했습니다.'), { name: 'AbortError' });
+        }
+      }
+    } else {
+      text = new TextDecoder().decode(bytes);
+      legacy = !!text.trim(); // 예전 암호화 안 된 파일 → 이번에 암호화해서 다시 저장
+    }
     if (!text.trim()) return { format: SYNC_FORMAT, version: 2, users: {} };
     let f;
-    try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(JSON 형식 아님).'); }
+    try { f = JSON.parse(text); } catch (_) { throw new Error('동기화 파일 내용을 읽을 수 없습니다(K-Stock 동기화 파일 아님).'); }
+    if (f && typeof f === 'object') f.legacy = legacy;
     if (!f || f.format !== SYNC_FORMAT) throw new Error('K-Stock 동기화 파일이 아닙니다. 다른 파일을 연결해 주세요.');
     if (!f.users && f.backup) {
       const acc = String(f.account || (f.backup && f.backup.account) || '').toLowerCase();
       f = { format: SYNC_FORMAT, version: 2, users: acc ? { [acc]: { savedAt: f.savedAt, device: f.device, hash: f.hash, counts: f.counts, backup: f.backup } } : {} };
     }
     if (!f.users || typeof f.users !== 'object') f.users = {};
+    if (legacy) f.legacy = true;
     return f;
   }
   async function writeSyncFile(h, file, backup, hash, rev) {
@@ -2607,12 +2736,27 @@
     await writeWholeSync(h, file);
   }
   // 파일 전체 쓰기: 사용자별 자료(users) + 사용자 정보(profiles, deleted, v0.30.23)
-  async function writeWholeSync(h, file) {
+  async function writeWholeSync(h, file, pwOverride) {
     const text = JSON.stringify({ format: SYNC_FORMAT, version: 2, users: file.users || {}, profiles: file.profiles || {}, deleted: file.deleted || {} });
-    if (syncMode() === 'gdrive') await driveCall('/gdrive/write', { text });
-    else if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), utf8ToB64(text));
-    else { const w = await h.createWritable(); await w.write(text); await w.close(); }
+    const pw = pwOverride || await needSyncPw(true);
+    const bytes = await ksEncrypt(text, pw); // 암호화한 바이너리로 저장 (v0.30.42)
+    syncPw.set(pw);
+    if (syncMode() === 'gdrive') await driveCall('/gdrive/write', { b64: bytesToB64(bytes) });
+    else if (syncMode() === 'android') await nativeDoc('syncWrite', syncKey(), bytesToB64(bytes));
+    else { const w = await h.createWritable(); await w.write(bytes); await w.close(); }
     file.written = true;
+    file.legacy = false;
+  }
+  // 동기화 비밀번호 바꾸기: 지금 파일을 풀어 새 비밀번호로 다시 암호화해 저장
+  async function changeSyncPw() {
+    try {
+      const h = syncMode() === 'web' ? await webHandle(true) : null;
+      const whole = await readSyncFile(h);
+      const v = await askFilePin('동기화 비밀번호 바꾸기', '새 <b>4자리 동기화 비밀번호</b>를 입력하세요. 다른 기기는 다음 동기화 때 새 비밀번호를 한 번 입력합니다.', true);
+      if (!v) return;
+      await writeWholeSync(h, whole, v);
+      toast('동기화 비밀번호를 바꿨습니다. 다른 기기에서는 다음 동기화 때 새 비밀번호를 입력하세요.');
+    } catch (e) { toast(e.name === 'AbortError' ? '취소했습니다.' : e.message); }
   }
   // 사용자 정보 동기화 (v0.30.23): 사용자 추가·별명·사진·비밀번호 변경·삭제를 파일과 이 기기 사이에 맞춘다
   async function syncProfiles(whole) {
@@ -2645,8 +2789,8 @@
     if (m === 'android') {
       await nativeDoc('syncPick', syncKey(), !!create);
     } else {
-      const types = [{ description: 'K-Stock 동기화 파일', accept: { 'application/json': ['.json'] } }];
-      const h = create ? await window.showSaveFilePicker({ suggestedName: 'kstock-sync.json', types }) : (await window.showOpenFilePicker({ types, multiple: false }))[0];
+      const types = [{ description: 'K-Stock 동기화 파일', accept: { 'application/octet-stream': ['.kst'], 'application/json': ['.json'] } }];
+      const h = create ? await window.showSaveFilePicker({ suggestedName: 'kstock-sync.kst', types }) : (await window.showOpenFilePicker({ types, multiple: false }))[0];
       await idb('put', `sync:${syncKey()}`, h);
     }
     saveSyncState(null); // 새 파일이면 처음 맞추는 것으로
@@ -2704,7 +2848,7 @@
         else await chooseSync(file, local, push, pull, !st);
       }
       // 사용자 정보만 바뀌었으면 파일에 한 번 더 저장 (자료를 저장했으면 이미 함께 들어감)
-      if (prof.dirty && !whole.written && !stale) await writeWholeSync(h, whole);
+      if ((prof.dirty || whole.legacy) && !whole.written && !stale) await writeWholeSync(h, whole);
       if (prof.note) {
         const t = document.getElementById('toast');
         toast(`${t && !t.hidden ? `${t.textContent} · ` : ''}${prof.note}`);
@@ -2914,9 +3058,12 @@
       const gdOk = gdriveAvailable();
       const g = state.gdrive;
       if (m === 'gdrive') {
-        box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 kstock-sync.json (구글 드라이브 내 드라이브)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
-          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button><button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>`;
+        box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 kstock-sync.kst (구글 드라이브 내 드라이브, 암호화)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
+          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${syncPw.get() ? '<button class="secondary" data-sync-pw>동기화 비밀번호 변경</button>' : ''}<button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>
+          <p class="small muted" style="margin:8px 0 0">🔒 동기화 파일(kstock-sync.kst)은 4자리 동기화 비밀번호로 암호화되어, 파일만으로는 내용을 볼 수 없습니다.</p>`;
         box.querySelector('[data-sync-now]').addEventListener('click', runSync);
+        const spw = box.querySelector('[data-sync-pw]');
+        if (spw) spw.addEventListener('click', changeSyncPw);
         box.querySelector('[data-gd-off]').addEventListener('click', async () => {
           if (!confirm('구글 드라이브 연결을 해제할까요? 드라이브의 파일과 이 기기의 데이터는 지워지지 않습니다.')) return;
           try {
@@ -2963,7 +3110,7 @@
       if (gdOk && !name) { mount(''); return; }
       mount(name
         ? `<div class="sync-status"><span>연결된 파일 <b data-noi18n>${esc(name)}</b></span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
-          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${gdOk ? '' : '<button class="secondary" data-relink>다른 파일 연결</button>'}<button class="secondary" data-unlink>연결 해제</button></div>`
+          <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${syncPw.get() ? '<button class="secondary" data-sync-pw>동기화 비밀번호 변경</button>' : ''}${gdOk ? '' : '<button class="secondary" data-relink>다른 파일 연결</button>'}<button class="secondary" data-unlink>연결 해제</button></div>`
         : `<div class="field-row" style="gap:8px;flex-wrap:wrap"><button data-create>새 동기화 파일 만들기</button><button class="secondary" data-open>기존 동기화 파일 연결</button></div>
           <p class="small muted" style="margin:8px 0 0">첫 기기에서 [새 동기화 파일 만들기]로 클라우드 폴더에 파일을 만들고, 다른 기기에서는 [기존 동기화 파일 연결]로 같은 파일을 고르세요.</p>`);
       const on = (sel, fn) => { const b = box.querySelector(sel); if (b) b.addEventListener('click', fn); };
@@ -2976,6 +3123,7 @@
       on('[data-open]', link(false));
       on('[data-relink]', link(false));
       on('[data-sync-now]', runSync);
+      on('[data-sync-pw]', changeSyncPw);
       on('[data-unlink]', async () => {
         if (!confirm('동기화 파일 연결을 해제할까요? 파일과 이 기기의 데이터는 지워지지 않습니다.')) return;
         await unlinkSyncFile();
@@ -3188,7 +3336,7 @@
       </div>` : ''}
       <div class="card" data-sync-card data-fold="sync">
         <h2>데이터 동기화 ${req('FR-BAK-03')}</h2>
-        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Connect each device to Google Drive with the same Google account, and tapping [Sync] brings the devices up to date through the sync file on Drive (kstock-sync.json; not real time). If only this device changed, it saves to Drive; if another device changed, it takes those changes; if both changed, it asks which to keep. It syncs holdings, dividends, categories, screen settings, sharing permissions and user info (added users, nicknames, photos, passwords). Holdings and other data are stored per user, so devices logged in as the same user stay in sync.' : `각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.json)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.`}</p>
+        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Connect each device to Google Drive with the same Google account, and tapping [Sync] brings the devices up to date through the sync file on Drive (kstock-sync.kst; not real time). The sync file is encrypted with a 4-character sync password (set on the first sync and entered once on each other device). If only this device changed, it saves to Drive; if another device changed, it takes those changes; if both changed, it asks which to keep. It syncs holdings, dividends, categories, screen settings, sharing permissions and user info (added users, nicknames, photos, passwords). Holdings and other data are stored per user, so devices logged in as the same user stay in sync.' : `각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.kst)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 동기화 파일은 4자리 동기화 비밀번호로 암호화됩니다(처음 동기화할 때 정하고, 다른 기기에서는 한 번 입력). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.`}</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
       </div>
       <div class="card" data-share-card data-fold="share">
@@ -3205,8 +3353,8 @@
           <button class="secondary" data-restore>백업 파일로 복원</button>
         </div>
         <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
-          ? `${window.AndroidBridge ? 'A window opens to choose where to save. Save it to the <b>Download</b> folder or Google Drive so it survives uninstalling the app.' : 'The backup file (.json) is saved to your downloads folder.'} Restoring <b>replaces all</b> of this account\'s data with the backup. Prices and FX rates are downloaded again after restoring.`
-          : `${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.json)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다.`}</p>
+          ? `${window.AndroidBridge ? 'A window opens to choose where to save. Save it to the <b>Download</b> folder or Google Drive so it survives uninstalling the app.' : 'The backup file (.ksb) is saved to your downloads folder.'} Restoring <b>replaces all</b> of this account\'s data with the backup. Prices and FX rates are downloaded again after restoring. 🔒 The backup file is encrypted with a 4-character password you set when backing up (you need it to restore).`
+          : `${window.AndroidBridge ? '저장 위치를 고르는 창이 열립니다. 앱을 지워도 남도록 <b>다운로드</b> 폴더나 구글 드라이브 등에 저장하세요.' : '백업 파일(.ksb)이 내려받기 폴더에 저장됩니다.'} 복원하면 지금 계정의 데이터가 백업 파일 내용으로 <b>모두 바뀝니다</b>. 시세·환율은 복원 후 다시 받아옵니다. 🔒 백업 파일은 백업할 때 정한 4자리 비밀번호로 암호화되며, 복원할 때 그 비밀번호가 필요합니다(예전 .json 백업도 복원 가능).`}</p>
       </div>
       <div class="card" data-theme-card data-fold="theme">
         <h2>화면 테마 설정 ${req('FR-UI-01')}</h2>

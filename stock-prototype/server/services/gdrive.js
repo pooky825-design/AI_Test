@@ -14,7 +14,13 @@ const TOKEN_URL = env.GDRIVE_TOKEN_URL || 'https://oauth2.googleapis.com/token';
 const API = env.GDRIVE_API || 'https://www.googleapis.com';
 const REVOKE_URL = env.GDRIVE_REVOKE_URL || 'https://oauth2.googleapis.com/revoke';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const FILE_NAME = 'kstock-sync.json';
+// v0.30.42: 동기화 파일은 암호화한 바이너리(kstock-sync.kst). 예전 파일(kstock-sync.json, 암호화 안 됨)은 읽기만 하고,
+// 새 파일을 저장하면 지운다(드라이브에 암호화 안 된 자료가 남지 않게)
+const FILE_NAME = 'kstock-sync.kst';
+const OLD_NAME = 'kstock-sync.json';
+const toB64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+const concat = (...parts) => { const n = parts.reduce((a, p) => a + p.length, 0); const out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
 
 class DriveError extends Error {
   constructor(message, status = 400, code = 'GDRIVE') { super(message); this.status = status; this.code = code; }
@@ -152,6 +158,7 @@ async function api(uid, method, path, { headers = {}, body, raw = false, token: 
       if (r.status === 403 && /has not been used|disabled/i.test(msg)) throw new DriveError(`Google Drive API가 사용 설정되어 있지 않습니다. 구글 클라우드 콘솔에서 Google Drive API를 사용 설정해 주세요. (${msg})`, 502);
       throw new DriveError(`구글 드라이브 오류: ${msg}`, 502);
     }
+    if (raw === 'bytes') return r.bytes || new TextEncoder().encode(r.text || '');
     return raw ? r.text : (r.text ? JSON.parse(r.text) : {});
   }
   throw new DriveError('구글 드라이브 인증에 실패했습니다.', 409, 'GDRIVE_AUTH');
@@ -166,35 +173,50 @@ async function findFile(uid, token) {
       if (!m.trashed) return m;
     } catch (e) { if (e.code !== 'GDRIVE_NOTFOUND') throw e; }
   }
-  const q = encodeURIComponent(`name = '${FILE_NAME}' and trashed = false`);
-  const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime)&spaces=drive`, { token });
-  const f = (list.files || [])[0] || null;
+  let f = null;
+  for (const name of [FILE_NAME, OLD_NAME]) {
+    const q = encodeURIComponent(`name = '${name}' and trashed = false`);
+    const list = await api(uid, 'GET', `/drive/v3/files?q=${q}&orderBy=modifiedTime desc&pageSize=5&fields=files(id,name,modifiedTime)&spaces=drive`, { token });
+    f = (list.files || [])[0] || null;
+    if (f) break;
+  }
   save(uid, { file_id: f ? f.id : null });
   return f;
 }
 
+// 파일 내용은 base64 로 주고받는다(화면 ↔ 서버). b64 = 파일 그대로의 바이트
 async function readFile(uid, token = null) {
   const f = await findFile(uid, token);
-  if (!f) return { text: '', file: null };
-  const text = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(f.id)}?alt=media`, { raw: true, token });
-  return { text, file: f };
+  if (!f) return { b64: '', file: null };
+  const bytes = await api(uid, 'GET', `/drive/v3/files/${encodeURIComponent(f.id)}?alt=media`, { raw: 'bytes', token });
+  return { b64: toB64(bytes), file: f };
 }
 
-async function writeFile(uid, text, token = null) {
+async function writeFile(uid, b64, token = null) {
+  const bytes = fromB64(b64);
   const f = await findFile(uid, token);
   let m;
-  if (f) {
+  if (f && f.name !== OLD_NAME) {
     // 내용만 바꿈 (HttpURLConnection 은 PATCH 를 못 보내므로 앱에서는 X-HTTP-Method-Override 로 보냄)
     m = await api(uid, 'PATCH', `/upload/drive/v3/files/${encodeURIComponent(f.id)}?uploadType=media&fields=id,name,modifiedTime`, {
-      headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: text, token,
+      headers: { 'Content-Type': 'application/octet-stream' }, body: bytes, token,
     });
   } else {
     const boundary = `kstock${crypto.randomBytes(8).toString('hex')}`;
-    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: FILE_NAME, mimeType: 'application/json' })}\r\n`
-      + `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
+    const enc = new TextEncoder();
+    const body = concat(
+      enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: FILE_NAME, mimeType: 'application/octet-stream' })}\r\n`
+        + `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`),
+      bytes,
+      enc.encode(`\r\n--${boundary}--`),
+    );
     m = await api(uid, 'POST', '/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime', {
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body, token,
     });
+    // 예전 암호화 안 된 파일은 지운다
+    if (f && f.name === OLD_NAME) {
+      try { await api(uid, 'DELETE', `/drive/v3/files/${encodeURIComponent(f.id)}`, { raw: true, token }); } catch (_) { /* 못 지워도 새 파일은 저장됨 */ }
+    }
   }
   save(uid, { file_id: m.id });
   return m;
@@ -211,6 +233,6 @@ async function disconnect(uid) {
 
 // 기기 계정 방식: 이 사용자가 쓰는 파일 ID 만 기억 (클라이언트 방식 정보는 건드리지 않음)
 const readFileWith = (uid, token) => readFile(uid, checkToken(token));
-const writeFileWith = (uid, token, text) => writeFile(uid, text, checkToken(token));
+const writeFileWith = (uid, token, b64) => writeFile(uid, b64, checkToken(token));
 
 module.exports = { status, setClient, startAuth, finishAuth, readFile, writeFile, readFileWith, writeFileWith, disconnect, DriveError, FILE_NAME };

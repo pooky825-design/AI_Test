@@ -32,7 +32,8 @@ async function request(url, { method = 'GET', headers = {}, body, timeoutMs = 20
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, { signal: ctrl.signal, method, headers, body });
-    return { ok: r.ok, status: r.status, text: await r.text() };
+    const bytes = new Uint8Array(await r.arrayBuffer()); // 동기화 파일(암호화 바이너리, v0.30.42)도 받을 수 있게
+    return { ok: r.ok, status: r.status, text: new TextDecoder('utf-8').decode(bytes), bytes };
   } catch (e) {
     throw new SourceError(e.name === 'AbortError' ? '응답 시간이 초과되었습니다.' : '인터넷에 연결할 수 없습니다. 연결을 확인해 주세요.');
   } finally {

@@ -38,7 +38,7 @@ async function request(url, { method = 'GET', headers = {}, body, timeoutMs = 20
   } catch (e) {
     throw new SourceError(e.name === 'AbortError' ? '응답 시간이 초과되었습니다.' : `인터넷에 연결할 수 없습니다. 연결을 확인해 주세요. (${e.message})`);
   }
-  return { ok: r.status >= 200 && r.status < 300, status: r.status, text: new TextDecoder('utf-8').decode(r.bytes) };
+  return { ok: r.status >= 200 && r.status < 300, status: r.status, text: new TextDecoder('utf-8').decode(r.bytes), bytes: r.bytes };
 }
 
 module.exports = { fetchRaw, request };

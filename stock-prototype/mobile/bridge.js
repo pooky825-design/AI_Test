@@ -60,7 +60,7 @@ function httpRequest(method, url, headers, body) {
   return new Promise((resolve, reject) => {
     const id = String(++seq);
     pending.set(id, { resolve, reject });
-    const b64 = body == null ? '' : toBase64(new TextEncoder().encode(String(body)));
+    const b64 = body == null ? '' : toBase64(body instanceof Uint8Array ? body : new TextEncoder().encode(String(body))); // 바이너리 본문 (v0.30.42)
     Native.httpRequest(id, method, url, JSON.stringify(headers || {}), b64);
   });
 }
