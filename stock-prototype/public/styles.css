@@ -606,3 +606,11 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .gd-or { margin: 14px 0 8px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .gd-or:empty { display: none; }
 @media (max-width: 640px) { .gd-form { grid-template-columns: 1fr; } }
+
+/* v0.27.5 공유받은 화면 메뉴: 아이콘 + 공유 배지 */
+.nav-ico-wrap { position: relative; display: inline-flex; flex: none; margin-right: 6px; }
+.share-badge { position: absolute; right: -6px; bottom: -5px; width: 13px; height: 13px; border-radius: 50%; background: #fff; color: var(--primary); display: grid; place-items: center; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .12); pointer-events: none; }
+.share-badge svg { width: 9px; height: 9px; }
+.mobile-top nav a .nav-ico-wrap { margin-right: 5px; }
+.mobile-top nav a .share-badge { right: -5px; bottom: -4px; width: 11px; height: 11px; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .15); }
+.mobile-top nav a .share-badge svg { width: 8px; height: 8px; }

@@ -277,10 +277,17 @@
     return `<div class="share-banner"><span>👥 <b>${esc(state.actAs.email)}</b>님이 공유한 화면을 보고 있습니다 ${mode}</span><button class="sm secondary" data-actexit>내 자산으로 돌아가기</button></div>`;
   }
 
+  // 공유받은 화면 메뉴 표시 (v0.27.5): 다른 사람의 자산을 보는 중이면 그 사람에게서 받은 메뉴 아이콘에 공유 배지
+  const SHARE_BADGE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
+  const navIconFor = (h) => {
+    if (!state.actAs) return navIcon(h);
+    const badge = h !== '#/me' ? `<span class="share-badge" title="공유받은 화면" aria-label="공유받은 화면">${SHARE_BADGE_SVG}</span>` : ''; // 환경설정은 내 메뉴 → 배지 없음(글자 위치만 맞춤)
+    return `<span class="nav-ico-wrap">${navIcon(h)}${badge}</span>`;
+  };
   function shell(active, inner) {
     const nav = state.actAs ? NAV.filter(([h]) => h === '#/me' || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
-    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIcon(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
-    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIcon(h)}<span class="nav-label">${label}</span></a>`).join('');
+    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
+    const mlinks = nav.map(([h, label]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
     $app.innerHTML = `
       <div class="shell">
         <aside class="side">
