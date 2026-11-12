@@ -42,7 +42,7 @@ body {
   line-height: 1.5;
 }
 a { color: var(--primary-2); text-decoration: none; }
-a:hover { text-decoration: underline; }
+@media (hover: hover) { a:hover { text-decoration: underline; } } /* 휴대폰은 누른 뒤 hover 가 남아 밑줄이 생기므로 마우스가 있을 때만 (v0.27.7) */
 h1, h2, h3 { margin: 0; line-height: 1.3; }
 h1 { font-size: 22px; }
 h2 { font-size: 17px; }
@@ -617,3 +617,8 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 
 /* v0.27.6 휴대폰 메뉴: 공유받은 화면을 볼 때 환경설정 앞 구분선 */
 .mobile-top nav .nav-sep { flex: none; width: 1.5px; margin: 7px 6px; border-radius: 1px; background: rgba(255, 255, 255, .55); }
+
+/* v0.27.7 휴대폰 메뉴: 누를 때·누른 뒤 밑줄 없음, 눌림은 배경으로 표시 */
+.mobile-top nav a, .mobile-top nav a:hover, .mobile-top nav a:focus, .mobile-top nav a:active { text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.mobile-top nav a:active { background: rgba(255, 255, 255, .12); }
+.mobile-top nav a:focus:not(:focus-visible) { outline: none; }
