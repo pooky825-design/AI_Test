@@ -252,7 +252,8 @@
   ];
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
-    '#/home': '<path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M6 10v9.5h4.5V15h3v4.5H18V10"/>',
+    // 홈 (v0.30.2): 흰색으로 채운 집 + 문 모양만 비움(잘 보이게)
+    '#/home': '<path fill="currentColor" fill-rule="evenodd" d="M12 3.6 3.2 11.2h2.4V20h12.8v-8.8h2.4L12 3.6ZM10.3 20v-4.6h3.4V20h-3.4Z"/>',
     '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
