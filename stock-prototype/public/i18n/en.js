@@ -942,5 +942,10 @@ window.I18N_EN = {
 "부처님오신날 대체공휴일": "Buddha's Birthday (substitute)",
 "설날 대체공휴일": "Lunar New Year (substitute)",
 "COMEX 금 선물 GC=F, 원/달러 KRW=X": "COMEX gold futures GC=F, USD/KRW KRW=X",
-"전주 대비": "Weekly change"
+"전주 대비": "Weekly change",
+"대시보드": "Dashboard",
+"항목은 환경설정에서 고를 수 있습니다.": "Choose items in Settings.",
+"사용자 정보": "User info",
+"등록일": "Registered",
+"4자리 칸으로 입력": "Enter in 4 boxes"
 };

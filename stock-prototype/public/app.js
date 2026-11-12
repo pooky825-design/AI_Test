@@ -254,6 +254,8 @@
   const NAV_ICON_PATHS = {
     // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움, v0.30.6: 지붕은 그대로 몸체는 좁게·문은 더 넓게)
     '#/home': '<path fill="currentColor" d="M10.8 4.6Q12 3.6 13.2 4.6L20.3 10.6Q21.1 11.4 20 11.5H17.8V18.6Q17.8 20.2 16.2 20.2H14.8V16.6Q14.8 14.2 12 14.2Q9.2 14.2 9.2 16.6V20.2H7.8Q6.2 20.2 6.2 18.6V11.5H4Q2.9 11.4 3.7 10.6Z"/>',
+    // 대시보드 제목 아이콘 (v0.30.14): 크기가 다른 네 칸
+    'dash': '<rect x="4" y="4" width="7" height="9" rx="1.6"/><rect x="13" y="4" width="7" height="5" rx="1.6"/><rect x="13" y="11" width="7" height="9" rx="1.6"/><rect x="4" y="15" width="7" height="5" rx="1.6"/>',
     '#/yearly': '<path d="M4 20h16"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
@@ -319,6 +321,10 @@
           <main class="main"><div class="content">${shareBanner(active)}${inner}</div><div class="footer-note">${DISCLAIMER}</div></main>
         </div>
       </div>`;
+    // 화면 제목 왼쪽 아이콘 (v0.30.14), 홈은 대시보드 아이콘
+    const h1 = $app.querySelector('.content .page-head h1');
+    const icoKey = active === '#/home' ? 'dash' : active;
+    if (h1 && NAV_ICON_PATHS[icoKey]) h1.insertAdjacentHTML('afterbegin', navIcon(icoKey).replace('class="nav-ico"', 'class="title-ico"'));
     const mnav = $app.querySelector('.mobile-top nav');
     if (mnav) {
       mnav.scrollLeft = mnavScroll;
@@ -436,6 +442,29 @@
   // 4자리 비밀번호 칸 (v0.30.0): 칸마다 한 글자, 자동으로 다음 칸, 지우면 앞 칸, 붙여넣기 가능
   const PIN_LEN = 4;
   const pinBoxesHtml = (name, label) => `<div class="pin-boxes" data-pin="${esc(name || '')}" role="group" aria-label="${esc(label || '비밀번호 4자리')}">${Array.from({ length: PIN_LEN }, (_, i) => `<input class="pin-box" type="password" maxlength="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${i + 1}번째 글자" />`).join('')}</div>`;
+  // 4자리 칸, 필요하면 '4자리가 아닌 예전 비밀번호' 입력칸으로 바꿈 (v0.30.14)
+  const pinOrLegacyHtml = (name, label) => `<div class="pin-legacy" data-pl="${esc(name)}">${pinBoxesHtml(name, label)}<input type="password" class="legacy-pw" data-legacy-input autocomplete="current-password" hidden aria-label="${esc(label || '비밀번호')}" /><a href="#" class="small" data-legacy-toggle>4자리가 아닌 예전 비밀번호</a></div>`;
+  function bindPinOrLegacy(wrap, onComplete) {
+    const pin = bindPin(wrap.querySelector('[data-pin]'), onComplete);
+    const boxes = wrap.querySelector('.pin-boxes');
+    const inp = wrap.querySelector('[data-legacy-input]');
+    const tog = wrap.querySelector('[data-legacy-toggle]');
+    let legacy = false;
+    tog.addEventListener('click', (e) => {
+      e.preventDefault();
+      legacy = !legacy;
+      boxes.hidden = legacy;
+      inp.hidden = !legacy;
+      tog.textContent = legacy ? '4자리 칸으로 입력' : '4자리가 아닌 예전 비밀번호';
+      if (legacy) inp.focus(); else pin.focus();
+    });
+    return {
+      value: () => (legacy ? inp.value : pin.value()),
+      focus: () => (legacy ? inp.focus() : pin.focus()),
+      clear: () => { inp.value = ''; if (legacy) inp.focus(); else pin.clear(); },
+      shake: () => pin.shake(),
+    };
+  }
   function bindPin(el, onComplete) {
     const boxes = [...el.querySelectorAll('.pin-box')];
     const value = () => boxes.map((b) => b.value).join('');
@@ -2990,9 +3019,11 @@
 
   function viewMe() {
     const main = shell('#/me', `
-      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1><p class="me-who">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')} <b data-noi18n>${esc(displayName(state.user))}</b> · 가입일 ${fmtTime(state.user.created_at)}</p></div></div>
+      <div class="page-head"><div><h1>환경설정 ${req('SC-07 · FR-AUTH-03 · FR-AUTH-04 · FR-SHR')}</h1></div></div>
       <div class="card" data-fold="profile">
-        <h2>프로필 사진</h2>
+        <h2>사용자 정보</h2>
+        <div class="me-info">${avatarHtml(state.user.avatar, displayName(state.user), 'av-md')}<div><div class="me-name" data-noi18n>${esc(displayName(state.user))}</div><div class="small muted">등록일 ${fmtTime(state.user.created_at)}</div></div></div>
+        <h3 class="me-sub">프로필 사진</h3>
         <p style="margin:0 0 10px">로그인 화면의 사용자 목록에 보이는 사진입니다.</p>
         ${avatarPickerHtml(state.user.avatar)}
         <div class="field-row" style="margin-top:10px"><button data-avsave>저장</button></div>
@@ -3065,7 +3096,8 @@
         <div class="card" data-fold="password">
           <h2>비밀번호 변경</h2>
           <form data-pw novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
-            <div class="field"><label>현재 비밀번호</label><input type="password" name="current" autocomplete="current-password" /><span class="err" data-err="current"></span></div>
+            <div class="field"><label>현재 비밀번호</label>${pinOrLegacyHtml('cur', '현재 비밀번호')}<span class="err" data-err="current"></span></div>
+            <hr class="pw-sep" />
             <div class="field"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('n1')}<span class="err" data-err="next"></span></div>
             <div class="field"><label>새 비밀번호 확인</label>${pinBoxesHtml('n2', '새 비밀번호 확인')}<span class="err" data-err="next2"></span></div>
             <div><button type="submit">변경</button></div>
@@ -3075,7 +3107,7 @@
           <h2>사용자 삭제</h2>
           <div class="notice warn"><div>사용자를 삭제하면 계정, 보유 종목, 배당 내역이 모두 삭제되며 복구할 수 없습니다. ${req('NFR-PRI-01')}</div></div>
           <form data-del novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
-            <div class="field"><label>비밀번호 확인</label><input type="password" name="password" autocomplete="current-password" /><span class="err" data-err="password"></span></div>
+            <div class="field"><label>비밀번호 확인</label>${pinOrLegacyHtml('delpw', '비밀번호 확인')}<span class="err" data-err="password"></span></div>
             <div><button type="submit" class="danger">사용자 삭제</button></div>
           </form>
         </div>
@@ -3143,33 +3175,37 @@
       try { const r = await api('PUT', '/auth/profile', { avatar: v }); state.user = { ...state.user, avatar: r.avatar }; toast('프로필 사진을 저장했습니다.'); render(); } catch (err) { toast(err.message); }
     });
     const pw = main.querySelector('[data-pw]');
+    const cur = bindPinOrLegacy(pw.querySelector('[data-pl="cur"]'), () => n1.focus());
     const n1 = bindPin(pw.querySelector('[data-pin="n1"]'), () => n2.focus());
     const n2 = bindPin(pw.querySelector('[data-pin="n2"]'));
     pw.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (n1.value() !== n2.value()) { n2.shake(); n2.clear(); return showFieldErrors(pw, { next2: '새 비밀번호가 일치하지 않습니다.' }); }
       try {
-        await api('POST', '/auth/change-password', { current: pw.current.value, next: n1.value() });
+        await api('POST', '/auth/change-password', { current: cur.value(), next: n1.value() });
         pw.reset();
-        n1.clear(); n2.clear();
+        cur.clear(); n1.clear(); n2.clear();
         showFieldErrors(pw, {});
         toast('비밀번호를 변경했습니다.');
       } catch (err) {
-        showFieldErrors(pw, err.fields);
+        showFieldErrors(pw, err.fields || { current: err.message });
+        if (err.fields && err.fields.current) { cur.shake(); cur.clear(); }
       }
     });
     const del = main.querySelector('[data-del]');
+    const delPw = bindPinOrLegacy(del.querySelector('[data-pl="delpw"]'));
     del.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!confirm('정말 이 사용자를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
       try {
-        await api('DELETE', '/auth/account', formData(del));
+        await api('DELETE', '/auth/account', { password: delPw.value() });
         state.user = null;
         resetShareState();
         toast('사용자를 삭제했습니다.');
         go('#/login');
       } catch (err) {
-        showFieldErrors(del, err.fields);
+        showFieldErrors(del, err.fields || { password: err.message });
+        delPw.shake(); delPw.clear();
       }
     });
   }
@@ -3717,9 +3753,9 @@
   }
   async function viewHome() {
     const main = shell('#/home', `
-      <div class="page-head">
-        <div><p class="dash-intro">주요 지수·금리·환율·유가와 내 자산의 오늘 손익을 전일 대비로 보여 줍니다.${state.actAs ? ' 공유한 사람이 고른 항목만 보입니다.' : ' 보여 줄 항목은 환경설정에서 고를 수 있습니다.'}</p></div>
-        <div class="field-row head-ctrl"><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div>
+      <div class="page-head home-head">
+        <div class="home-title"><h1>대시보드</h1><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div>
+        <p class="dash-intro">${state.actAs ? '공유한 사람이 고른 항목만 보입니다.' : '항목은 환경설정에서 고를 수 있습니다.'}</p>
       </div>
       <div data-dash><div class="card empty">대시보드를 불러오는 중…</div></div>`);
     main.querySelector('[data-refresh]').addEventListener('click', () => render());

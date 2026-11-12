@@ -810,3 +810,18 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .dd-daily { max-height: 320px; margin-bottom: 12px; }
 .dd-daily th, .dd-daily td { white-space: nowrap; }
 @media (max-width: 640px) { .dd-daily { max-height: 260px; } .dd-daily th, .dd-daily td { font-size: 13px; padding-left: 6px; padding-right: 6px; } }
+
+/* v0.30.14 화면 제목 아이콘, 대시보드 제목 줄, 사용자 정보, 비밀번호 칸 */
+.page-head h1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.page-head h1 .title-ico { width: 1.1em; height: 1.1em; flex: none; color: var(--primary); }
+.home-head { flex-direction: column; align-items: stretch; gap: 4px; }
+.home-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-title h1 { margin: 0; }
+.home-head .dash-intro { color: var(--muted); }
+.me-info { display: flex; align-items: center; gap: 12px; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.me-name { font-size: 17px; font-weight: 800; }
+.me-sub { font-size: 15px; margin: 0 0 4px; }
+.pw-sep { border: none; border-top: 1px solid var(--border); margin: 2px 0; width: 100%; }
+.pin-legacy { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pin-legacy .legacy-pw { max-width: 240px; }
+.pin-legacy [hidden] { display: none !important; }
