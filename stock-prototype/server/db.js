@@ -368,6 +368,12 @@ function migrate() {
   // 사용자 정보 동기화 (v0.30.23): 별명·사진·비밀번호를 마지막으로 바꾼 시각, 지운 사용자 기록(다른 기기에도 삭제를 전하기 위해)
   if (!ucols.includes('profile_at')) db.run('ALTER TABLE users ADD COLUMN profile_at TEXT');
   db.run('CREATE TABLE IF NOT EXISTS deleted_users (email TEXT PRIMARY KEY, deleted_at TEXT NOT NULL)');
+  // 받지 않기 (v0.30.26): 공유받은 사람이 거절한 공유. 공유한 사람이 그 뒤에 다시 공유(updated_at 이 더 늦음)하면 다시 보인다
+  db.run(`CREATE TABLE IF NOT EXISTS share_declines (
+    viewer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_email TEXT NOT NULL,
+    declined_at TEXT NOT NULL,
+    PRIMARY KEY (viewer_id, owner_email))`);
   // 데모 계정: 별명·사진을 붙이고 비밀번호를 4자리(1234)로 (한 번만, 별명이 없을 때)
   if (get("SELECT 1 FROM users WHERE email = 'demo@example.com' AND nickname IS NULL")) {
     db.run("UPDATE users SET nickname = '데모', avatar = 'preset:1', password_hash = ? WHERE email = 'demo@example.com'", [DEMO_PIN_HASH]);

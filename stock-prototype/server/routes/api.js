@@ -226,8 +226,11 @@ function cleanPerms(input) {
   }
   return out;
 }
+// 받지 않기 (v0.30.26): 공유받은 사람이 거절한 뒤 다시 공유되지 않은 공유는 없는 것으로 본다 (s = screen_shares 별칭)
+const NOT_DECLINED = `NOT EXISTS (SELECT 1 FROM share_declines d WHERE d.viewer_id = s.viewer_id
+  AND d.owner_email = (SELECT lower(email) FROM users WHERE id = s.owner_id) AND d.declined_at >= s.updated_at)`;
 function sharePerms(ownerId, viewerId) {
-  const row = db.get('SELECT perms FROM screen_shares WHERE owner_id = ? AND viewer_id = ?', [ownerId, viewerId]);
+  const row = db.get(`SELECT perms FROM screen_shares s WHERE owner_id = ? AND viewer_id = ? AND ${NOT_DECLINED}`, [ownerId, viewerId]);
   if (!row) return null;
   try { return cleanPerms(JSON.parse(row.perms)); } catch (_) { return {}; }
 }
@@ -271,11 +274,11 @@ const shareOut = (r, emailKey) => {
 router.get('/shares', (req, res) => {
   const given = db.all(
     `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, u.nickname FROM screen_shares s JOIN users u ON u.id = s.viewer_id
-     WHERE s.owner_id = ? ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'));
+     WHERE s.owner_id = ? AND ${NOT_DECLINED} ORDER BY u.email`, [req.user.id]).map((r) => shareOut(r, 'email'));
   const received = db.all(
     `SELECT s.id, s.perms, s.updated_at, u.id AS uid, u.email, u.nickname, m.saved_at AS mirror_saved, m.device AS mirror_device, m.updated_at AS mirror_at
      FROM screen_shares s JOIN users u ON u.id = s.owner_id LEFT JOIN mirror_users m ON m.user_id = u.id
-     WHERE s.viewer_id = ? ORDER BY u.email`, [req.user.id]).map((r) => ({ ...shareOut(r, 'email'), mirror: r.mirror_at ? { savedAt: r.mirror_saved, device: r.mirror_device, at: r.mirror_at } : null }))
+     WHERE s.viewer_id = ? AND ${NOT_DECLINED} ORDER BY u.email`, [req.user.id]).map((r) => ({ ...shareOut(r, 'email'), mirror: r.mirror_at ? { savedAt: r.mirror_saved, device: r.mirror_device, at: r.mirror_at } : null }))
     .filter((r) => Object.keys(r.perms).length);
   const pending = db.all('SELECT viewer_email AS email, perms, updated_at FROM pending_shares WHERE owner_id = ? ORDER BY viewer_email', [req.user.id])
     .map((r) => { let perms = {}; try { perms = cleanPerms(JSON.parse(r.perms)); } catch (_) { /* 무시 */ } return { email: r.email, perms, updated_at: r.updated_at }; });
@@ -328,6 +331,18 @@ router.delete('/shares/:id', (req, res) => {
   const id = Number(req.params.id);
   const row = db.get('SELECT id, owner_id, viewer_id FROM screen_shares WHERE id = ? AND (owner_id = ? OR viewer_id = ?)', [id, req.user.id, req.user.id]);
   if (!row) return res.status(404).json({ error: '공유 정보를 찾을 수 없습니다.', code: 'NOT_FOUND' });
+  // 공유받은 사람이 [받지 않기]: 다른 기기에도 동기화로 전해 공유한 사람의 목록에서도 빠지게 기록 (v0.30.26)
+  //  - 공유한 사람의 자료(screen_shares 행)는 건드리지 않는다: 고치면 이 기기의 그 사람 자료가 '바뀐 것'이 되어 이후 동기화로 다시 공유해도 받지 못함
+  //  - 기록만으로 양쪽 목록에서 빠지고, 공유한 사람이 그 뒤에 다시 공유하면(공유 시각이 더 늦음) 다시 보인다
+  if (row.viewer_id === req.user.id && !db.get('SELECT 1 FROM mirror_users WHERE user_id = ?', [row.owner_id])) {
+    const owner = db.get('SELECT email FROM users WHERE id = ?', [row.owner_id]);
+    db.run('INSERT OR REPLACE INTO share_declines (viewer_id, owner_email, declined_at) VALUES (?, ?, ?)', [req.user.id, String(owner.email).toLowerCase(), now()]);
+    return res.json({ ok: true });
+  }
+  if (row.viewer_id === req.user.id) {
+    const owner = db.get('SELECT email FROM users WHERE id = ?', [row.owner_id]);
+    if (owner) db.run('INSERT OR REPLACE INTO share_declines (viewer_id, owner_email, declined_at) VALUES (?, ?, ?)', [req.user.id, String(owner.email).toLowerCase(), now()]);
+  }
   // 동기화로 받은 공유 자료(v0.27.2)면 아무에게도 공유되지 않게 될 때 받아 둔 자료도 지운다
   if (db.get('SELECT 1 FROM mirror_users WHERE user_id = ?', [row.owner_id])) dropMirrorShare(row.owner_id, row.viewer_id);
   else db.run('DELETE FROM screen_shares WHERE id = ?', [id]);
@@ -1354,6 +1369,9 @@ router.post('/mirror/sync', async (req, res) => {
     const mine = shares.find((x) => String(x.viewer_email || '').trim().toLowerCase() === myEmail);
     let perms = {};
     try { perms = mine ? cleanPerms(typeof mine.perms === 'string' ? JSON.parse(mine.perms) : mine.perms) : {}; } catch (_) { perms = {}; }
+    const mineAt = AT(mine && mine.updated_at) || '';
+    const dec = db.get('SELECT declined_at FROM share_declines WHERE viewer_id = ? AND owner_email = ?', [me.id, email]);
+    if (dec && dec.declined_at >= mineAt) perms = {}; // 받지 않기 뒤로 다시 공유하지 않음 (v0.30.26)
     if (!Object.keys(perms).length) continue; // 나에게 공유하지 않은 사람 → 아래에서 정리
     const viewOnly = Object.fromEntries(Object.keys(perms).map((k) => [k, 'view']));
     const t = now();
@@ -1372,7 +1390,7 @@ router.post('/mirror/sync', async (req, res) => {
     db.run('UPDATE mirror_users SET source_hash = ?, saved_at = ?, device = ?, updated_at = ? WHERE user_id = ?',
       [srcHash || null, sec.savedAt ? String(sec.savedAt).slice(0, 40) : null, sec.device ? String(sec.device).slice(0, 40) : null, t, owner.id]);
     db.run(`INSERT INTO screen_shares (owner_id, viewer_id, perms, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`, [owner.id, me.id, JSON.stringify(viewOnly), t, t]);
+      ON CONFLICT(owner_id, viewer_id) DO UPDATE SET perms = excluded.perms, updated_at = excluded.updated_at`, [owner.id, me.id, JSON.stringify(viewOnly), t, mineAt || t]);
     keep.add(owner.id);
     result.push({ email, status: updated ? 'updated' : 'same', perms: viewOnly });
   }
@@ -1468,6 +1486,21 @@ router.post('/sync/profiles', (req, res) => {
       db.run('UPDATE users SET password_hash = ?, nickname = ?, avatar = ?, profile_at = ? WHERE id = ?', [latest.pw, latest.nickname, latest.avatar, latest.at || null, local[e].id]);
       updated.push(e);
     }
+  }
+  // 받지 않기 기록 (v0.30.26): 사용자 정보의 declines { 공유한 사람 아이디: 거절한 시각 } — 기기와 파일 중 늦은 시각으로 합친다
+  for (const e of Object.keys(outP)) {
+    const u = db.get('SELECT id FROM users WHERE lower(email) = ? AND id NOT IN (SELECT user_id FROM mirror_users)', [e]);
+    if (!u) continue;
+    const fd = fileProfiles[e] && fileProfiles[e].declines && typeof fileProfiles[e].declines === 'object' ? fileProfiles[e].declines : {};
+    const merged = {};
+    for (const [k, v] of Object.entries(fd)) { const o = String(k).toLowerCase(); if (AT(v) && !validateLoginId(o)) merged[o] = AT(v); }
+    for (const r of db.all('SELECT owner_email, declined_at FROM share_declines WHERE viewer_id = ?', [u.id])) {
+      if (!merged[r.owner_email] || r.declined_at > merged[r.owner_email]) merged[r.owner_email] = r.declined_at;
+    }
+    for (const [o, at] of Object.entries(merged)) db.run('INSERT OR REPLACE INTO share_declines (viewer_id, owner_email, declined_at) VALUES (?, ?, ?)', [u.id, o, at]);
+    const sorted = (m) => JSON.stringify(Object.entries(m).sort());
+    if (sorted(merged) !== sorted(Object.fromEntries(Object.entries(fd).map(([k, v]) => [String(k).toLowerCase(), v])))) fileChanged = true;
+    outP[e] = Object.keys(merged).length ? { ...outP[e], declines: merged } : (({ declines, ...rest }) => rest)(outP[e]);
   }
   // 새로 추가한 사용자의 자료: 모두 만든 뒤에 넣어야 서로 준 화면 공유가 이어진다
   const restored = [];

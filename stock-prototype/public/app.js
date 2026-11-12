@@ -2745,12 +2745,20 @@
     if (ch.length) {
       const t = document.getElementById('toast');
       const prev = t && !t.hidden ? `${t.textContent} · ` : '';
-      toast(`${prev}공유받은 자료 ${ch.map((x) => `${x.email} ${x.status === 'removed' ? '삭제' : '갱신'}`).join(', ')}${held.length ? ` · ${held.map((x) => x.email).join(', ')}은(는) 이 기기에서 그 사용자로 동기화해야 함` : ''}`);
+      // 별명으로 표시, 이 기기의 다른 사용자 자료와 공유받은 자료(조회 전용)를 나눠서 (v0.30.26)
+      const nm = (e) => { const p = (whole.profiles || {})[e]; return (p && p.nickname) || e; };
+      const local = ch.filter((x) => x.status === 'updated-local');
+      const mir = ch.filter((x) => x.status !== 'updated-local');
+      const parts = [];
+      if (local.length) parts.push(`다른 사용자 자료 갱신 ${local.map((x) => nm(x.email)).join(', ')}`);
+      if (mir.length) parts.push(`공유받은 자료 ${mir.map((x) => `${nm(x.email)} ${x.status === 'removed' ? '삭제' : '갱신'}`).join(', ')}`);
+      toast(`${prev}${parts.join(' · ')}${held.length ? ` · ${held.map((x) => nm(x.email)).join(', ')}은(는) 이 기기에서 그 사용자로 동기화해야 함` : ''}`);
       render();
     } else if (held.length) {
       const t = document.getElementById('toast');
       const prev = t && !t.hidden ? `${t.textContent} · ` : '';
-      toast(`${prev}${held.map((x) => x.email).join(', ')}의 자료는 이 기기에서 ${held.some((x) => x.status === 'local-changed') ? '동기화하지 않은 변경이 있어' : '아직 동기화한 적이 없어'} 가져오지 않았습니다. 그 사용자로 로그인해 한 번 동기화해 주세요.`);
+      const nm = (e) => { const p = (whole.profiles || {})[e]; return (p && p.nickname) || e; };
+      toast(`${prev}${held.map((x) => nm(x.email)).join(', ')}의 자료는 이 기기에서 ${held.some((x) => x.status === 'local-changed') ? '동기화하지 않은 변경이 있어' : '아직 동기화한 적이 없어'} 가져오지 않았습니다. 그 사용자로 로그인해 한 번 동기화해 주세요.`);
     }
   }
   // 클라우드 앱(구글 드라이브 등)이 아직 최신 파일을 받지 않아 예전 사본을 준 경우 (v0.26.18)
