@@ -822,6 +822,3 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .me-name { font-size: 17px; font-weight: 800; }
 .me-sub { font-size: 15px; margin: 0 0 4px; }
 .pw-sep { border: none; border-top: 1px solid var(--border); margin: 2px 0; width: 100%; }
-.pin-legacy { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.pin-legacy .legacy-pw { max-width: 240px; }
-.pin-legacy [hidden] { display: none !important; }

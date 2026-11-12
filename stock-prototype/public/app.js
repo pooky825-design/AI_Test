@@ -442,29 +442,6 @@
   // 4자리 비밀번호 칸 (v0.30.0): 칸마다 한 글자, 자동으로 다음 칸, 지우면 앞 칸, 붙여넣기 가능
   const PIN_LEN = 4;
   const pinBoxesHtml = (name, label) => `<div class="pin-boxes" data-pin="${esc(name || '')}" role="group" aria-label="${esc(label || '비밀번호 4자리')}">${Array.from({ length: PIN_LEN }, (_, i) => `<input class="pin-box" type="password" maxlength="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${i + 1}번째 글자" />`).join('')}</div>`;
-  // 4자리 칸, 필요하면 '4자리가 아닌 예전 비밀번호' 입력칸으로 바꿈 (v0.30.14)
-  const pinOrLegacyHtml = (name, label) => `<div class="pin-legacy" data-pl="${esc(name)}">${pinBoxesHtml(name, label)}<input type="password" class="legacy-pw" data-legacy-input autocomplete="current-password" hidden aria-label="${esc(label || '비밀번호')}" /><a href="#" class="small" data-legacy-toggle>4자리가 아닌 예전 비밀번호</a></div>`;
-  function bindPinOrLegacy(wrap, onComplete) {
-    const pin = bindPin(wrap.querySelector('[data-pin]'), onComplete);
-    const boxes = wrap.querySelector('.pin-boxes');
-    const inp = wrap.querySelector('[data-legacy-input]');
-    const tog = wrap.querySelector('[data-legacy-toggle]');
-    let legacy = false;
-    tog.addEventListener('click', (e) => {
-      e.preventDefault();
-      legacy = !legacy;
-      boxes.hidden = legacy;
-      inp.hidden = !legacy;
-      tog.textContent = legacy ? '4자리 칸으로 입력' : '4자리가 아닌 예전 비밀번호';
-      if (legacy) inp.focus(); else pin.focus();
-    });
-    return {
-      value: () => (legacy ? inp.value : pin.value()),
-      focus: () => (legacy ? inp.focus() : pin.focus()),
-      clear: () => { inp.value = ''; if (legacy) inp.focus(); else pin.clear(); },
-      shake: () => pin.shake(),
-    };
-  }
   function bindPin(el, onComplete) {
     const boxes = [...el.querySelectorAll('.pin-box')];
     const value = () => boxes.map((b) => b.value).join('');
@@ -3096,7 +3073,7 @@
         <div class="card" data-fold="password">
           <h2>비밀번호 변경</h2>
           <form data-pw novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
-            <div class="field"><label>현재 비밀번호</label>${pinOrLegacyHtml('cur', '현재 비밀번호')}<span class="err" data-err="current"></span></div>
+            <div class="field"><label>현재 비밀번호</label>${pinBoxesHtml('cur', '현재 비밀번호')}<span class="err" data-err="current"></span></div>
             <hr class="pw-sep" />
             <div class="field"><label>새 비밀번호 (4자리)</label>${pinBoxesHtml('n1')}<span class="err" data-err="next"></span></div>
             <div class="field"><label>새 비밀번호 확인</label>${pinBoxesHtml('n2', '새 비밀번호 확인')}<span class="err" data-err="next2"></span></div>
@@ -3107,7 +3084,7 @@
           <h2>사용자 삭제</h2>
           <div class="notice warn"><div>사용자를 삭제하면 계정, 보유 종목, 배당 내역이 모두 삭제되며 복구할 수 없습니다. ${req('NFR-PRI-01')}</div></div>
           <form data-del novalidate style="display:flex;flex-direction:column;gap:12px;max-width:360px">
-            <div class="field"><label>비밀번호 확인</label>${pinOrLegacyHtml('delpw', '비밀번호 확인')}<span class="err" data-err="password"></span></div>
+            <div class="field"><label>비밀번호 확인</label>${pinBoxesHtml('delpw', '비밀번호 확인')}<span class="err" data-err="password"></span></div>
             <div><button type="submit" class="danger">사용자 삭제</button></div>
           </form>
         </div>
@@ -3175,7 +3152,7 @@
       try { const r = await api('PUT', '/auth/profile', { avatar: v }); state.user = { ...state.user, avatar: r.avatar }; toast('프로필 사진을 저장했습니다.'); render(); } catch (err) { toast(err.message); }
     });
     const pw = main.querySelector('[data-pw]');
-    const cur = bindPinOrLegacy(pw.querySelector('[data-pl="cur"]'), () => n1.focus());
+    const cur = bindPin(pw.querySelector('[data-pin="cur"]'), () => n1.focus());
     const n1 = bindPin(pw.querySelector('[data-pin="n1"]'), () => n2.focus());
     const n2 = bindPin(pw.querySelector('[data-pin="n2"]'));
     pw.addEventListener('submit', async (e) => {
@@ -3193,7 +3170,7 @@
       }
     });
     const del = main.querySelector('[data-del]');
-    const delPw = bindPinOrLegacy(del.querySelector('[data-pl="delpw"]'));
+    const delPw = bindPin(del.querySelector('[data-pin="delpw"]'));
     del.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!confirm('정말 이 사용자를 삭제하시겠습니까? 모든 데이터가 삭제됩니다.')) return;
@@ -3654,6 +3631,8 @@
     }
   }
   // 대시보드 상세의 일자별 표 (v0.30.13, 종목 조회 표와 비슷하게): 일자 | 값 | 전일 대비
+  // 상세 창 지표 이름 (v0.30.15): 야후는 영어 이름만 주므로 한국어는 앱에서 정함
+  const DD_NAME_KO = { kospi: '코스피 지수 (KOSPI)', kosdaq: '코스닥 지수 (KOSDAQ)', sp500: 'S&P 500 지수', nasdaq: '나스닥 종합지수', us10y: '미국 국채 10년물 금리', us30y: '미국 국채 30년물 금리', usdkrw: '원/달러 환율', wti: 'WTI 원유 선물' };
   const DD_VAL_HEAD = { rate: '금리', fx: '환율', gold: '1돈 시세', oil: '종가', index: '종가' };
   function dailyTable(d, f) {
     const rows = d.daily || [];
@@ -3722,7 +3701,7 @@
       }
       body.innerHTML = `
         <div class="dd-head">
-          <div>${d.name && d.name !== d.label ? `<div class="dd-name" data-noi18n>${esc(d.name)}</div>` : `<div class="dd-name">${esc(d.label)}</div>`}<div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
+          <div>${!isEn() && DD_NAME_KO[id] ? `<div class="dd-name" data-noi18n>${esc(DD_NAME_KO[id])}</div>` : d.name && d.name !== d.label ? `<div class="dd-name" data-noi18n>${esc(d.name)}</div>` : `<div class="dd-name">${esc(d.label)}</div>`}<div class="muted small">${esc(d.exchange || '')}${d.symbol ? ` · ${esc(d.symbol)}` : ''}</div></div>
           <div class="dd-price"><div class="dd-value">${fv(d.value)}</div><div class="dash-change ${cls(d.change)}">${d.change == null ? '-' : `${d.change > 0 ? '▲' : d.change < 0 ? '▼' : ''} ${esc(ch)} <b>(${pct2(d.pct)})</b>`} <span class="muted small">전일 대비</span></div><div class="muted small">${d.time ? `${esc(fmtTime(d.time))} 기준` : ''}</div></div>
         </div>
         <div class="period-tabs dd-ranges">${d.ranges.map((r) => `<button type="button" class="sm ${r === d.range ? '' : 'secondary'}" data-range="${r}">${(isEn() ? DASH_RANGE_EN : DASH_RANGE_LABEL)[r] || r}</button>`).join('')}</div>
