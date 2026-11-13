@@ -253,7 +253,6 @@
   const formData = (form) => Object.fromEntries(new FormData(form).entries());
   // 표 안의 수정·삭제 아이콘 버튼
   const ICON_REFRESH = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>';
-  const ICON_BELL = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1Z"/></svg>';
   const ICON_EDIT = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const ICON_DEL = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
 
@@ -4143,8 +4142,8 @@
       };
       const sumCell = (v) => (v == null ? dash : Number.isNaN(v) ? '<span class="tip" data-tip="과세표준이 없는 회차가 있어 합계를 표시하지 않습니다" tabindex="0">-</span>' : krw(v));
       const sumRow = (label, x, tag = 'tr class="group-sub"') => `<${tag}><td colspan="3">${label}</td><td class="right">${krw(x.value)}</td><td class="right"><b>${sumCell(x.last)}</b></td><td class="right">${sumCell(x.last_tax)}</td><td class="right"><b>${sumCell(x.ytd)}</b></td><td class="right">${sumCell(x.ytd_tax)}</td><td></td></tr>`;
-      // 최근 1개월 안 배당락일인데 등록하지 않은 회차가 있으면 종 아이콘 (v0.30.83). 누르면 입력 창
-      const pendingBell = (it) => (it.pending && it.pending.length ? ` <button type="button" class="pend-bell tip" data-input data-tip="${esc(`최근 1개월 안 미등록 배당 ${it.pending.length}회 · 배당락일 ${it.pending.map((x) => x.ex_date).join(', ')}`)}" aria-label="미등록 배당 알림">${ICON_BELL}</button>` : '');
+      // 최근 1개월 안 배당락일인데 등록하지 않은 회차가 있으면 ‘미등록 N’ 깜빡이는 배지 (v0.30.83, 글자 배지 v0.30.90). 누르면 입력 창
+      const pendingBell = (it) => (it.pending && it.pending.length ? ` <button type="button" class="pend-bell tip" data-input data-tip="${esc(`최근 1개월 안 미등록 배당 ${it.pending.length}회 · 배당락일 ${it.pending.map((x) => x.ex_date).join(', ')}`)}" aria-label="미등록 배당 알림" data-noi18n>${isEn() ? 'Unsaved' : '미등록'} ${it.pending.length}</button>` : '');
       let lastGroup = null;
       const rows = d.items.map((it, idx) => {
         let head = '';

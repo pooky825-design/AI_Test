@@ -988,3 +988,8 @@ button.carry-btn:hover { background: var(--t-100); }
 td .badge, td .pend-bell { line-height: 14.5px; }
 td .cat { line-height: 14.85px; } /* 16.5px → 14.85px */
 td .pend-bell { width: 20px; height: 20px; }
+/* v0.30.90 미등록 배당 알림: 종 아이콘 → ‘미등록 N’ 빨간 글자 배지, 깜빡임 */
+td .pend-bell, .pend-bell { width: auto; height: auto; padding: 1px 7px; margin-left: 2px; border-radius: 99px; border: 1px solid #dc2626; background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; line-height: 14.5px; box-shadow: none; animation: pendblink 1.1s ease-in-out infinite; }
+.pend-bell:hover { background: #b91c1c; border-color: #b91c1c; animation-play-state: paused; opacity: 1; }
+@keyframes pendblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .pend-bell { animation: none; } }
