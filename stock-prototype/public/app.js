@@ -147,7 +147,7 @@
   // ---------------------------------------------------------------------------
   // 화면 공유 (v0.16): 공유받은 화면을 열면 요청마다 ?as=<공유한 사용자 id> 를 붙인다
   // ---------------------------------------------------------------------------
-  const SHARE_PATH = { '#/home': 'home', '#/assets': 'assets', '#/yearly': 'yearly', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' }; // 종목 조회는 공유 대상 아님 (v0.30.33)
+  const SHARE_PATH = { '#/home': 'home', '#/assets': 'assets', '#/yearly': 'yearly', '#/mydiv': 'yearly', '#/holdings': 'holdings', '#/divmgmt': 'divmgmt' }; // 나의 배당 조회는 연도별 자산 · 배당 조회 권한으로 (v0.30.52) // 종목 조회는 공유 대상 아님 (v0.30.33)
   const MY_MENU = (h) => h === '#/me' || h === '#/stock'; // 공유받은 화면을 볼 때도 내 메뉴로 쓰는 화면
   const NO_AS = /^\/(auth|shares|settings|backup|restore|gdrive|mirror|dashboard\/items)(\/|\?|$)/; // 동기화(v0.27.2)도 항상 내 이름으로
   const PERM_LABEL = new Proxy({ view: '조회', edit: '편집' }, { get: (o, k) => (isEn() ? { view: 'View', edit: 'Edit' }[k] : o[k]) }); // v0.30.33
@@ -269,11 +269,12 @@
     ['#/stock', '종목 조회', 'SC-03'], // v0.30.33: 맨 위, 다른 메뉴와 줄로 구분
     ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 배당 내역 입력, v0.30.50: 보유 종목 등록)
     ['#/assets', '나의 자산 조회', 'SC-02'], // v0.30.36 이름: 나의 자산 조회, 연도별 자산 · 배당 조회, 환경 설정
+    ['#/mydiv', '나의 배당 조회', 'SC-06'], // v0.30.52: 배당 내역 조회(연도별 화면에서 옮김)
     ['#/holdings', '보유 종목 등록', 'SC-04'],
     ['#/divmgmt', '배당 내역 입력', 'SC-08'],
     ['#/me', '환경 설정', 'SC-07'],
   ];
-  const NAV_GROUP = { '#/stock': 1, '#/yearly': 2, '#/assets': 2, '#/holdings': 3, '#/divmgmt': 3, '#/me': 4 };
+  const NAV_GROUP = { '#/stock': 1, '#/yearly': 2, '#/assets': 2, '#/mydiv': 2, '#/holdings': 3, '#/divmgmt': 3, '#/me': 4 };
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
     // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움, v0.30.6: 지붕은 그대로 몸체는 좁게·문은 더 넓게)
@@ -282,6 +283,7 @@
     '#/assets': '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M16 13.5h2"/>',
     '#/stock': '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/><path d="M7.5 12l2-2 1.5 1.5L13.5 9"/>',
     '#/holdings': '<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 12.5h8M8 16h5"/>',
+    '#/mydiv': '<circle cx="8.5" cy="12" r="5"/><path d="M8.5 9.5v5M6.8 10.8h3.4"/><path d="M16 7.5h4.5M16 12h4.5M16 16.5h4.5"/>',
     '#/divmgmt': '<ellipse cx="10" cy="7" rx="6" ry="2.6"/><path d="M4 7v4c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6V7"/><path d="M8 16.3c.6.2 1.3.3 2 .3"/><path d="M4 11v4c0 1.4 2.7 2.6 6 2.6"/><circle cx="17" cy="16.5" r="3.5"/>',
     '#/me': '<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>',
   };
@@ -2210,8 +2212,7 @@
         <div data-ydetail></div>
         <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 등록의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
-      <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>
-      <div class="card" data-divlist data-fold="divlist">${divListShell()}</div>`;
+      <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>`;
     // 종목별 내역 (연도 행을 누르면 표 아래에 전체 폭으로 표시)
     const detailHtml = (y) => `<div class="inner" style="margin-top:12px">
       <h3 style="margin:0 0 8px">${y.year}년 종목별 내역${y.ongoing ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
@@ -2274,6 +2275,9 @@
             footer: (items) => `${tt('총자산')} ${krw(years[items[0].dataIndex].valueKrw)}`,
           } },
         },
+        // 막대를 누르면 표의 그 연도 행을 누른 것처럼 아래에 종목별 내역 (v0.30.52)
+        onClick: (evt, els) => { if (els && els.length) { const tr = main.querySelector(`tr[data-y="${years[els[0].index].year}"]`); if (tr) tr.click(); } },
+        onHover: (evt, els) => { evt.native.target.style.cursor = els && els.length ? 'pointer' : 'default'; },
         scales: {
           ...baseOpts.scales,
           x: { ...baseOpts.scales.x, stacked: true },
@@ -2315,7 +2319,15 @@
       if (card) card.innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     });
     loadDivYearly();
-    // 배당 내역 조회 (v0.14): 배당 내역 입력에서 저장한 회차
+  }
+
+  // 나의 배당 조회 (v0.30.52): 배당 내역 입력에서 저장한 회차를 기간·종목으로 조회 (연도별 자산 · 배당 조회에서 옮김)
+  function viewMyDiv() {
+    const main = shell('#/mydiv', `
+      <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 입력에서 저장한 배당 회차를 지급일 기간과 종목으로 조회합니다.</p></div></div>
+      <div class="card" data-divlist data-fold="divlist">${divListShell()}</div>`);
+    makeFoldable(main, 'mydiv.collapsed');
+    main.classList.add('yr-page');
     mountDivList(main.querySelector('[data-divlist]'));
   }
 
@@ -2327,6 +2339,7 @@
   function divYearlyShell() {
     return `<h2>연도별 배당 증감 ${req('FR-DIV-03 · FR-CHT-03')}</h2>
         <div class="grid c2"><div class="chart-box" style="height:260px"><canvas></canvas></div><div data-yearly class="table-wrap"></div></div>
+        <div data-dydetail></div>
         <p class="small muted" data-yearly-note style="margin:6px 0 0"></p>`;
   }
   // 세금(배당소득세 추정) = 과세표준액 × 16.5% (소득세 15.4% 아님: 요청 기준 16.5%)
@@ -2336,7 +2349,7 @@
     const dash = '<span class="muted">-</span>';
     card.querySelector('[data-yearly]').innerHTML = `<table><thead><tr><th>연도</th><th class="num">배당</th><th class="num">수령회차</th><th class="num">과세표준액</th><th class="num">세금</th></tr></thead><tbody>${shown.slice().reverse().map((y) => {
       const taxCell = y.taxMissing ? `<span class="tip" data-tip="과세표준이 없는 회차 ${y.taxMissing}개 제외" tabindex="0">${krw(y.taxKrw)}*</span>` : krw(y.taxKrw);
-      return `<tr><td><b>${y.year}</b>${y.year === THIS_YEAR ? '<br/><span class="badge ongoing">진행 중</span>' : ''}</td>
+      return `<tr class="clickable" data-dy="${y.year}"><td><b>${y.year}</b> <span class="small muted">▾</span>${y.year === THIS_YEAR ? '<br/><span class="badge ongoing">진행 중</span>' : ''}</td>
         <td class="num">${y.divCount ? `<b>${krw(y.divKrw)}</b>` : dash}</td>
         <td class="num">${y.divCount ? `${y.divCount}회` : dash}</td>
         <td class="num">${y.divCount ? taxCell : dash}</td>
@@ -2360,6 +2373,42 @@
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
     });
     state.charts.push(card._chart);
+    // 연도를 누르면(표의 행 또는 그래프 막대) 아래에 그 해 배당 상세 (v0.30.52, 연도별 자산 증감과 같은 방식)
+    card._chart.options.onClick = (evt, els) => { if (els && els.length) showDivYear(card, shown[els[0].index].year); };
+    card._chart.options.onHover = (evt, els) => { evt.native.target.style.cursor = els && els.length ? 'pointer' : 'default'; };
+    card._chart.update('none');
+    card.querySelectorAll('tr[data-dy]').forEach((tr) => tr.addEventListener('click', () => showDivYear(card, Number(tr.dataset.dy))));
+  }
+  async function showDivYear(card, year) {
+    const box = card.querySelector('[data-dydetail]');
+    if (!box) return;
+    const rowsEls = card.querySelectorAll('tr[data-dy]');
+    if (box.dataset.year === String(year)) { box.innerHTML = ''; box.dataset.year = ''; rowsEls.forEach((r) => r.classList.remove('on')); return; }
+    box.dataset.year = String(year);
+    rowsEls.forEach((r) => r.classList.toggle('on', r.dataset.dy === String(year)));
+    box.innerHTML = `<div class="inner" style="margin-top:12px"><div class="empty">${year}년 배당 내역을 불러오는 중…</div></div>`;
+    let rows;
+    try { ({ rows } = await api('GET', `/divmgmt/history?from=${year}-01-01&to=${year}-12-31&by=ex`)); } catch (err) { box.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; return; }
+    if (box.dataset.year !== String(year)) return; // 그새 다른 연도를 누름
+    const dash = '<span class="muted">-</span>';
+    const sum = (f) => rows.reduce((a, r) => a + (r[f] || 0), 0);
+    const krwTip = (r, v) => (r.currency === 'USD' && v != null ? `<br/><small class="muted">${krw(v * r.fx_rate)}</small>` : '');
+    const taxMissing = rows.some((r) => r.tax_krw == null);
+    box.innerHTML = `<div class="inner" style="margin-top:12px">
+      <h3 style="margin:0 0 8px">${year}년 배당 내역${year === THIS_YEAR ? ' <span class="badge ongoing">진행 중</span>' : ''} <span class="muted small">${rows.length}건</span></h3>
+      ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>배당락일</th><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
+        ${rows.map((r) => `<tr>
+          <td class="center">${esc(r.ex_date || '-')}</td>
+          <td class="center">${r.pay_date ? esc(r.pay_date) : dash}</td>
+          <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
+          <td>${qty(r.quantity)}</td>
+          <td>${money(r.per_share, r.currency)}</td>
+          <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>
+          <td>${r.tax_amount == null ? dash : money(r.tax_amount, r.currency) + krwTip(r, r.tax_amount)}</td>
+          <td>${r.tax_amount == null ? dash : money(r.tax_amount * DIV_TAX_RATE, r.currency) + krwTip(r, r.tax_amount * DIV_TAX_RATE)}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="5">합계 (원화)</td><td>${krw(sum('amount_krw'))}</td><td>${krw(sum('tax_krw'))}${taxMissing ? '*' : ''}</td><td>${krw(sum('tax_krw') * DIV_TAX_RATE)}${taxMissing ? '*' : ''}</td></tr></tfoot></table></div>`
+      : '<div class="empty">이 해에 저장한 배당 회차가 없습니다.</div>'}</div>`;
   }
 
   // 배당 내역 조회 카드 (v0.14): 배당 내역 입력에서 저장한 회차를 지급일 기간으로 조회. 기본 올해 1월 1일 ~ 오늘
@@ -4138,7 +4187,7 @@
       <p class="small muted" style="margin:8px 0 0" data-noi18n>${isEn() ? 'Phrases that appear several times in each stock\'s news headlines from the last day (24 hours) — 2–3 word phrases first, otherwise single words, up to 4. Tap one to open the most recent article containing it · Articles follow the screen language: Korean shows Korean articles (Naver Finance for Korean stocks, Google News for US stocks), English shows English articles (Yahoo Finance for US stocks, Google News for Korean stocks) · Updated hourly · Picked by frequency, so some may be off' : `종목별 최근 1일(24시간) 기사 제목에서 여러 번 나온 표현(붙어 나온 2~3단어 묶음 우선, 없으면 단어, 최대 4개)이며, 누르면 그 표현이 들어간 가장 최근 기사가 열립니다 · 화면 언어에 맞춰 한국어는 한국어 기사(국내 종목 네이버 증권, 미국 종목 구글 뉴스), 영어는 영어 기사(미국 종목 Yahoo Finance, 국내 종목 Google News) · 1시간마다 갱신 · 빈도로 고르므로 일부는 정확하지 않을 수 있습니다`}</p></div>`;
   }
 
-  const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
+  const PRIVATE = { '/home': viewHome, '/assets': viewAssets, '/stock': viewStock, '/holdings': viewHoldings, '/yearly': viewYearly, '/mydiv': viewMyDiv, '/dividends': viewYearly, '/divmgmt': viewDivMgmt, '/me': viewMe };
 
   async function render() {
     destroyCharts();

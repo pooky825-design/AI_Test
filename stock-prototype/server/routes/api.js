@@ -680,10 +680,12 @@ router.get('/divmgmt/history', async (req, res) => {
   const to = isDate(req.query.to) ? req.query.to : new Date().toISOString().slice(0, 10);
   const code = req.query.code ? market.normalizeCode(req.query.code) : null;
   const groups = new Map(positions.groupsOf(req.user.id).map((g) => [g.id, g.name]));
+  // by=ex: 배당락일로 고른다(연도별 배당 증감의 연도 기준과 같게, v0.30.52). 기본은 지급일(없으면 배당락일)
+  const dateCol = req.query.by === 'ex' ? 'h.ex_date' : 'COALESCE(h.pay_date, h.ex_date)';
   const rows = db.all(
     `SELECT h.*, COALESCE(h.pay_date, h.ex_date) AS paid, i.name, i.type, i.currency FROM holding_dividends h
      LEFT JOIN instruments i ON i.code = h.code
-     WHERE h.user_id = ? AND COALESCE(h.pay_date, h.ex_date) BETWEEN ? AND ? ${code ? 'AND h.code = ?' : ''}
+     WHERE h.user_id = ? AND ${dateCol} BETWEEN ? AND ? ${code ? 'AND h.code = ?' : ''}
      ORDER BY paid DESC, h.code`,
     [req.user.id, from, to, ...(code ? [code] : [])]
   ).map((r) => {
@@ -991,7 +993,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'ui.reqids', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order', 'dash.keywords'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'ui.reqids', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'mydiv.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order', 'dash.keywords'];
 
 // 홈 대시보드 (v0.28.0): 공유받은 사람이 보면 req.user 가 공유한 사람이므로 그 사람의 항목 설정대로
 router.get('/dashboard', async (req, res) => res.json(await dashboard.getDashboard(req.user.id)));

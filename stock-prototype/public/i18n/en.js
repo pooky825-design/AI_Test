@@ -993,5 +993,8 @@ window.I18N_EN = {
 "요구사항 ID를 표시합니다.": "Requirement IDs are shown.",
 "요구사항 ID를 숨깁니다.": "Requirement IDs are hidden.",
 "계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.": "Saved to your account, so it applies the same on PC and app.",
-"이 기기에 기억됩니다.": "Remembered on this device."
+"이 기기에 기억됩니다.": "Remembered on this device.",
+"나의 배당 조회": "My Dividends",
+"배당 내역 입력에서 저장한 배당 회차를 지급일 기간과 종목으로 조회합니다.": "View the dividend rounds saved in Dividend Entry by payment-date period and stock.",
+"이 해에 저장한 배당 회차가 없습니다.": "No dividend rounds saved for this year."
 };
