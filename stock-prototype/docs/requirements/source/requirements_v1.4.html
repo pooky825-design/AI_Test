@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>주식 관리시스템 요구사항 정의서 v1.4</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  :root { --navy: #1F4E79; --ink: #1F2933; --muted: #5B6875; --line: #D3D9E2; --head: #EDF1F6; --soft: #F5F7FA; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: "NanumBarunGothic", "NanumGothic", sans-serif; color: var(--ink); font-size: 9.6pt; line-height: 1.5; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 20pt; color: var(--navy); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1.6px solid var(--navy); }
+  h2 { font-size: 12pt; margin: 14px 0 6px; break-after: avoid; page-break-after: avoid; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  .newpage { break-before: page; page-break-before: always; margin-top: 0; }
+  h3 { font-size: 11pt; margin: 14px 0 6px; }
+  p { margin: 4px 0 8px; }
+  ul { margin: 4px 0 8px; padding-left: 18px; }
+  li { margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 5px 0 5px; font-size: 8.9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th { background: var(--head); text-align: left; font-weight: 700; padding: 5px 7px; border-bottom: 1.4px solid #8A97A6; }
+  td { padding: 4.5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.id { color: var(--muted); font-size: 8.4pt; white-space: nowrap; width: 82px; }
+  td.name { font-weight: 700; width: 118px; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.total td { font-weight: 700; background: var(--soft); }
+  table.tight { font-size: 8.1pt; } table.tight th, table.tight td { white-space: nowrap; padding-left: 5px; padding-right: 5px; }
+  .new { display: inline-block; font-size: 7.4pt; font-weight: 700; color: #fff; background: #C2410C; border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+  .chg { display: inline-block; font-size: 7.4pt; font-weight: 700; color: #fff; background: var(--navy); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
+  .note { color: var(--muted); font-size: 8.8pt; margin: 4px 0 10px; }
+  .formula { background: var(--soft); border-left: 4px solid var(--navy); padding: 9px 14px; margin: 8px 0; font-size: 9.6pt; }
+  .warn { background: #FFF8E6; border-left: 4px solid #B7791F; padding: 9px 14px; margin: 10px 0; font-size: 9.4pt; }
+  .flow { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; }
+  .flow .box { flex: 1; border: 1.2px solid var(--navy); background: #E8EEF6; border-radius: 6px; text-align: center; padding: 8px 4px; font-weight: 700; font-size: 9.2pt; line-height: 1.35; }
+  .flow .arrow { color: var(--ink); font-weight: 700; }
+  .steps { display: flex; gap: 6px; margin: 8px 0; }
+  .steps div { flex: 1; background: #EDF1F6; border-top: 3px solid var(--navy); padding: 8px 10px; font-size: 9.2pt; }
+  .steps b { display: block; color: var(--navy); }
+  /* cover */
+  .cover { position: relative; height: 248mm; overflow: hidden; }
+  .cover .bar { position: absolute; top: 0; left: 0; right: 0; height: 7mm; background: var(--navy); }
+  .cover .kicker { margin-top: 62mm; color: var(--navy); font-weight: 700; font-size: 12pt; }
+  .cover .title { font-size: 34pt; font-weight: 800; line-height: 1.25; margin: 12mm 0 8mm; }
+  .cover .desc { font-size: 12pt; color: var(--muted); max-width: 120mm; }
+  .cover table { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10pt; border-top: 1.6px solid var(--ink); }
+  .cover td { padding: 9px 8px; }
+  .cover td:first-child { width: 42mm; color: var(--muted); }
+  /* toc */
+  .toc { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 6px; }
+  .toc td { padding: 10px 6px; border-bottom: 1px solid var(--line); }
+  .toc td.n { width: 24px; color: var(--navy); font-weight: 700; }
+  .toc td.p { text-align: right; color: var(--muted); width: 40px; }
+</style>
+</head>
+<body>
+
+<!-- 표지 -->
+<section class="page cover">
+  <div class="bar"></div>
+  <div class="kicker">요구사항 정의서 · K-Stock</div>
+  <div class="title">주식<br />관리시스템</div>
+  <div class="desc">종목코드로 주식·ETF 시세를 조회하고, 보유 수량을 그룹·연도별로 입력해 현재 자산과 연도별 자산금액을 비교하고, 일부 화면을 다른 회원과 공유하는 다중 사용자 서비스의 요구사항을 정의합니다.</div>
+  <table>
+    <tr><td>문서명</td><td>주식 관리시스템(K-Stock) 요구사항 정의서</td></tr>
+    <tr><td>버전</td><td>v1.4 (최종본 개정)</td></tr>
+    <tr><td>상태</td><td>최종 — 프로토타입(v0.30.54) 검토 결과 반영. 데이터 출처 등 개발 단계 확정 사항은 7장 참고</td></tr>
+    <tr><td>작성일</td><td>2026년 11월 13일</td></tr>
+  </table>
+</section>
+
+<!-- 목차 -->
+<section class="page">
+  <h1 style="border:none;padding:0">목차</h1>
+  <table class="toc">
+    <tr><td class="n">1</td><td>개요</td><td class="p">{{P1}}</td></tr>
+    <tr><td class="n">2</td><td>업무 흐름 및 계산 기준</td><td class="p">{{P2}}</td></tr>
+    <tr><td class="n">3</td><td>기능 요구사항</td><td class="p">{{P3}}</td></tr>
+    <tr><td class="n">4</td><td>데이터 항목</td><td class="p">{{P4}}</td></tr>
+    <tr><td class="n">5</td><td>비기능 요구사항</td><td class="p">{{P5}}</td></tr>
+    <tr><td class="n">6</td><td>화면 목록</td><td class="p">{{P6}}</td></tr>
+    <tr><td class="n">7</td><td>미결 사항</td><td class="p">{{P7}}</td></tr>
+  </table>
+
+  <h2 style="margin-top:28px">문서 이력</h2>
+  <table>
+    <tr><th style="width:60px">버전</th><th style="width:90px">일자</th><th>내용</th></tr>
+    <tr><td>v0.1</td><td>2026-11-04</td><td>최초 작성</td></tr>
+    <tr><td>v0.2</td><td>2026-11-09</td><td>조회 대상에 ETF·ETN 추가, 미국 거래소 범위에 NYSE Arca·NYSE American·Cboe 추가, 구분 표시·종가 예비 출처 요구사항 추가</td></tr>
+    <tr><td>v0.3</td><td>2026-11-09</td><td>종목 조회에 기간 수익률(FR-STK-07)과 배당금 지급내역 팝업(FR-STK-08) 추가, 배당 지급내역 저장(FR-DATA-09)·데이터 항목·화면 목록·미결 사항 반영</td></tr>
+    <tr><td>v0.4</td><td>2026-11-09</td><td>배당금 지급내역에 주당과세표준액·실지급일 추가(FR-STK-08·09), 국내 ETF 주당과세표준액의 운용사별 출처와 회차 대응 규칙(FR-DATA-10), 기간 수익률·배당 계산 기준(2.5), 안드로이드 앱 사용 환경(NFR-UX-02)</td></tr>
+    <tr><td>v1.0</td><td>2026-11-10</td><td>최종본. 프로토타입 검토 결과 반영:<br />· 보유 종목을 <b>그룹(ISA·연금·일반 등)·연도별</b>로 관리하고 연말 보유 수량·매입금액을 입력, 이월 규칙과 전년도 일괄이월(2.6, FR-HLD-05~09)<br />· 종목 분류 국내·해외·해외추종(FR-HLD-07)<br />· 나의 자산의 기준 연도 선택, 그룹별 보기·통합, 그룹별·분류별 합계, 1월 1일 기준 매입단가, 전일 대비(오늘 손익), 종목 조회 팝업, 접기·펴기(2.3, FR-AST-05~10)<br />· 연도별 자산금액을 그 해 말 보유 수량으로 계산(2.4)<br />· 보유 종목 바로가기(FR-STK-10), 조회 조건 기억 등 화면 공통 기능(3.10)<br />· 데이터 항목·입력 규칙·표시 형식·화면 목록·미결 사항 갱신</td></tr>
+    <tr><td>v1.1</td><td>2026-11-10</td><td>손익 구분 관리. 이월 기준금액(1월 1일 평가액)과 원래 매입금액을 나눠 <b>올해 손익</b>과 <b>전체기간 손익</b>을 따로 계산(2.7), 그 해 실현손익 선택 입력과 전량 매도 시 입력(FR-HLD-10), 전체기간 손익·전량 매도 종목 표시(FR-AST-11·12), 나의 자산 합계·엑셀·보유 종목 목록 열 갱신</td></tr>
+    <tr><td>v1.2</td><td>2026-11-10</td><td>화면 정리·배당 내역 관리·백업.<br />· 메뉴 순서·이름 변경(연도별 자산·나의 자산·종목 정보 조회·보유 종목 관리·배당 내역 관리·환경설정), 배당금 조회(요약) 화면 삭제(6장)<br />· 이월 금액(전년)을 일괄이월·등록 때 고정하고 수정 화면에서만 변경, 손익 기준액(금년) = 이월 금액 또는 매입금액, 금년 손익 = 현 평가금액 − 손익 기준액(2.6·2.7)<br />· 보유 종목 관리 목록·등록·수정 화면 재구성, 이월 여부 자동 결정(FR-HLD)<br />· 나의 자산 열 재구성(FR-AST-01), 요약 환율 전일 대비(FR-AST-13)<br />· 연도별 자산: 분류별 자산 표·누적 막대·환율 선, 연도별 배당 증감, 배당 내역 조회(FR-YR·FR-DIV)<br />· <b>배당 내역 관리</b>: 그룹별 배당 목록·월 기간·월 배당금 입력 팝업(2.8, FR-DIV-06~10)<br />· 데이터 백업·복원(3.11, FR-BAK-01·02)</td></tr>
+    <tr><td>v1.3</td><td>2026-11-10</td><td><b>화면 공유·클라우드 서버·화면 테마.</b><br />· 앱 이름 <b>K-Stock</b>, 메뉴 이름·순서 변경(나의 자산·연도별 자산 (요약)·종목 정보 조회·보유 종목 관리·배당 내역 관리·환경설정), 메뉴 아이콘(FR-COM-04)<br />· <b>화면 공유·권한 관리</b>: 화면별 조회·편집 권한, 보는 자산 선택, 서버 권한 검사(2.9, 3.12, FR-SHR-01~06)<br />· <b>클라우드 서버</b>: 서로 다른 기기 간 공유, 앱의 클라우드 서버 모드, 공개 서버 보안·설치·운영(3.13, FR-CLD-01~06, NFR-SEC-03~05)<br />· <b>화면 테마</b>: 기준 색 선택·직접 지정, 그래프 색 연동(FR-COM-05, FR-CHT-02·03)<br />· 모든 화면 상자 접기·펴기(FR-COM-06)<br />· 종목 정보 조회: 종목명 검색 팝업, 내가 조회한 종목(FR-STK-12·13)<br />· 배당 내역 조회 합계 요약(FR-DIV-02), 로그인 아이디 저장(FR-AUTH-06), 가입 코드(FR-AUTH-01)</td></tr>
+    <tr><td><b>v1.4</b></td><td>2026-11-13</td><td><b>사용자·대시보드·동기화·암호화·다국어.</b><br />· <b>사용자</b>: 로그인 사용자 선택(프로필 목록) + 4자리 비밀번호, 별명(아이디)·프로필 사진·별명 변경, 실행할 때마다 로그인, 아이디 입력·비밀번호 찾기 화면 정리(FR-AUTH)<br />· <b>홈 대시보드</b>: 시장 지표·증시 개장 달력·나의 자산·보유 종목 주요 키워드, 항목·순서 설정, 지표 상세 팝업(3.14, FR-DSH-01~07)<br />· <b>데이터 동기화</b>: 구글 드라이브 K-Stock 폴더의 동기화 파일로 기기 간 동기화, 사용자 정보·화면 공유·받지 않기까지 동기화, 동기화 파일 6자리·백업 파일 4자리 비밀번호 암호화(2.10, 3.11, 3.15, FR-BAK-01~07, NFR-SEC-06)<br />· <b>화면 공유</b>: 등록된 사용자 목록에서 선택, 기본 권한 전체 조회, 동기화를 설정해야 사용, 받지 않기·다시 공유, 종목 조회는 공유 대상에서 제외(2.9, FR-SHR)<br />· <b>메뉴</b>: 종목 조회 | 연도별 자산 · 배당 조회 · 나의 자산 조회 · <b>나의 배당 조회</b>(신규, SC-06) | 보유 종목 등록 · 배당 내역 입력 | 환경 설정, 묶음 구분선·제목 아이콘(FR-COM-04)<br />· 연도별 배당 증감의 연도별 상세, 나의 배당 조회(조회 조건·요약·월별 그래프·상세 표)(FR-YR-09, FR-DIV-11~14)<br />· <b>언어</b>: 한국어·English 화면, 언어에 맞는 종목명(FR-COM-07, FR-STK-14), 요구사항 ID 숨김·숨은 스위치(FR-COM-08)<br />· 클라우드 서버 연결 상자를 환경 설정에서 뺌(3.13)</td></tr>
+  </table>
+  <p class="note">v1.3 이후 새로 추가한 항목은, 내용을 바꾼 항목은으로 표시했습니다.</p>
+</section>
+
+<!-- 1. 개요 -->
+<section class="page" id="ch1">
+  <h1>1. 개요</h1>
+  <h2>1.1 목적</h2>
+  <p>회원이 주식·ETF의 종목코드를 입력해 종목명, 현재가, 날짜별 종가, 배당 내역을 조회하고, 보유 수량을 계좌 성격별 그룹(ISA·연금·일반 등)과 연도별로 입력해 현재 자산금액을 확인합니다. 연도별 자산 (요약) 화면에서 연도마다 그 해 말 보유 수량을 기준으로 자산금액과 배당을 비교합니다. 배당은 종목의 배당 회차를 골라 저장해 관리합니다. 회원은 일부 화면을 다른 회원에게 조회 또는 편집 권한으로 공유할 수 있으며, 같은 구글 드라이브의 동기화 파일로 서로 다른 기기의 데이터와 공유를 맞춥니다. 첫 화면인 홈 대시보드에서 시장 지표와 내 자산 요약을 봅니다.</p>
+
+  <h2>1.2 범위</h2>
+  <ul>
+    <li>회원가입·로그인과 회원별 데이터 분리</li>
+    <li>국내(KOSPI·KOSDAQ) 주식·ETF·ETN과 미국(NYSE·NASDAQ·NYSE Arca·NYSE American·Cboe) 주식·ETF의 종목명, 현재가, 날짜별 종가, 기간 수익률, 배당금 지급내역(주당과세표준액·실지급일 포함) 조회, 종목명 검색</li>
+    <li>보유 종목을 <b>그룹·연도별</b>로 관리: 그 해 말 보유 수량·매입금액 입력, 전년도 보유분 이월, 종목 분류(국내·해외·해외추종)</li>
+    <li>현재 자산금액·평가손익·수익률·오늘 손익 계산과 그룹별·분류별 합계</li>
+    <li>미국 종목의 원화 환산과 원화 기준 자산 합산</li>
+    <li>연도별 자산금액 조회·비교</li>
+    <li>배당 회차 선택·저장으로 배당 내역 관리(월·연간 누적, 과세표준·세금 추정)</li>
+    <li>차트 시각화, 엑셀 내보내기</li>
+    <li>내 데이터 전부의 백업·복원(앱 삭제 후 재설치해도 복원)</li>
+    <li>회원별 조회 조건 기억(마지막 조회 기간·연도·그룹 등)과 화면 테마(기준 색)</li>
+    <li>화면 공유·권한 관리: 일부 화면을 다른 회원에게 조회·편집 권한으로 공유</li>
+    <li>홈 대시보드: 국내·미국 시장 지표, 환율·유가·금시세, 증시 개장·휴장 달력, 나의 자산 요약, 보유 종목 주요 키워드 <span class="new">신규</span></li>
+    <li>구글 드라이브를 통한 기기 간 데이터 동기화(사용자 정보·화면 공유 포함)와 동기화·백업 파일 암호화 <span class="new">신규</span></li>
+    <li>한국어·English 화면 <span class="new">신규</span></li>
+    <li>PC 웹 브라우저와 안드로이드 앱에서 이용. 앱은 휴대폰 안의 데이터로 쓰거나 클라우드 서버에 연결해 다른 기기와 같은 데이터를 씀</li>
+    <li>클라우드 서버(Oracle Cloud 등) 설치·운영 도구와 공개 서버 보안</li>
+  </ul>
+
+  <h2>1.3 범위 제외</h2>
+  <ul>
+    <li>개별 매수·매도 거래 이력 관리: 연도별로 그 해 말 보유 수량과 매입금액만 입력하며, 연도 중 거래 일자·가격·실현 손익은 관리하지 않습니다.</li>
+    <li>증권사 계좌 연동, 매매 주문, 투자 자문·종목 추천</li>
+    <li>국내·미국 외 해외 시장, 펀드·채권 등 거래소에 상장되지 않은 상품, 실시간 스트리밍 시세</li>
+    <li>세금 계산·신고: 주당과세표준액은 참고 정보로만 표시하며, 계좌 유형(일반·ISA·연금 등)에 따른 실제 세액은 계산하지 않습니다. 보유 그룹은 회원이 보기 편하게 묶는 단위이며 세제 계산에 쓰지 않습니다.</li>
+  </ul>
+
+  <h2>1.4 사용자 역할 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:90px">역할</th><th>주요 기능</th></tr>
+    <tr><td class="name">비회원 <span class="chg">변경</span></td><td>사용자 추가(공개 서버는 가입 코드 필요), 로그인 사용자 선택·로그인</td></tr>
+    <tr><td class="name">회원(사용자) <span class="chg">변경</span></td><td>홈 대시보드, 종목 조회, 본인의 보유 그룹·보유 종목·배당 내역 입력, 나의 자산·나의 배당·연도별 자산 · 배당 조회, 엑셀 내보내기, 데이터 백업·복원·동기화, 화면 테마·언어, 화면 공유·권한 관리, 별명·프로필 사진 변경, 사용자 삭제</td></tr>
+    <tr><td class="name">공유받은 회원</td><td>다른 회원이 공유한 화면을 받은 권한(조회·편집) 범위 안에서 보거나 고침. 공유한 회원의 환경설정은 볼 수 없음</td></tr>
+    <tr><td class="name">서버 관리자</td><td>클라우드 서버 설치·업데이트·백업, 가입 코드 관리, 회원 목록 확인과 비밀번호 재설정(서버 명령). 화면에서 회원 데이터를 보는 기능은 없음</td></tr>
+  </table>
+
+  <h2 class="newpage">1.5 용어</h2>
+  <table>
+    <tr><th style="width:118px">용어</th><th>정의</th></tr>
+    <tr><td class="name">종목</td><td>거래소에 상장되어 종목코드로 거래되는 주식, ETF, ETN을 함께 이르는 말</td></tr>
+    <tr><td class="name">ETF·ETN</td><td>ETF는 지수 등을 따라가도록 운용되는 상장지수펀드, ETN은 증권사가 발행하는 상장지수증권. 배당 내역 관리에서는 ETF 분배금도 배당과 같이 다룸</td></tr>
+    <tr><td class="name">보유 그룹</td><td>회원이 만든 보유 종목 묶음(예: 일반, ISA, 연금). 같은 종목을 여러 그룹에 따로 보유할 수 있음</td></tr>
+    <tr><td class="name">종목 분류</td><td>국내(국내 자산), 해외(미국 상장 종목), 해외추종(국내 상장이지만 해외 자산을 따라가는 ETF 등) 중 하나. 회원이 종목마다 하나를 정함</td></tr>
+    <tr><td class="name">주식 항목</td><td>한 연도·그룹·종목의 보유 기록. 총 수량(그 해 말), 총 매입금액, 매입단가(평균 = 총 매입금액 ÷ 총 수량), 이월 수량·이월 금액(전년), 이월 여부, 메모로 구성</td></tr>
+    <tr><td class="name">이월</td><td>전년도 말부터 이어서 보유한 종목. 주식 항목을 입력하지 않은 연도는 직전 연도 항목을 그대로 이어받음(2.6). 이월 수량·이월 금액이 있으면 이월</td></tr>
+    <tr><td class="name">이월 금액(전년)</td><td>전년 말부터 가져온 수량의 1월 1일 평가액(이월 수량 × 전년 마지막 종가). 일괄이월·등록 때 계산해 고정하며, 수량을 바꿔도 다시 계산하지 않음(수정 화면에서 직접 변경)</td></tr>
+    <tr><td class="name">평가금액</td><td>현재가(지난 연도는 연말 종가) × 보유 수량. 미국 종목의 원화 평가금액은 여기에 환율을 곱한 금액. 나의 자산에서는 ‘현 평가금액’</td></tr>
+    <tr><td class="name">매입금액</td><td>지금 가진 수량을 실제로 산 금액(총 매입금액). 전체 손익의 기준</td></tr>
+    <tr><td class="name">손익 기준액(금년)</td><td>그 해 손익의 기준 금액. 이월 금액이 있으면 이월 금액, 없으면 매입금액(2.7)</td></tr>
+    <tr><td class="name">실현손익</td><td>매도한 수량의 매도금액 − 매입금액. 종목 삭제(전량 매도) 때 입력</td></tr>
+    <tr><td class="name">금년 손익</td><td>현 평가금액 − 손익 기준액(금년). (v1.1의 ‘올해 손익’)</td></tr>
+    <tr><td class="name">전체 손익</td><td>현 평가금액 − 매입금액 + 누적 실현손익. 처음 산 때부터의 손익</td></tr>
+    <tr><td class="name">배당 회차</td><td>종목의 배당 한 번(배당락일 기준). 배당 내역 관리에서 회차를 골라 받은 수량과 함께 저장함</td></tr>
+    <tr><td class="name">오늘 손익</td><td>전일 종가 대비 현재가 변동 × 보유 수량 × 현재 환율. 화면의 ‘전일 대비’ 금액</td></tr>
+    <tr><td class="name">배당락일</td><td>이날부터 산 주식은 해당 회차 배당을 받지 못하는 기준일. 국내는 지급기준일 전 1거래일</td></tr>
+    <tr><td class="name">지급기준일</td><td>배당(분배금)을 받을 주주를 정하는 기준일. 국내 ETF 운용사는 이 날짜로 분배 내역을 공시함</td></tr>
+    <tr><td class="name">실지급일</td><td>배당(분배금)이 실제로 계좌에 지급되는 날</td></tr>
+    <tr><td class="name">주당과세표준액</td><td>주당 배당금(분배금) 중 배당소득세 과세 대상이 되는 금액. 국내 ETF는 국내 주식 매매차익 등 비과세 이익을 빼고 운용사가 회차별로 공시</td></tr>
+    <tr><td class="name">과표기준가</td><td>ETF의 과세 대상 이익을 계산하는 기준 가격. 주당과세표준액과는 다른 값</td></tr>
+    <tr><td class="name">연말 종가</td><td>해당 연도 마지막 거래일의 종가</td></tr>
+    <tr><td class="name">수정 종가</td><td>액면분할·병합을 반영해 현재 주식 수 기준으로 환산한 과거 종가. 배당은 반영하지 않음</td></tr>
+    <tr><td class="name">화면 공유</td><td>회원(공유하는 회원)이 다른 회원(공유받은 회원)에게 자기 데이터의 일부 화면을 보여 주는 것. 화면마다 권한을 정함</td></tr>
+    <tr><td class="name">공유 권한</td><td>없음·조회(보기만)·편집(보기와 고치기). 편집은 보유 종목 관리와 배당 내역 관리에만 줄 수 있음</td></tr>
+    <tr><td class="name">보는 자산</td><td>공유받은 회원이 메뉴 위에서 고르는 대상(내 자산 또는 공유한 회원). 고른 대상의 데이터로 허용된 화면만 열림</td></tr>
+    <tr><td class="name">클라우드 서버</td><td>회원들이 함께 쓰도록 인터넷에 둔 K-Stock 서버(예: Oracle Cloud 무료 서버). 서로 다른 기기 간 공유에 필요</td></tr>
+    <tr><td class="name">이 휴대폰 모드</td><td>앱 안에 서버와 데이터를 두고 쓰는 방식. 공유는 같은 휴대폰의 계정끼리만 됨. 반대는 클라우드 서버 모드</td></tr>
+    <tr><td class="name">가입 코드</td><td>공개 서버에서 가입할 때 입력해야 하는 코드. 서버 관리자가 정해 가족·지인에게만 알려 줌</td></tr>
+    <tr><td class="name">화면 테마</td><td>회원이 고른 기준 색. 메뉴·버튼·탭·합계 행·배경·그래프 색을 이 색에서 계산함</td></tr>
+    <tr><td class="name">사용자·별명 <span class="new">신규</span></td><td>앱을 쓰는 사람(회원). 별명은 한글·영문·숫자 2~20자로 정하며 처음 정한 별명이 로그인 아이디가 됨. 별명은 나중에 바꿀 수 있고(아이디는 그대로) 다른 사용자와 겹칠 수 없음</td></tr>
+    <tr><td class="name">동기화 파일 <span class="new">신규</span></td><td>구글 드라이브 ‘K-Stock’ 폴더에 두는 kstock-sync.kst 파일. 사용자별 데이터·사용자 정보·화면 공유를 담으며 6자리 동기화 비밀번호로 암호화함</td></tr>
+    <tr><td class="name">홈 대시보드 <span class="new">신규</span></td><td>로그인 후 첫 화면. 고른 시장 지표·증시 개장 상태·나의 자산 요약을 칸으로 보여 줌</td></tr>
+    <tr><td class="name">연도별 자산금액</td><td>그 해 말 보유 수량을 연말 종가와 연말 환율로 평가한 금액(올해는 현재가·현재 환율). 국내·해외·해외추종으로 나눠 표시</td></tr>
+  </table>
+</section>
+
+<!-- 2. 업무 흐름 및 계산 기준 -->
+<section class="page" id="ch2">
+  <h1>2. 업무 흐름 및 계산 기준</h1>
+  <h2>2.1 사용 흐름 <span class="chg">변경</span></h2>
+  <div class="flow">
+    <div class="box">사용자 추가<br />로그인</div><span class="arrow">→</span>
+    <div class="box">홈<br />대시보드</div><span class="arrow">→</span>
+    <div class="box">종목코드<br />입력·조회</div><span class="arrow">→</span>
+    <div class="box">그룹·연도별<br />종목 등록</div><span class="arrow">→</span>
+    <div class="box">나의 자산<br />확인</div><span class="arrow">→</span>
+    <div class="box">배당 회차<br />저장</div><span class="arrow">→</span>
+    <div class="box">연도별<br />자산·배당 비교</div><span class="arrow">→</span>
+    <div class="box">동기화·<br />화면 공유</div>
+  </div>
+  <p class="note">새해에는 보유 종목 관리에서 ‘전년도 일괄이월’로 전년 말 보유 종목을 가져온 뒤 수량을 고칩니다. 가져오지 않아도 전년 보유분은 자동으로 이어집니다(2.6).</p>
+
+  <h2>2.2 시세 데이터 흐름</h2>
+  <div class="steps">
+    <div><b>1. 수집</b>외부 출처에서 현재가, 일별 종가, 환율, 배당 지급내역을 가져옴</div>
+    <div><b>2. 저장</b>종목·종가·환율·배당 지급내역은 전 회원 공통 데이터로 저장</div>
+    <div><b>3. 계산</b>회원별 보유 수량과 결합해 조회 시점에 자산 계산</div>
+  </div>
+
+  <h2>2.3 나의 자산 계산</h2>
+  <div class="formula">
+    현 평가금액(원화) = 현재가 × 보유 수량 × 현재 환율 (국내 종목은 환율 1)<br />
+    매입금액 = 실제로 산 금액(보유 종목 관리의 총 매입금액) &nbsp;·&nbsp; 매입단가 = 매입금액 ÷ 보유 수량<br />
+    손익 기준액(금년)·금년 손익·전체 손익과 수익률은 2.7 기준<br />
+    전일 대비(오늘 손익) = 1주당 전일 대비 변동 × 보유 수량 × 현재 환율 &nbsp;·&nbsp; 오늘 손익률 = 오늘 손익 ÷ (평가금액 − 오늘 손익)
+  </div>
+  <table class="tight">
+    <tr><th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th><th class="num">전일 대비</th><th class="num">금년 손익</th><th class="num">전체 손익</th></tr>
+    <tr><td>국내 종목 A (이월)</td><td class="num">100</td><td class="num">50,000원</td><td class="num">5,000,000원</td><td class="num">6,000,000원</td><td class="num">7,200,000원</td><td class="num">+100,000원</td><td class="num">+1,200,000원</td><td class="num">+2,200,000원</td></tr>
+    <tr><td>미국 종목 B (신규)</td><td class="num">10</td><td class="num">$150</td><td class="num">2,100,000원</td><td class="num">2,100,000원</td><td class="num">2,940,000원</td><td class="num">+28,000원</td><td class="num">+840,000원</td><td class="num">+840,000원</td></tr>
+    <tr class="total"><td>합계</td><td></td><td></td><td class="num">7,100,000원</td><td class="num">8,100,000원</td><td class="num">10,140,000원</td><td class="num">+128,000원</td><td class="num">+2,040,000원</td><td class="num">+3,040,000원</td></tr>
+  </table>
+  <p class="note">가상의 값이며 현재 환율은 1,400원으로 가정했습니다. A는 2년 전 50,000원에 사서 전년 말 종가가 60,000원이라 이월 금액이 6,000,000원이고, B는 올해 $150에 산 종목입니다. 매입 시점 환율은 입력받지 않으므로 미국 종목은 매입금액과 평가금액 모두 현재 환율을 적용하며 환차손익은 반영하지 않습니다.</p>
+  <ul>
+    <li><b>지난 연도 선택:</b> 현재가 대신 연말 종가, 현재 환율 대신 연말 환율, 그 해 말 보유 수량으로 계산하며 전일 대비는 표시하지 않습니다.</li>
+    <li><b>요약 환율:</b> 적용 환율 옆에 전일 대비 증감률과 증감액(전일 환율)을 함께 표시합니다.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">2.4 연도별 자산 계산</h2>
+  <div class="formula">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) &nbsp;·&nbsp; 올해는 현재가·현재 환율(진행 중)</div>
+  <table>
+    <tr><th>연도</th><th class="num">A 수량</th><th class="num">A 연말 종가</th><th class="num">B 수량</th><th class="num">B 연말 종가</th><th class="num">연말 환율</th><th class="num">자산금액</th><th class="num">전년 대비</th></tr>
+    <tr><td>2023</td><td class="num">80</td><td class="num">60,000원</td><td class="num">-</td><td class="num">$150</td><td class="num">1,300원</td><td class="num">4,800,000원</td><td class="num">-</td></tr>
+    <tr><td>2024</td><td class="num">100</td><td class="num">55,000원</td><td class="num">10</td><td class="num">$180</td><td class="num">1,450원</td><td class="num">8,110,000원</td><td class="num">+3,310,000원 (+69.0%)</td></tr>
+    <tr><td>2025</td><td class="num">100 (이월)</td><td class="num">70,000원</td><td class="num">10 (이월)</td><td class="num">$200</td><td class="num">1,400원</td><td class="num">9,800,000원</td><td class="num">+1,690,000원 (+20.8%)</td></tr>
+  </table>
+  <p class="note">가상의 값입니다. 2025년에는 주식 항목을 입력하지 않아 2024년 수량이 그대로 이어졌습니다. 여러 그룹에 같은 종목이 있으면 수량을 합쳐 계산합니다. 연도별 자산금액은 종목 분류(국내·해외·해외추종)별로 나눠 표와 누적 막대로 보여 주고, 연도별 환율(지난 연도 연말·올해 현재)을 선 그래프로 함께 표시합니다.</p>
+  <div class="warn"><b>해석 주의:</b> 연도별 금액은 그 해 말 보유 수량을 연말 종가로 평가한 금액입니다. 연도 중 매매 시점의 가격 변동과 실현 손익은 반영하지 않습니다.</div>
+
+  <h2>2.5 기간 수익률·배당 계산</h2>
+  <div class="formula">
+    기간 수익률 = (기간 마지막 종가 − 기준 종가) ÷ 기준 종가 &nbsp;·&nbsp; 기준 종가 = 시작일 직전 거래일 종가 (없으면 기간 첫 종가)<br />
+    연간 배당수익률 = 연간 주당 배당금 합계 ÷ 연말 종가 (올해는 현재가 기준, ‘진행 중’)<br />
+    세전 추정액 = 주당 배당금 × 현재 보유 수량 (미국 종목의 원화 금액은 배당락일 환율 적용)
+  </div>
+  <p>기간 수익률에는 배당과 환율 변동을 포함하지 않습니다. 세전 추정액은 현재 보유 수량(모든 그룹 합계)을 모든 회차에 적용한 참고 금액이며, 실제로 받은 배당은 배당 내역 관리(3.6)에서 회차를 골라 저장합니다.</p>
+
+  <h3>주당과세표준액 기준</h3>
+  <table>
+    <tr><th style="width:120px">구분</th><th>주당과세표준액</th><th style="width:150px">출처</th></tr>
+    <tr><td class="name">국내 주식</td><td>주당 배당금과 같음 (배당금 전액이 배당소득 과세 대상)</td><td>계산 (주당 배당금)</td></tr>
+    <tr><td class="name">미국 주식·ETF</td><td>주당 배당금과 같음</td><td>계산 (주당 배당금)</td></tr>
+    <tr><td class="name">국내 ETF</td><td>운용사가 회차별로 공시한 값. 분배금 중 비과세 이익을 뺀 금액이므로 분배금보다 작거나 0일 수 있음</td><td>운용사 공시 (FR-DATA-10)</td></tr>
+    <tr><td class="name">ETN</td><td>분배금이 없어 표시하지 않음</td><td>-</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>배당락일</th><th>실지급일</th><th class="num">주당 분배금</th><th class="num">주당과세표준액</th><th class="num">보유 수량</th><th class="num">세전 추정액</th></tr>
+    <tr><td>2026-10-29</td><td>2026-11-03</td><td class="num">325원</td><td class="num">115원</td><td class="num">100</td><td class="num">32,500원</td></tr>
+    <tr><td>2026-09-29</td><td>2026-10-02</td><td class="num">170원</td><td class="num">0원</td><td class="num">100</td><td class="num">17,000원</td></tr>
+  </table>
+  <p class="note">가상의 국내 ETF 예시입니다. 세전 추정액은 분배금 기준이며, 배당소득세는 주당과세표준액에 대해 부과됩니다.</p>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">2.6 연도별 보유 수량과 이월 규칙</h2>
+  <p>보유 종목은 <b>연도 × 그룹 × 종목</b>마다 주식 항목 하나로 기록합니다. 매수·매도를 구분해 입력하지 않고, 그 해 말 총 수량과 총 매입금액을 바로 입력·수정합니다.</p>
+  <table>
+    <tr><th style="width:130px">상황</th><th>처리</th></tr>
+    <tr><td class="name">항목이 없는 연도</td><td>직전 연도 중 가장 최근 항목(수량·매입단가·메모)을 그대로 이어받습니다. 이월 금액은 전년 말 수량 × 전년 마지막 종가로 계산해 보여 줍니다.</td></tr>
+    <tr><td class="name">이월 여부</td><td>화면에서 고르지 않고 자동으로 정합니다. 이월 수량이나 이월 금액이 있으면 이월, 없으면 신규입니다.</td></tr>
+    <tr><td class="name">이월 수량</td><td>전년 말에 보유한 종목이면 전년 말 수량을 쓰며 고칠 수 없습니다. 전년 기록 없이 새로 등록하는 종목은 회원이 입력합니다.</td></tr>
+    <tr><td class="name">이월 금액 고정</td><td>전년도 일괄이월이나 이월로 등록할 때 이월 수량 × 전년 마지막 종가로 계산해 저장합니다. 이후 총 수량·매입금액을 바꿔도 다시 계산하지 않으며, 수정 화면에서 직접 바꿀 수 있습니다(비우고 저장하면 다시 계산).</td></tr>
+    <tr><td class="name">수량 변경</td><td>그 해 항목을 수정해 총 수량·총 매입금액을 바꿉니다. 이후 연도에 항목이 없으면 바뀐 값이 이어집니다.</td></tr>
+    <tr><td class="name">삭제</td><td>그 해부터 보유하지 않는 것으로 처리합니다. 전년 말에 보유한 종목이면 수량 0 항목을 남기고(실현손익 선택 입력), 그 해에 처음 등록한 종목이면 항목을 지웁니다. 배당 내역은 유지합니다.</td></tr>
+    <tr><td class="name">전년도 일괄이월</td><td>전년 말 보유 종목 중 회원이 고른 종목을 전년 말 수량·매입단가·메모 그대로 그 해 이월 항목으로 등록하고 이월 금액을 고정합니다. 이미 그 해 항목이 있는 종목은 고를 수 없습니다.</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>그룹·종목</th><th>2025년</th><th>2026년 작업</th><th>2026년 이월 수량·이월 금액</th><th>2026년 총 수량</th></tr>
+    <tr><td>일반 · 종목 A</td><td>100주 보유, 연말 종가 60,000원</td><td>(항목 없음)</td><td>100주 · 6,000,000원(자동 계산)</td><td>100주</td></tr>
+    <tr><td>ISA · 종목 B</td><td>200주 보유, 연말 종가 9,940원</td><td>일괄이월 후 260주로 수정</td><td>200주 · 1,988,000원(고정)</td><td>260주</td></tr>
+    <tr><td>연금 · 종목 C</td><td>-</td><td>이월 수량 3주 입력해 등록</td><td>3주 · 3주 × 전년 종가(고정)</td><td>5주</td></tr>
+  </table>
+  <p class="note">일괄이월로 등록한 항목은 전년도 값을 복사해 둔 것이므로, 나중에 전년도 수량을 고쳐도 자동으로 따라 바뀌지 않습니다.</p>
+
+  <h2 class="newpage">2.7 금년 손익과 전체 손익</h2>
+  <p>그 해 성과(금년 손익)와 처음 산 때부터의 성과(전체 손익)를 따로 봅니다.</p>
+  <div class="formula">
+    손익 기준액(금년) = 이월 금액(전년)이 있으면 이월 금액, 없으면 매입금액<br />
+    금년 손익 = 현 평가금액 − 손익 기준액(금년) &nbsp;·&nbsp; 금년 수익률 = 금년 손익 ÷ 손익 기준액(금년)<br />
+    전체 손익 = 현 평가금액 − 매입금액 + 누적 실현손익(그 해까지) &nbsp;·&nbsp; 전체 수익률 = 전체 손익 ÷ 매입금액
+  </div>
+  <table>
+    <tr><th>구분</th><th>내용</th><th class="num">기준 금액</th><th class="num">현 평가금액</th><th class="num">손익</th></tr>
+    <tr><td>금년 손익</td><td>2025년 말 100주 × 60,000원 이월(이월 금액 6,000,000원), 현재가 72,000원</td><td class="num">6,000,000원</td><td class="num">7,200,000원</td><td class="num">+1,200,000원</td></tr>
+    <tr><td>전체 손익</td><td>2024년 100주 × 50,000원 매수(매입금액 5,000,000원)</td><td class="num">5,000,000원</td><td class="num">7,200,000원</td><td class="num">+2,200,000원</td></tr>
+  </table>
+  <ul>
+    <li><b>수량이 바뀐 이월 종목:</b> 손익 기준액은 고정된 이월 금액이므로, 연중에 더 사거나 판 경우 금년 손익에 그 차이가 그대로 들어갑니다. 필요하면 보유 종목 관리 수정 화면에서 이월 금액을 고칩니다.</li>
+    <li><b>실현손익:</b> 종목을 삭제(전량 매도)할 때 팝업에서 선택 입력하며, 전체 손익에 더합니다.</li>
+    <li><b>전량 매도 종목:</b> 그 해 나의 자산에 ‘전량 매도’ 행으로 전체 손익(누적 실현손익)만 보여 주고, 평가금액이 없어 금년 손익은 표시하지 않습니다.</li>
+  </ul>
+
+  <h2>2.8 배당 회차 저장과 세금 추정</h2>
+  <div class="formula">
+    월 배당(총 배당금) = 보유수량 × 주당 배당금 &nbsp;·&nbsp; 총 과세표준 = 보유수량 × 주당 과세표준<br />
+    기준종가 = 배당락 전일 종가 &nbsp;·&nbsp; 배당수익률 = 주당 배당금 ÷ 기준종가<br />
+    배당 내역의 과세 = 과세표준 × 15.4% &nbsp;·&nbsp; 연도별 배당 증감의 세금 = 과세표준액 × 16.5%
+  </div>
+  <p>배당 내역 관리에서 종목의 배당 내역(최근 10년)을 불러와 회차를 골라 저장합니다. 보유수량은 현재 보유수량을 기본으로 넣고 회차마다 고칠 수 있습니다. 저장한 회차가 누적 배당액·누적 과세표준액, 연도별 배당 증감, 배당 내역 조회의 근거가 됩니다. 미국 종목은 원화 합계를 낼 때 지급일(없으면 배당락일) 환율로 환산합니다. 세금은 참고용 추정이며 계좌 유형에 따라 다릅니다.</p>
+
+  <h2 class="newpage">2.9 화면 공유 권한 규칙 <span class="chg">변경</span></h2>
+  <p>공유하는 회원이 공유받을 회원(가입한 이메일)과 화면별 권한을 정합니다. 공유받은 회원이 메뉴 위 ‘보는 자산’에서 공유한 회원을 고르면, 허용된 화면만 공유한 회원의 데이터로 열립니다. 권한은 서버가 요청마다 확인하며, 화면에서 버튼을 숨기는 것은 보조 수단입니다.</p>
+  <table class="tight">
+    <tr><th style="width:120px">화면</th><th style="width:80px">줄 수 있는 권한</th><th>조회 권한으로 할 수 있는 것</th><th>편집 권한으로 더 할 수 있는 것</th></tr>
+    <tr><td class="name">나의 자산</td><td>조회</td><td>요약·합계·종목별 평가금액, 종목 팝업, 엑셀 내보내기</td><td>-</td></tr>
+    <tr><td class="name">연도별 자산 (요약)</td><td>조회</td><td>연도별 자산·배당 증감, 배당 내역 조회, 엑셀 내보내기</td><td>-</td></tr>
+    <tr><td class="name">종목 정보 조회</td><td>조회</td><td>종목 조회, 공유한 회원의 보유 종목 바로가기</td><td>-</td></tr>
+    <tr><td class="name">보유 종목 관리</td><td>조회·편집</td><td>주식 항목 목록 보기</td><td>종목 등록·수정·삭제, 전년도 일괄이월, 그룹 관리</td></tr>
+    <tr><td class="name">배당 내역 관리</td><td>조회·편집</td><td>배당 목록, 월 배당금 팝업 보기</td><td>배당 회차 저장</td></tr>
+    <tr><td class="name">환경설정</td><td>공유 안 함</td><td colspan="2">백업·복원, 비밀번호, 테마, 공유 관리는 항상 본인 계정에만 적용</td></tr>
+  </table>
+  <ul>
+    <li>공유받은 화면에서 바꾼 연도·그룹 선택은 공유받은 회원의 화면 설정에 저장하지 않습니다.</li>
+    <li>권한을 모두 ‘없음’으로 바꾸거나 해제하면 공유가 끝나고, 공유받은 회원도 ‘받지 않기’로 끊을 수 있습니다.</li>
+    <li>이 휴대폰 모드에서는 같은 휴대폰의 계정끼리만, 클라우드 서버에서는 기기와 상관없이 공유됩니다.</li>
+  </ul>
+</section>
+  <p><b>v1.4 변경</b> <span class="chg">변경</span></p>
+  <ul>
+    <li>공유할 사용자는 이 기기(개인 서버)에 등록된 사용자 목록에서 고른다. 공개 클라우드 서버는 목록을 보여 주지 않아 아이디를 직접 입력한다.</li>
+    <li>권한 기본값은 모든 화면 ‘조회’. 권한 칸 색은 없음 흰색, 조회 연한 테마색, 편집 진한 테마색.</li>
+    <li>데이터 동기화(3.15)를 설정하지 않으면 화면 공유 · 권한 관리를 쓸 수 없다(흐리게 잠김). 클라우드 서버에 연결한 앱은 예외.</li>
+    <li><b>종목 조회</b>는 공유 대상이 아니다. 공유받은 화면을 보는 중에도 환경 설정과 같이 내 메뉴로 열리며 내 보유 종목을 기준으로 한다. <b>나의 배당 조회</b>는 ‘연도별 자산 · 배당 조회’ 권한을 따른다.</li>
+    <li>공유받은 사람이 [받지 않기]를 누르면 공유한 사람의 ‘내가 공유한 회원’ 목록에서도 빠진다(다른 기기는 동기화 후). 공유한 사람이 그 뒤에 다시 공유하면(공유 시각이 받지 않기보다 늦음) 다시 보인다.</li>
+    <li>다른 기기의 공유는 같은 동기화 파일을 쓰는 기기끼리 동기화로 전달된다. 공유한 사람이 먼저 동기화해야 하며, 공유받은 기기에 공유한 사람이 실제 사용자로 있으면 그 사람의 최신 자료(공유 포함)로 맞춘다(2.10).</li>
+    <li>공유 목록과 보는 자산에는 아이디 대신 별명을 표시한다.</li>
+  </ul>
+
+  <h2>2.10 데이터 동기화 규칙 <span class="new">신규</span></h2>
+  <p>기기마다 데이터를 따로 두고, 같은 구글 계정의 구글 드라이브에 있는 동기화 파일 하나로 [동기화]를 누를 때 맞춥니다(실시간 아님).</p>
+  <table>
+    <tr><th style="width:118px">항목</th><th>규칙</th></tr>
+    <tr><td class="name">파일 위치·형식</td><td>내 드라이브 ‘K-Stock’ 폴더의 kstock-sync.kst(폴더가 없으면 만들고, 예전 맨 위의 파일은 폴더로 옮김). 6자리 동기화 비밀번호로 암호화한 바이너리(NFR-SEC-06). 앱이 만든 파일만 읽고 쓰는 권한(drive.file)만 사용</td></tr>
+    <tr><td class="name">사용자별 칸</td><td>파일 안에 로그인 아이디별 칸을 따로 두어, 로그인한 사용자는 자기 칸만 저장·가져오기 한다. 다른 사용자의 칸은 덮어쓰지 않는다</td></tr>
+    <tr><td class="name">저장·가져오기 판단</td><td>이 기기만 바뀌었으면 파일에 저장, 파일만 바뀌었으면 가져오기, 둘 다 바뀌었으면 남길 쪽을 묻는다. 데이터 지문(보유·배당·공유 자료)으로 바뀜을 판단하고, 저장할 때마다 저장 번호(rev)를 올려 예전 사본을 받은 경우에는 아무것도 하지 않는다</td></tr>
+    <tr><td class="name">사용자 정보</td><td>사용자 목록(별명·프로필 사진·비밀번호 해시)과 삭제 기록도 담는다. 다른 기기에서 추가한 사용자는 이 기기에도 추가되고, 바뀐 정보는 늦게 바꾼 쪽으로, 삭제는 다른 기기에도 전한다(지금 그 기기에서 로그인해 쓰는 사용자는 지우지 않음). 두 기기에 원래부터 있던 같은 아이디는 각 기기 정보를 그대로 둔다</td></tr>
+    <tr><td class="name">다른 사용자 자료</td><td>파일에 있는 다른 사용자의 최신 자료는, 이 기기에서 그 사용자 자료를 고치지 않았거나 비어 있을 때만 받아 온다(고쳤으면 그 사용자로 로그인해 동기화하라고 안내)</td></tr>
+    <tr><td class="name">받지 않기 기록</td><td>사용자 정보와 함께 담아 공유한 사람의 기기에 전한다(2.9)</td></tr>
+  </table>
+
+<!-- 3. 기능 요구사항 -->
+<section class="page" id="ch3">
+  <h1>3. 기능 요구사항</h1>
+  <h2>3.1 회원·인증 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-AUTH-01</td><td class="name">사용자 추가 <span class="chg">변경</span></td><td>별명(한글·영문·숫자 2~20자, 이것이 로그인 아이디), 프로필 사진(기본 그림 중 선택 또는 내 사진 올리기, 가운데를 잘라 160×160으로 줄임), 4자리 비밀번호(두 번 입력)로 사용자를 추가한다. 다른 사용자의 아이디·별명과 겹치면 거절한다. 공개 서버에 가입 코드가 정해져 있으면 가입 코드를 맞게 입력해야 한다.</td></tr>
+    <tr><td class="id">FR-AUTH-02</td><td class="name">로그인 사용자 선택·로그아웃 <span class="chg">변경</span></td><td>로그인 화면은 ‘로그인 사용자 선택’으로 이 기기의 사용자를 사진·별명으로 보여 주고, 고른 사용자의 4자리 비밀번호를 칸에 다 넣으면 바로 로그인한다. 사용자 목록을 보여 줄 수 없는 공개 클라우드 서버에서만 아이디를 입력한다. 메뉴 아래(휴대폰은 위쪽)의 ‘사진 별명 │ 로그아웃’으로 로그아웃한다.</td></tr>
+    <tr><td class="id">FR-AUTH-03</td><td class="name">비밀번호 변경 <span class="chg">변경</span></td><td>환경 설정에서 현재 비밀번호와 새 비밀번호(두 번)를 4자리 칸으로 입력해 바꾼다. 로그인 화면의 ‘비밀번호를 잊으셨나요?’는 없앴으며, 공개 서버는 서버 관리자가 임시 비밀번호를 발급한다(FR-CLD-05).</td></tr>
+    <tr><td class="id">FR-AUTH-04</td><td class="name">사용자 삭제 <span class="chg">변경</span></td><td>4자리 비밀번호를 확인하고 사용자를 삭제하면 계정, 보유 그룹, 주식 항목, 종목 분류, 배당 회차·배당 내역, 사용자 설정, 주고받은 화면 공유를 삭제한다. 삭제는 동기화로 다른 기기에도 전한다(2.10).</td></tr>
+    <tr><td class="id">FR-AUTH-05</td><td class="name">회원별 데이터 분리</td><td>회원은 본인의 보유 그룹·주식 항목·배당 내역만 조회·수정할 수 있다. 다른 회원의 데이터는 공유받은 화면을 받은 권한 범위에서만 다룬다(3.12).</td></tr>
+    <tr><td class="id">FR-AUTH-06</td><td class="name">(삭제) 아이디 저장 <span class="chg">변경</span></td><td>로그인 사용자 선택(FR-AUTH-02)으로 대체해 삭제.</td></tr>
+    <tr><td class="id">FR-AUTH-07</td><td class="name">로그인 시도 제한</td><td>같은 이메일·접속 주소에서 15분 동안 5번 틀리면(접속 주소 기준 30번) 잠시 로그인을 막고 기다릴 시간을 안내한다. 가입은 접속 주소마다 1시간에 10번까지.</td></tr>
+    <tr><td class="id">FR-AUTH-08</td><td class="name">별명 변경 <span class="new">신규</span></td><td>환경 설정 → 사용자 관리에서 별명을 바꾼다. 다른 사용자의 아이디·별명과 겹치면 거절(대소문자 무시). 로그인 아이디는 그대로 두어 동기화·공유 연결이 끊기지 않으며, 로그인은 새 별명으로도 된다.</td></tr>
+    <tr><td class="id">FR-AUTH-09</td><td class="name">프로필 사진 <span class="new">신규</span></td><td>환경 설정 → 사용자 관리에서 기본 그림을 고르거나 휴대폰·PC의 사진을 올려 바꾼다. 로그인 화면·메뉴·공유 목록에 표시한다. 메뉴의 내 사진·별명을 누르면 사용자 관리로 이동한다.</td></tr>
+    <tr><td class="id">FR-AUTH-10</td><td class="name">실행할 때마다 로그인 <span class="new">신규</span></td><td>앱(또는 브라우저 탭)을 새로 켜면 지난 로그인을 이어 쓰지 않고 로그인 사용자 선택 화면부터 보여 준다. 같은 실행 안에서 화면을 다시 불러올 때는 로그인을 유지한다.</td></tr>
+    <tr><td class="id">FR-AUTH-11</td><td class="name">기본 사용자 <span class="new">신규</span></td><td>처음 설치하면 보유 종목·배당 회차가 미리 들어 있는 ‘샘플’ 사용자(비밀번호 1234)를 만든다. 배당 회차는 시세 출처에서 실제 배당 내역을 받아 채우며, 인터넷이 안 되면 나중에 다시 시도한다.</td></tr>
+  </table>
+
+  <h2>3.2 종목 조회 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-STK-01</td><td class="name">종목 조회</td><td>주식·ETF·ETN의 종목코드(또는 종목명으로 찾은 종목, FR-STK-12)를 조회하면 종목명, 시장, 구분, 통화, 현재가를 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-02</td><td class="name">시장 자동 판별</td><td>코드 형식으로 국내 종목(예: 005930, ETF 069500·0080G0)과 미국 종목(예: AAPL, ETF SPY)을 판별한다.</td></tr>
+    <tr><td class="id">FR-STK-03</td><td class="name">현재가 표시</td><td>현재가, 전일 대비 금액, 등락률, 시세 기준 시각을 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-04</td><td class="name">날짜별 종가 조회</td><td>1개월, 3개월, 1년, 5년 또는 직접 지정한 기간의 날짜별 종가를 표로 표시한다. 마지막으로 고른 기간을 기억해 다음 조회에 사용한다(FR-COM-01).</td></tr>
+    <tr><td class="id">FR-STK-05</td><td class="name">조회 실패 처리</td><td>없는 코드는 오류 메시지로, 시세를 가져오지 못한 경우는 원인 안내와 재시도 버튼으로 구분해 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-06</td><td class="name">구분 표시</td><td>ETF·ETN은 종목 조회, 나의 자산, 보유 종목 화면과 엑셀 파일에 일반 주식과 구분해 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-07</td><td class="name">기간 수익률</td><td>시작일 직전 거래일 종가 대비 기간 마지막 종가의 수익률을 2.5 기준으로 표시한다(직전 종가가 없으면 기간 첫 종가 기준). 배당과 환율 변동은 포함하지 않는다.</td></tr>
+    <tr><td class="id">FR-STK-08</td><td class="name">배당금 지급내역</td><td>종목 정보의 버튼으로 팝업을 열면 최근 10년 배당 내역을 자동으로 불러와 표시한다.<br />· 연도별: 횟수, 주당 배당 합계, 주당과세표준액 합계, 기준 종가, 배당수익률<br />· 배당락일별: 배당락일, 실지급일(제공되는 경우), 주당 배당금, 주당과세표준액<br />· 보유 중이면 세전 추정액도 표시하고, 미국 종목은 원화 환산액을 함께 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-09</td><td class="name">주당과세표준액 표시</td><td>2.5 기준에 따라 회차별 주당과세표준액을 표시한다. 값을 확인할 수 없는 회차는 ‘-’로 표시하고, 그 이유(출처 미연동, 제공 범위 밖, 갱신 실패 등)와 출처, 값이 있는 회차 수를 팝업에 안내한다. 연도 합계는 한 회차라도 값이 없으면 ‘-’로 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-10</td><td class="name">보유 종목 바로가기</td><td>종목 조회 화면에 회원이 올해 보유한 모든 종목을 ‘종목명(종목코드)’ 링크로 나열하고, 누르면 바로 조회한다. 여러 그룹에 있는 종목은 한 번만 표시한다.</td></tr>
+    <tr><td class="id">FR-STK-11</td><td class="name">보유 종목 등록 연결</td><td>조회한 종목을 올해 보유 종목으로 등록하는 화면으로 바로 이동할 수 있다(종목코드 자동 입력). 공유받은 화면을 보는 중에 보유 종목 관리 편집 권한이 없으면 표시하지 않는다.</td></tr>
+    <tr><td class="id">FR-STK-12</td><td class="name">종목명 검색 <span class="chg">변경</span></td><td>입력칸에 종목명 일부(한글·영문)나 코드 일부를 넣으면 비슷한 종목의 종목명·종목코드·국내/미국·시장을 팝업으로 보여 주고(일치하는 글자 강조), 클릭 또는 ↑↓·Enter로 골라 조회한다. 종목명을 넣고 바로 조회하면 첫 번째 결과로 조회하고, 결과가 없으면 안내한다. 검색 서버에 연결하지 못하면 ‘검색 서버에 연결하지 못했다’고 따로 안내하고, 이미 저장된 종목에서만 찾는다. 국내·미국 종목만 보여 준다.</td></tr>
+    <tr><td class="id">FR-STK-13</td><td class="name">내가 조회한 종목</td><td>보유 종목이 아닌 종목을 조회하면 첫 화면의 내 보유 종목 아래 ‘내가 조회한 종목’ 상자에 최근 순으로 12개까지 저장해 눌러서 다시 조회한다. ✕로 하나씩, ‘전체 지우기’로 모두 지우며, 나중에 보유한 종목은 자동으로 빠진다. 회원 설정으로 저장해 기기와 상관없이 보인다.</td></tr>
+    <tr><td class="id">FR-STK-14</td><td class="name">언어에 맞는 종목명 <span class="new">신규</span></td><td>화면 언어가 한국어면 한글명(국내 종목, 미국 종목도 한글명이 있으면 예: 애플), English면 영문명(미국 종목, 국내 종목도 영문명이 있으면 예: Samsung Electronics Co., Ltd.)으로 모든 화면과 검색 목록에 표시한다. 종목마다 한글명·영문명을 저장해 두고, 모르는 이름은 처음 쓸 때 한 번 찾아 두며 못 찾으면 원래 이름을 쓴다. 영어 화면에서 영문 검색어는 영문 이름을 주는 출처를 먼저 쓴다.</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.3 보유 종목 등록 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-HLD-01</td><td class="name">종목 등록 <span class="chg">변경</span></td><td>관리 연도를 고르고 다음 배치로 입력해 등록한다.<br />· 1줄: 그룹, 종목코드, 분류, 이월 수량, 이월 금액(전년), 등록·전년도 일괄이월 버튼<br />· 2줄(이월 수량 아래부터): 총 수량, 총 매입금액, 메모<br />이월 여부는 이월 수량·이월 금액 입력 여부로 자동으로 정한다(2.6). 이월 금액을 비우면 이월 수량 × 전년 종가로 계산한다. 종목코드를 입력하면 종목명과 거래 통화를 바로 확인해 보여 준다. 종목코드 칸은 종목 조회처럼 종목명·코드 일부를 넣으면 목록에서 고를 수 있고, 고른 종목명은 칸 아래에 표시한다.</td></tr>
+    <tr><td class="id">FR-HLD-02</td><td class="name">종목 수정·삭제</td><td>목록의 수정 아이콘을 누르면 등록과 같은 배치로 그 해 값을 바꾼다(그룹·종목코드 고정, 저장·취소 버튼). 전년 말 보유 종목의 이월 수량은 고칠 수 없고, 이월 금액은 직접 고칠 수 있다. 총 수량을 바꿔도 이월 금액은 다시 계산하지 않는다. 삭제 아이콘을 누르면 팝업에서 실현손익(선택)을 입력하고 2.6 규칙에 따라 그 해부터 보유하지 않는 것으로 처리한다.</td></tr>
+    <tr><td class="id">FR-HLD-03</td><td class="name">중복 등록 방지</td><td>같은 연도·그룹에 이미 보유 중(그 해 등록 또는 이월)인 종목을 다시 등록하면 저장하지 않고 목록에서 수정하도록 안내한다. 다른 그룹에는 같은 종목을 등록할 수 있다.</td></tr>
+    <tr><td class="id">FR-HLD-04</td><td class="name">입력값 검증</td><td>4.2의 입력 규칙을 벗어난 값은 저장하지 않고 항목별로 오류를 표시한다.</td></tr>
+    <tr><td class="id">FR-HLD-05</td><td class="name">전년도 일괄이월</td><td>‘전년도 일괄이월’ 버튼을 누르면 전년 말 보유 종목(선택한 그룹, 전체면 모든 그룹)을 팝업에 표시한다. 체크박스와 전체 선택으로 고르며(이미 등록된 종목 제외), 선택한 종목만 그 해 이월 종목으로 한 번에 등록하고 이월 금액을 고정한다.</td></tr>
+    <tr><td class="id">FR-HLD-06</td><td class="name">보유 그룹 관리</td><td>그룹을 추가·이름 변경·삭제할 수 있다. 처음에는 ‘일반’ 그룹을 만든다. 주식 항목이 있는 그룹은 삭제할 수 없고, 그룹은 하나 이상 있어야 한다. 화면 위의 그룹 탭(전체·그룹별)으로 목록을 거른다.</td></tr>
+    <tr><td class="id">FR-HLD-07</td><td class="name">종목 분류</td><td>종목 등록 시 국내·해외·해외추종 중 하나를 반드시 고른다. 분류는 회원·종목별로 하나이며(그룹이 달라도 같음), 종목 정보로 추천값을 미리 골라 둔다.</td></tr>
+    <tr><td class="id">FR-HLD-08</td><td class="name">주식 항목 목록</td><td>선택한 연도·그룹의 주식 항목을 표로 보여 준다. 열: 종목(종목명, 코드, 분류, 주식·ETF), 이월 수량, 이월 금액(전년, 누르면 계산 근거), 총 수량, 총 매입금액, 매입단가(평균 = 총 매입금액 ÷ 총 수량), 손익 기준액(금년), 메모, 수정·삭제 아이콘. 이월이 아닌 종목의 이월 칸은 ‘-’. 열 제목은 가운데, 종목은 왼쪽, 숫자는 오른쪽 정렬. 전체 탭에서는 그룹별로 나눠 표시한다.</td></tr>
+    <tr><td class="id">FR-HLD-09</td><td class="name">관리 연도 선택</td><td>최근 10년(입력한 가장 이른 연도가 더 이르면 그 연도)부터 올해까지 관리 연도를 고른다. 미래 연도는 고를 수 없다.</td></tr>
+    <tr><td class="id">FR-HLD-10</td><td class="name">실현손익 입력</td><td>종목을 삭제(전량 매도)할 때 팝업에서 실현손익(매도금액 − 매입금액, 거래 통화, 손실은 −)을 선택 입력한다. 수정 화면에서는 입력하지 않으며, 이미 저장한 실현손익은 수정해도 유지한다.</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.4 나의 자산</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-AST-01</td><td class="name">종목별 평가금액</td><td>보유 종목별로 표시한다. 열(순서): 종목(종목명, 코드, 시장, 분류, 주식·ETF), 보유수량, 매입단가, 매입금액, 손익 기준액(금년), 현 평가금액, 전일 대비, 금년 손익, 전체 손익. 열 제목 아래 도움말은 두지 않는다. 미국 종목의 달러 금액은 원화 금액을 누르면, 현재가는 현 평가금액을 누르면 툴팁으로 보여 준다. 종목 열은 왼쪽, 숫자 열은 오른쪽 정렬.</td></tr>
+    <tr><td class="id">FR-AST-02</td><td class="name">총자산 표시</td><td>전체 보유 종목의 평가금액을 원화로 합산해 표시한다(요약에 매입금액·손익 기준액 함께 표시).</td></tr>
+    <tr><td class="id">FR-AST-03</td><td class="name">금년 손익·수익률</td><td>2.7 기준에 따라 금년 손익(= 현 평가금액 − 손익 기준액(금년))과 금년 수익률을 종목별·그룹별·분류별·전체로 표시한다. 올해를 볼 때는 ‘금년 손익’, 지난 연도는 ‘○○○○년 손익’으로 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-04</td><td class="name">기준 정보 표시</td><td>적용한 환율과 시세·환율 기준 시각, 계산 기준을 함께 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-05</td><td class="name">기준 연도 선택</td><td>기준 연도를 고를 수 있다. 올해는 현재가·현재 환율, 지난 연도는 연말 종가·연말 환율과 그 해 말 보유 수량으로 계산하고 기준을 화면에 안내한다.</td></tr>
+    <tr><td class="id">FR-AST-06</td><td class="name">그룹별 보기·통합</td><td>그룹 탭(전체·그룹별)으로 볼 그룹을 고른다. 전체에서는 그룹별로 나누고 그룹마다 소계 행을 표시한다. 전체에서 ‘통합’을 체크하면 그룹 구분 없이 같은 종목을 합쳐 한 줄로 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-07</td><td class="name">그룹별·분류별 합계</td><td>그룹별 합계와 분류별(국내·해외·해외추종) 합계 표를 보여 준다. 열: 종목 수, 원화 평가금액, 비중, 금년 손익, 금년 수익률, 전체 손익, 전체 수익률, 오늘 손익, 오늘 손익률. 각 표 아래에 소계 행을 둔다.</td></tr>
+    <tr><td class="id">FR-AST-08</td><td class="name">전일 대비(오늘 손익)</td><td>올해를 볼 때 종목별 전일 대비를 보유 수량 전체의 원화 증감 금액과 등락률로 표시한다. 금액을 누르면 1주당 변동을 툴팁으로 보여 준다. 그룹 소계와 합계 행에는 오늘 손익 합계를 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-09</td><td class="name">종목 조회 팝업</td><td>종목명을 누르면 화면을 벗어나지 않고 종목 정보 조회(SC-03) 내용을 팝업으로 보여 준다.</td></tr>
+    <tr><td class="id">FR-AST-10</td><td class="name">영역 접기·펴기</td><td>요약, 그룹별 합계, 분류별 합계, 종목별 평가금액 영역마다 −/+ 버튼으로 접고 펼 수 있으며, 접은 상태를 기억한다.</td></tr>
+    <tr><td class="id">FR-AST-11</td><td class="name">전체 손익</td><td>2.7 기준에 따라 전체 손익(누적 실현손익 포함)과 전체 수익률을 요약·합계 표·종목별 표에 금년 손익과 나란히 표시한다.</td></tr>
+    <tr><td class="id">FR-AST-12</td><td class="name">전량 매도 종목</td><td>선택 연도에 전량 매도한 종목은 ‘전량 매도’ 행(보유 수량 0)으로 전체 손익(실현손익)만 표시하고 합계에 포함한다.</td></tr>
+    <tr><td class="id">FR-AST-13</td><td class="name">환율 전일 대비</td><td>요약의 적용 환율 옆에 전일 대비 증감률을 표시하고, 아래에 증감액과 전일 환율(날짜)을 함께 표시한다.</td></tr>
+  </table>
+
+  <h2 class="newpage">3.5 연도별 자산 · 배당 조회 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-YR-01</td><td class="name">연도별 자산 증감</td><td>2.4 기준의 연도별 자산금액을 한 카드에 왼쪽 그래프, 오른쪽 표로 보여 준다. 표 열: 연도(올해는 ‘진행 중’), 총자산(누르면 연말 환율), 국내, 해외, 해외추종(금액과 비중), 전년 대비(금액 아래 증감률). 최근 연도부터 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-02</td><td class="name">연도 간 비교</td><td>연도별 전년 대비 증감액과 증감률을 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-03</td><td class="name">종목별 내역 <span class="chg">변경</span></td><td>연도를 누르면 그래프·표 아래에 그 해 종목별 보유 수량, 연말 종가, 적용 환율, 원화 금액을 전체 폭으로 펼친다. 다시 누르면 접는다. 표의 연도 행뿐 아니라 그래프 막대를 눌러도 펼친다.</td></tr>
+    <tr><td class="id">FR-YR-04</td><td class="name">조회 기간 선택</td><td>기본값은 최근 5년이며, 시작·종료 연도를 최대 10년 범위에서 선택할 수 있다. 마지막으로 고른 범위를 기억한다.</td></tr>
+    <tr><td class="id">FR-YR-05</td><td class="name">진행 중인 연도</td><td>올해는 최신 시세와 환율로 계산하고 ‘진행 중’으로 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-06</td><td class="name">상장 전 연도 처리</td><td>해당 연도 말에 상장 전인 종목은 ‘-’로 표시해 합계에서 제외하고, 연도 칸에 제외 종목 수를 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-07</td><td class="name">계산 기준 안내</td><td>화면에 ‘연도별로 입력한 연말 보유 수량 기준 금액이며, 연도 중 매매 시점의 가격 변동은 반영하지 않음’을 항상 표시한다.</td></tr>
+    <tr><td class="id">FR-YR-08</td><td class="name">표 데이터 정렬</td><td>이 화면의 모든 표는 열 제목은 가운데, 데이터는 종목·메모 왼쪽, 지급일 가운데, 나머지는 오른쪽 정렬한다.</td></tr>
+    <tr><td class="id">FR-YR-09</td><td class="name">연도별 배당 상세 <span class="new">신규</span></td><td>연도별 배당 증감에서 연도(표의 행 또는 그래프 막대)를 누르면 아래에 그 해 배당 내역(배당락일·지급일·종목·그룹·수량·주당배당·배당·과세표준·세금, 원화 합계)을 표시하고, 다시 누르면 닫는다. 연도는 배당락일 기준. 배당 내역 조회 상자는 나의 배당 조회(FR-DIV-11)로 옮겼다.</td></tr>
+  </table>
+</section></section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.6 배당 내역 입력·나의 배당 조회 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-DIV-01</td><td class="name">(삭제) 수령 배당 직접 등록</td><td>v1.2에서 삭제. 배당은 회차를 골라 저장한다(FR-DIV-07). 이전에 기록한 수령 내역은 백업에 포함해 보관한다.</td></tr>
+    <tr><td class="id">FR-DIV-02</td><td class="name">배당 내역 조회 <span class="chg">변경</span></td><td>나의 배당 조회(SC-06)의 상세 표로 옮겼다(FR-DIV-11~14). 종목 아래 그룹 이름을 배지로 표시한다.</td></tr>
+    <tr><td class="id">FR-DIV-03</td><td class="name">연도별 배당 증감</td><td>연도별 자산 (요약) 화면에 연도별 배당 표·그래프를 둔다. 표 열: 연도(올해는 ‘진행 중’), 배당, 수령회차, 과세표준액, 세금(= 과세표준액 × 16.5%). 그래프는 배당·과세표준액·세금 막대. 조회 기간의 모든 연도를 표시한다.</td></tr>
+    <tr><td class="id">FR-DIV-04</td><td class="name">자산금액과 구분</td><td>배당은 자산금액에 합산하지 않는다.</td></tr>
+    <tr><td class="id">FR-DIV-05</td><td class="name">삭제 종목의 내역 유지</td><td>보유 종목을 삭제해도 해당 종목의 배당 내역은 유지한다.</td></tr>
+    <tr><td class="id">FR-DIV-06</td><td class="name">그룹별 배당 목록 <span class="chg">변경</span></td><td>연도, 월 기간(○월 ~ ○월, 기본 1월 ~ 이번 달), 그룹 탭별로 보유 종목을 보여 준다. 열: 종목, 보유수량, 현재 단가(지난 연도는 연말 종가), 평가금액, 월 배당액(최근, 굵게), 월 과세표준액, 누적 배당액(기간), 누적 과세표준액(기간), 입력 아이콘. 월 배당액·누적은 선택 기간 안에 저장한 회차(배당락일) 기준. 종목 외 데이터는 오른쪽 정렬. 메뉴 이름은 ‘배당 내역 입력’.</td></tr>
+    <tr><td class="id">FR-DIV-07</td><td class="name">월 배당금 입력 팝업</td><td>입력 아이콘을 누르면 종목 배당 내역을 자동으로 불러와 선택한 배당 연도의 회차를 표로 보여 준다. 열: 선택 체크박스, 횟수(배당락일), 실지급일, 주당 배당금, 주당 과세표준, 기준종가, 배당수익률, 보유수량(수정 가능), 총 배당금, 총 과세표준. 위쪽에 배당 연도, 선택 합계, 취소·저장 버튼을 둔다.</td></tr>
+    <tr><td class="id">FR-DIV-08</td><td class="name">회차 저장</td><td>체크한 회차만 저장하고 누적 배당액·누적 과세표준액에 반영한다. 다시 열면 저장한 회차가 체크되어 있고, 체크를 풀고 저장하면 그 회차를 지운다. 주당 금액은 서버의 배당 내역 값을 쓴다.</td></tr>
+    <tr><td class="id">FR-DIV-09</td><td class="name">소계·합계</td><td>전체 탭은 그룹별 소계, 맨 아래 합계(원화)를 둔다. 미국 종목은 올해 현재 환율(지난 연도는 연말 환율)로 원화 환산한다.</td></tr>
+    <tr><td class="id">FR-DIV-10</td><td class="name">입력 표시</td><td>팝업에서 체크한 회차는 줄 전체를 진한 색으로, 보유수량 입력칸은 파란 계열 테두리로 표시한다. 데이터는 횟수를 뺀 모든 열을 오른쪽 정렬한다.</td></tr>
+    <tr><td class="id">FR-DIV-11</td><td class="name">나의 배당 조회 조회 조건 <span class="new">신규</span></td><td>배당 내역 입력과 같은 모양으로 기준 연도·월(시작~끝)·그룹 탭(전체·그룹별)을 고른다. 바꾸면 바로 다시 조회하고 마지막 조건을 기억한다. 지급일(없으면 배당락일) 기준.</td></tr>
+    <tr><td class="id">FR-DIV-12</td><td class="name">나의 배당 요약 <span class="new">신규</span></td><td>월 배당·월 과세표준·월 세금(고른 월 범위의 마지막 달), 누적 배당·누적 과세표준·누적 세금(고른 기간 전체)을 표시한다. 세금 = 과세표준 × 15.4%, 과세표준이 없는 회차는 제외하고 *로 표시.</td></tr>
+    <tr><td class="id">FR-DIV-13</td><td class="name">월별 배당 그래프 <span class="new">신규</span></td><td>기간의 달마다 막대 하나에 국내·해외·해외추종 배당(원화)을 층으로 쌓고, 과세표준은 꺾은선과 값으로 표시한다(연도별 자산 증감과 같은 모양). 막대를 누르면 분류별 금액·월 배당·세금을 보여 준다.</td></tr>
+    <tr><td class="id">FR-DIV-14</td><td class="name">나의 배당 상세 표 <span class="new">신규</span></td><td>지급일·종목(그룹 배지)·수량·주당배당·월 배당·과세표준·세금과 원화 합계. 미국 종목은 지급일 환율로 원화 환산.</td></tr>
+  </table>
+
+  <h2>3.7 차트 시각화</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-CHT-01</td><td class="name">종가 추이 차트</td><td>종목 조회 화면에서 선택한 기간의 종가를 선 차트로 표시한다.</td></tr>
+    <tr><td class="id">FR-CHT-02</td><td class="name">연도별 자산 차트</td><td>연도별 자산금액을 국내·해외·해외추종이 층을 이루는 누적 막대로 비교하고, 막대 위에 연도별 환율(지난 연도 연말·올해 현재) 선 그래프와 값을 표시한다. 막대는 화면 테마 기준 색 한 계열에서 조금 진하게·기본·조금 연하게, 환율 선은 아주 진하게 칠한다(FR-COM-05).</td></tr>
+    <tr><td class="id">FR-CHT-03</td><td class="name">연도별 배당 차트</td><td>연도별 배당·과세표준액·세금을 막대 차트로 표시하고, FR-CHT-02와 같은 테마 색 계열을 쓴다. 종목 종가 차트(FR-CHT-01)는 상승 빨강·하락 파랑을 유지한다.</td></tr>
+  </table>
+
+  <h2>3.8 엑셀 내보내기</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-XLS-01</td><td class="name">나의 자산 내보내기</td><td>나의 자산을 화면에서 고른 연도·그룹·통합 조건 그대로 엑셀 파일로 저장한다. 종목별 행에 그룹, 분류, 매입단가(평균), 현재가, 손익 기준액(금년), 매입금액, 금년 손익·수익률, 전체 손익·수익률, 실현손익을 포함하고, 전량 매도 종목 행과 그룹별·분류별 합계 표를 함께 넣는다.</td></tr>
+    <tr><td class="id">FR-XLS-02</td><td class="name">연도별 자산 내보내기</td><td>연도별 자산 결과와 종목별 내역(그 해 말 보유 수량 포함)을 엑셀 파일로 저장할 수 있다.</td></tr>
+    <tr><td class="id">FR-XLS-03</td><td class="name">기준 정보 포함</td><td>파일에 내보낸 일시, 시세·환율 기준 시각, 매입 기준과 계산 기준을 포함한다.</td></tr>
+  </table>
+
+</section>
+
+<section class="page">
+  <h2 style="margin-top:0">3.9 시세·환율 데이터 수집</h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-DATA-01</td><td class="name">일별 종가 수집</td><td>시스템에 저장된 종목의 종가를 각 시장의 장 마감 후 자동으로 저장한다.</td></tr>
+    <tr><td class="id">FR-DATA-02</td><td class="name">과거 종가 적재</td><td>어느 회원이든 처음 조회하거나 등록한 종목은 최근 10년(상장 후 10년 미만이면 상장일부터)의 종가를 적재한다.</td></tr>
+    <tr><td class="id">FR-DATA-03</td><td class="name">수정 종가 사용</td><td>수정 종가를 저장하고, 액면분할·병합이 발생하면 해당 종목의 과거 종가를 다시 수집한다. 회원의 보유 수량은 자동으로 변경하지 않고 나의 자산에서 수량 수정을 안내한다.</td></tr>
+    <tr><td class="id">FR-DATA-04</td><td class="name">환율 수집</td><td>원/달러 환율을 일별로 저장한다. 날짜의 환율이 없으면(주말·공휴일) 직전 영업일 환율을 적용한다.</td></tr>
+    <tr><td class="id">FR-DATA-05</td><td class="name">현재가 캐시</td><td>현재가는 조회 시 가져오되, 같은 종목은 5분 동안 저장값을 재사용해 외부 호출을 줄인다.</td></tr>
+    <tr><td class="id">FR-DATA-06</td><td class="name">수집 실패 처리</td><td>외부 출처 실패 시 마지막 저장값과 그 기준 시각을 표시하고, 최신 시세가 아님을 안내한다.</td></tr>
+    <tr><td class="id">FR-DATA-07</td><td class="name">출처 교체 가능 구조</td><td>데이터 출처 연동부를 분리해, 출처 변경이나 장애 시 다른 기능을 고치지 않고 교체할 수 있어야 한다. 국내 ETF 과세표준 출처는 운용사별로 분리한다.</td></tr>
+    <tr><td class="id">FR-DATA-08</td><td class="name">종가 예비 출처</td><td>주 출처에서 과거 종가를 거의 받지 못하는 종목(일부 ETN 등)은 예비 출처의 종가로 대체하고, 사용한 출처를 기록한다. 국내 종목명은 예비 출처의 한글 이름을 우선 사용한다.</td></tr>
+    <tr><td class="id">FR-DATA-09</td><td class="name">배당 지급내역 저장</td><td>종목별 배당 지급내역(배당락일, 주당 배당금, 주당과세표준액, 실지급일)을 공통 데이터로 저장해 1일 동안 재사용한다. 갱신에 실패하면 마지막 저장값을 표시하고 최신 값이 아님을 안내한다. 과세표준 출처만 실패한 경우에도 배당 내역은 갱신하고, 이전에 저장한 과세표준은 지우지 않는다.</td></tr>
+    <tr><td class="id">FR-DATA-10</td><td class="name">국내 ETF 과세표준 수집</td><td>국내 ETF의 주당과세표준액·실지급일은 운용사 공시에서 가져와 회차별로 배당 지급내역에 합친다.<br />· 출처가 지급기준일만 주면, 지급기준일 전 7일 안의 가장 가까운 배당락일 회차와 대응한다.<br />· 대응하는 회차가 주 출처에 없으면 운용사 공시의 회차를 추가하고, 배당락일은 지급기준일 직전 거래일로 한다.<br />· 운용사 출처에 접속하지 못하면 사유를 기록해 화면에 안내한다.</td></tr>
+  </table>
+  <p class="note">날짜는 각 거래소의 현지 거래일 기준으로 저장합니다. 5분, 10년, 1일, 7일은 제안값이며 7장에서 확정합니다.</p>
+
+  <h2>3.10 화면 공통 기능 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-COM-01</td><td class="name">조회 조건 기억</td><td>회원이 마지막으로 고른 조회 조건을 서버에 저장해 다음 접속(다른 기기 포함) 때도 사용한다: 화면 테마, 내가 조회한 종목, 화면별 접힘 상태, 종목 정보 조회 기간, 연도별 자산 범위, 배당 내역 관리의 연도·그룹, 나의 자산의 연도·그룹·통합·접힘 상태, 보유 종목 관리의 연도·그룹.</td></tr>
+    <tr><td class="id">FR-COM-02</td><td class="name">팝업</td><td>팝업은 겹쳐 열 수 있고, 닫기 버튼·바깥 영역·Esc 키로 맨 위 팝업부터 닫는다. 팝업 안의 화면 이동 링크를 누르면 모든 팝업을 닫고 이동한다.</td></tr>
+    <tr><td class="id">FR-COM-03</td><td class="name">툴팁</td><td>점선 밑줄이 있는 값을 누르면 보충 정보를 말풍선으로 <b>글자 위쪽</b>에 보여 주고(위쪽 공간이 없으면 아래쪽), 다시 누르거나 다른 곳을 누르면 닫는다.</td></tr>
+    <tr><td class="id">FR-COM-04</td><td class="name">메뉴 <span class="chg">변경</span></td><td>왼쪽 메뉴(휴대폰은 위쪽 가로 메뉴)는 묶음 사이를 줄로 나눈다: 종목 조회 │ 연도별 자산 · 배당 조회 · 나의 자산 조회 · 나의 배당 조회 │ 보유 종목 등록 · 배당 내역 입력 │ 환경 설정. K-Stock 이름 옆 집 모양 버튼은 홈 대시보드. 모든 화면 제목 왼쪽에 메뉴 아이콘을 둔다. 공유받은 화면을 보는 중에는 받은 화면 메뉴에 공유 배지를 붙인다.</td></tr>
+    <tr><td class="id">FR-COM-05</td><td class="name">화면 테마</td><td>환경설정에서 기준 색을 준비된 색(주황(기본, 앱 아이콘 색)·빨강·핑크·보라·남색·파랑·청록·초록·황토·회색) 중에서 고르거나 직접 지정(색 선택기·#RRGGBB)하면, 메뉴·버튼·탭·링크·합계 행·입력칸 테두리·배경·그래프 색을 그 색에서 계산해 전체 화면에 적용한다. 너무 밝은 색은 흰 글자가 읽히도록 조금 진하게 맞춘다. 상승 빨강·하락 파랑과 분류 배지 색은 바꾸지 않는다. 회원 설정으로 저장하고, 로그인 화면은 그 기기에서 마지막으로 쓴 테마로 보인다.</td></tr>
+    <tr><td class="id">FR-COM-06</td><td class="name">상자 접기·펴기 <span class="chg">변경</span></td><td>나의 자산, 연도별 자산 (요약), 보유 종목 관리, 환경설정의 제목 있는 상자마다 오른쪽 위 −/+ 버튼으로 접고 펴며, 화면별로 접은 상태를 기억한다. 보유 종목 관리에서 접어 둔 등록 상자는 수정 버튼을 누르면 자동으로 펼친다. 접힌 상자는 막대 어디를 눌러도 펴지고, 펼친 상자는 제목 막대를 누르면 접힌다.</td></tr>
+    <tr><td class="id">FR-COM-07</td><td class="name">언어 선택 <span class="new">신규</span></td><td>로그인 화면과 환경 설정에서 한국어·English를 고른다. 화면 글자를 고른 언어로 표시하고 계정에 저장해 PC·앱 어디서나 같게 적용한다. 엑셀 파일과 사용자가 입력한 값은 원래 글자 그대로.</td></tr>
+    <tr><td class="id">FR-COM-08</td><td class="name">요구사항 ID 표시 <span class="new">신규</span></td><td>화면 제목·기능 옆 요구사항 ID(SC-07, FR-AUTH-01 등)는 기본으로 숨긴다. K-Stock 아이콘을 2초 안에 4번 연이어 누르면 켬·끔 창이 뜨며, 켜면 계정에 저장한다(로그인 화면에서는 그 기기에 기억).</td></tr>
+    <tr><td class="id">FR-COM-09</td><td class="name">불러오는 중 표시 <span class="new">신규</span></td><td>‘불러오는 중…’ 같은 안내가 보이는 동안 돌아가는 아이콘을 함께 표시한다. 비밀번호 입력 창 등 팝업을 닫은 뒤에는 열기 전 화면 위치를 유지한다.</td></tr>
+  </table>
+
+  <h2 class="newpage">3.11 데이터 백업·복원·동기화 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-BAK-01</td><td class="name">백업 <span class="chg">변경</span></td><td>내 데이터 전부(보유 그룹·주식 항목·이월 금액, 종목 분류, 배당 회차, 화면 설정, 화면 공유)를 파일 하나(.ksb)로 저장한다. 저장할 때마다 4자리 백업 비밀번호를 정하며 파일은 암호화한다(NFR-SEC-06).</td></tr>
+    <tr><td class="id">FR-BAK-02</td><td class="name">복원 <span class="chg">변경</span></td><td>백업 파일을 고르고 4자리 백업 비밀번호를 입력하면(틀리면 다시 입력) 지금 계정의 데이터를 백업 내용으로 모두 바꾼다. 예전 암호화하지 않은 백업 파일(.json)도 복원할 수 있다.</td></tr>
+  </table>
+
+  <h2>3.12 화면 공유·권한 관리 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-SHR-01</td><td class="name">공유 추가 <span class="chg">변경</span></td><td>환경설정에서 공유받을 회원의 이메일과 화면별 권한(2.9)을 정해 공유한다. 가입하지 않은 이메일, 본인 이메일은 거부한다. 같은 회원에게 다시 공유하면 권한을 바꾼다. (v1.4) 공유할 사용자는 등록된 사용자 목록에서 고르고 권한 기본값은 모든 화면 조회이며, 데이터 동기화를 설정해야 쓸 수 있다(2.9).</td></tr>
+    <tr><td class="id">FR-SHR-02</td><td class="name">공유 목록·권한 변경</td><td>‘내가 공유한 회원’ 표(회원·화면별 권한·해제)에서 권한을 바로 바꾸고, 모두 ‘없음’이면 공유를 해제한다. ‘나에게 공유된 화면’ 표(공유한 회원·화면·권한)에서 열기·받지 않기를 할 수 있다.</td></tr>
+    <tr><td class="id">FR-SHR-03</td><td class="name">보는 자산 선택</td><td>공유받은 화면이 있으면 메뉴 위에 ‘보는 자산’(내 자산 / 공유한 회원)을 보여 준다. 공유한 회원을 고르면 허용된 화면만 메뉴에 나오고, 화면 위에 ‘○○님이 공유한 화면 · 조회 전용/편집 가능’ 안내와 ‘내 자산으로 돌아가기’를 표시한다.</td></tr>
+    <tr><td class="id">FR-SHR-04</td><td class="name">서버 권한 검사</td><td>공유한 회원의 데이터 요청은 서버가 요청 경로를 화면에 대응시켜, 그 화면에 권한이 있을 때만 처리한다. 쓰기 요청은 편집 권한이 있어야 한다. 백업·복원·비밀번호·설정·공유 관리 요청은 공유 대상에 포함하지 않는다.</td></tr>
+    <tr><td class="id">FR-SHR-05</td><td class="name">조회 전용 화면</td><td>조회 권한으로 볼 때는 등록 폼, 수정·삭제, 그룹 관리, 일괄이월, 회차 저장, 보유 종목 등록 버튼을 숨긴다. 엑셀 내보내기는 할 수 있다.</td></tr>
+    <tr><td class="id">FR-SHR-06</td><td class="name">설정 분리</td><td>공유받은 화면에서 바꾼 연도·그룹 선택은 저장하지 않으며, 테마는 보는 사람의 테마를 쓴다.</td></tr>
+    <tr><td class="id">FR-SHR-07</td><td class="name">받지 않기·다시 공유 <span class="new">신규</span></td><td>공유받은 사람이 [받지 않기]를 누르면 양쪽 목록에서 빠지고, 공유한 사람이 다시 공유하면 다시 받는다. 다른 기기에는 동기화로 전한다(2.9·2.10).</td></tr>
+    <tr><td class="id">FR-SHR-08</td><td class="name">종목 조회 제외 <span class="new">신규</span></td><td>종목 조회는 공유 화면 목록에 없으며, 공유받은 화면을 보는 중에도 내 메뉴로 열린다.</td></tr>
+  </table>
+
+  <h2 class="newpage">3.13 클라우드 서버 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-CLD-01</td><td class="name">앱의 서버 연결 <span class="chg">변경</span></td><td>앱의 로그인 화면 아래와 환경설정에서 ‘클라우드 서버에 연결’로 서버 주소(https:// 만 허용)를 저장하면, 앱이 그 서버의 화면과 데이터를 쓴다. 연결된 상태에서는 연결된 서버 주소와 ‘이 휴대폰 모드로 전환’을 보여 주며, 전환하면 휴대폰 안의 데이터로 돌아간다(서버 데이터는 유지). (v1.4) 환경 설정의 클라우드 서버 연결 상자는 뺐다. 이미 연결한 앱은 로그인 화면에서 ‘이 휴대폰 모드로 전환’할 수 있으며, 기기 간 공유는 데이터 동기화(3.15)를 기본으로 한다.</td></tr>
+    <tr><td class="id">FR-CLD-02</td><td class="name">연결 실패 처리</td><td>서버에 연결하지 못하거나 서버가 오류(5xx)를 돌려주면 휴대폰 안의 로그인 화면으로 돌아와 ‘클라우드 서버(주소)에 연결하지 못했다’는 안내와 ‘다시 연결’·‘이 휴대폰 모드로 사용’을 보여 준다.</td></tr>
+    <tr><td class="id">FR-CLD-03</td><td class="name">앱 기능 유지</td><td>클라우드 서버 모드에서도 엑셀 저장(휴대폰 다운로드 폴더)과 백업·복원(파일 선택 창)을 쓸 수 있다. 연결한 서버 밖의 주소는 휴대폰 브라우저로 연다.</td></tr>
+    <tr><td class="id">FR-CLD-04</td><td class="name">공개 서버 모드</td><td>공개 서버로 실행하면: 데모 계정을 만들지 않음, 가입 코드 적용(FR-AUTH-01), 재설정 링크 비노출(FR-AUTH-03), HTTPS 전용 로그인 쿠키, 보안 헤더(NFR-SEC-04), 앱은 서버 안에서만 대기하고 HTTPS 중계 서버가 외부 요청을 받음, 데이터는 앱 폴더와 분리해 저장.</td></tr>
+    <tr><td class="id">FR-CLD-05</td><td class="name">관리자 도구</td><td>서버 관리자는 서버에서 명령으로 회원 목록(이메일·가입일·주식 항목 수)을 보고, 회원에게 임시 비밀번호를 발급한다(그 회원의 모든 기기 로그아웃).</td></tr>
+    <tr><td class="id">FR-CLD-06</td><td class="name">설치·운영 도구</td><td>Ubuntu 서버에 명령 한 번으로 설치한다: 실행 환경, HTTPS 인증서 자동 발급·갱신, 전용 계정 서비스(자동 재시작), 웹 포트만 열기, 자동 보안 업데이트, 접속 무차별 대입 차단, 매일 DB 백업(14일 보관), 무료 도메인(DuckDNS) 갱신. 업데이트 명령은 업데이트 전에 DB를 백업하고 데이터·설정을 유지한다. 단계별 설치 안내서를 제공한다.</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2 class="newpage">3.14 홈 대시보드 <span class="new">신규</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-DSH-01</td><td class="name">대시보드 항목</td><td>로그인 후 첫 화면. 국내(코스피·코스닥·한국 증시 개장), 미국(S&amp;P 500·나스닥·미국채 10년물·30년물 금리·미국 증시 개장), 기타(원/달러 환율·WTI 유가·금시세 1돈), 나의 자산(총자산·오늘 손익·금년 손익) 칸을 묶음별로 보여 준다. 값·전일 대비·기준 시각을 표시하고 새로고침 버튼을 둔다.</td></tr>
+    <tr><td class="id">FR-DSH-02</td><td class="name">항목·순서 설정</td><td>환경 설정 → 대시보드 설정에서 보일 항목을 체크하고 ▲▼로 묶음 순서와 묶음 안 항목 순서를 바꾼다. 사용자별 저장, 동기화·백업에 포함.</td></tr>
+    <tr><td class="id">FR-DSH-03</td><td class="name">지표 상세 팝업</td><td>지표 칸을 누르면 현재값·전일 대비, 기간(1일·1주·1개월·6개월·1년·5년) 그래프, 일자별 표(일자·값·전일 대비, 5년은 주별), 주요 수치(전일 종가·오늘 최고/최저·52주 최고/최저·거래량)를 보여 준다. 이름은 언어에 맞게(예: 코스피 지수 (KOSPI)), 금리 축은 소수 둘째 자리까지.</td></tr>
+    <tr><td class="id">FR-DSH-04</td><td class="name">증시 개장·휴장 달력</td><td>한국·미국 증시 칸은 개장 상태(정규장 한국 시간·현지 시간)를 보여 주고, 누르면 달력으로 날마다 개장·휴장(이름)·조기 폐장·주말을 표시한다. 지난 날은 실제 거래 기록, 앞날은 거래소 휴장 규칙·휴장일표로 계산(거래소 공지로 바뀔 수 있는 예정).</td></tr>
+    <tr><td class="id">FR-DSH-05</td><td class="name">금시세</td><td>국제 금값(달러/온스)을 환율로 원화 환산해 1돈(3.75g) 시세로 표시하고, 기준 시각과 국제 금값을 함께 보여 준다.</td></tr>
+    <tr><td class="id">FR-DSH-06</td><td class="name">보유 종목 주요 키워드</td><td>홈 아래 표에 보유 종목별로 최근 1일 기사 제목에서 자주 나온 표현(2~3단어 묶음 우선, 최대 4개)을 보여 주고, 누르면 그 표현이 들어간 최근 기사를 연다. 기사는 화면 언어로 쓰인 기사를 쓴다. 환경 설정에서 끌 수 있다.</td></tr>
+    <tr><td class="id">FR-DSH-07</td><td class="name">공유받은 홈</td><td>홈을 공유받은 사람에게는 공유한 사람이 고른 항목과 순서로 보여 주며, 공유받은 사람은 바꿀 수 없다.</td></tr>
+  </table>
+
+  <h2>3.15 데이터 동기화 <span class="new">신규</span></h2>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:118px">요구사항</th><th>상세</th></tr>
+    <tr><td class="id">FR-BAK-03</td><td class="name">구글 드라이브 연결</td><td>환경 설정 → 데이터 동기화의 [구글 계정 연결](구글 G 아이콘)로 구글 계정을 고른다. 휴대폰은 구글 Play 서비스의 계정 선택 창(없으면 휴대폰 기본 창), PC는 구글 로그인(클라이언트 ID 설정). 연결 후 계정·파일 위치(내 드라이브 › K-Stock 폴더)·마지막 동기화를 표시한다. 구글 드라이브를 쓸 수 없는 브라우저에서만 동기화 파일을 직접 고른다.</td></tr>
+    <tr><td class="id">FR-BAK-04</td><td class="name">동기화 실행</td><td>[동기화]를 누르면 2.10 규칙으로 이 기기와 동기화 파일을 맞추고, 옮긴 건수(보유 종목·배당 회차·배당 내역·화면 공유)와 사용자 정보 변경을 알린다. 둘 다 바뀌었으면 남길 쪽을 묻고, 예전 사본을 받은 경우는 아무것도 하지 않고 알린다.</td></tr>
+    <tr><td class="id">FR-BAK-05</td><td class="name">동기화 버튼</td><td>동기화를 쓸 수 있는 기기면 메뉴 아래(휴대폰은 위쪽)에 [⟳ 동기화] 버튼을 늘 보여 준다. 그 사용자가 아직 연결하지 않았으면 누를 때 데이터 동기화 상자로 안내한다. 연결은 로그인한 사용자마다 따로 한다.</td></tr>
+    <tr><td class="id">FR-BAK-06</td><td class="name">동기화 비밀번호</td><td>처음 동기화할 때 6자리 동기화 비밀번호를 정하고(두 번 입력), 다른 기기에서는 처음 한 번 입력하면 기기에 기억한다. 맞지 않으면 다시 묻고, [동기화 비밀번호 변경]으로 바꾼다. 예전 4자리 파일은 4자리로 열고 다음 저장 때 6자리를 새로 정한다. 비밀번호를 다 넣으면 바로 진행한다.</td></tr>
+    <tr><td class="id">FR-BAK-07</td><td class="name">사용자 정보·공유 동기화</td><td>사용자 추가·별명·사진·비밀번호 변경·삭제, 화면 공유, 받지 않기 기록을 동기화로 맞춘다(2.10).</td></tr>
+  </table>
+
+</section>
+
+<!-- 4. 데이터 항목 -->
+<section class="page" id="ch4">
+  <h1>4. 데이터 항목</h1>
+  <h2>4.1 주요 데이터 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:110px">데이터</th><th style="width:60px">구분</th><th>주요 항목</th></tr>
+    <tr><td class="name">회원</td><td>회원별</td><td>이메일, 비밀번호(해시), 이메일 인증 여부, 가입일</td></tr>
+    <tr><td class="name">보유 그룹</td><td>회원별</td><td>회원, 그룹 이름, 표시 순서, 생성일</td></tr>
+    <tr><td class="name">주식 항목</td><td>회원별</td><td>회원, 그룹, 종목코드, 연도, 그 해 말 보유 수량(0이면 그 해부터 미보유), 매입단가(평균), 이월 여부(이월·신규), 이월 수량(전년 기록이 없을 때 입력), 이월 금액(고정값), 실현손익(선택), 메모, 입력일, 수정일. 회원·그룹·종목·연도마다 하나</td></tr>
+    <tr><td class="name">종목 분류</td><td>회원별</td><td>회원, 종목코드, 분류(국내·해외·해외추종)</td></tr>
+    <tr><td class="name">사용자 설정</td><td>회원별</td><td>회원, 설정 키, 값, 수정일 (FR-COM-01의 조회 조건, 화면 테마, 내가 조회한 종목, 접힘 상태)</td></tr>
+    <tr><td class="name">배당 회차</td><td>회원별</td><td>회원, 그룹, 종목코드, 배당락일, 실지급일, 주당 배당금, 주당 과세표준, 받은 수량, 총 배당금, 총 과세표준, 입력일·수정일. 회원·그룹·종목·배당락일마다 하나</td></tr>
+    <tr><td class="name">배당 내역(이전)</td><td>회원별</td><td>회원, 종목코드, 지급일, 수령 금액, 통화, 메모. v1.2부터 화면에서 입력하지 않으며 백업에만 포함</td></tr>
+    <tr><td class="name">화면 공유</td><td>회원 간</td><td>공유하는 회원, 공유받는 회원, 화면별 권한(조회·편집), 생성일, 수정일. 두 회원 쌍마다 하나</td></tr>
+    <tr><td class="name">종목</td><td>공통</td><td>종목코드, 종목명, 시장, 구분(주식·ETF·ETN), 통화, 상장일, 배당 수집 일시·출처, 과세표준 갱신 실패 사유</td></tr>
+    <tr><td class="name">일별 종가</td><td>공통</td><td>종목코드, 거래일, 수정 종가, 수집 출처, 수집 일시</td></tr>
+    <tr><td class="name">액면분할·병합</td><td>공통</td><td>종목코드, 발생일, 비율</td></tr>
+    <tr><td class="name">배당 지급내역</td><td>공통</td><td>종목코드, 배당락일, 주당 배당금, 주당과세표준액, 실지급일, 배당 수집 출처, 과세표준 수집 출처, 수집 일시</td></tr>
+    <tr><td class="name">환율</td><td>공통</td><td>기준일, 통화(USD/KRW), 환율, 수집 출처</td></tr>
+      <tr><td class="name">사용자 정보 <span class="new">신규</span></td><td>회원</td><td>별명, 프로필 사진(기본 그림 번호 또는 줄인 사진), 4자리 비밀번호 해시, 정보 바꾼 시각, 삭제 기록(아이디·삭제 시각)</td></tr>
+    <tr><td class="name">종목명 <span class="new">신규</span></td><td>공통</td><td>종목코드별 한글명·영문명(언어에 맞는 종목명, FR-STK-14)</td></tr>
+    <tr><td class="name">받지 않기 기록 <span class="new">신규</span></td><td>회원</td><td>공유받은 사람·공유한 사람 아이디·받지 않기 시각</td></tr>
+    <tr><td class="name">대시보드 설정 <span class="new">신규</span></td><td>회원</td><td>보일 항목·순서, 키워드 표 보이기</td></tr>
+    <tr><td class="name">동기화 파일 <span class="new">신규</span></td><td>구글 드라이브</td><td>K-Stock 폴더의 kstock-sync.kst(암호화): 사용자별 칸(데이터·데이터 지문·저장 번호·저장 시각·기기), 사용자 정보, 삭제 기록</td></tr>
+</table>
+
+  <h2>4.2 입력 규칙 <span class="chg">변경</span></h2>
+  <table>
+    <tr><th style="width:110px">항목</th><th style="width:48px">필수</th><th>규칙</th></tr>
+    <tr><td class="name">종목코드</td><td>필수</td><td>국내는 6자리 단축코드(주식·ETF·ETN 공통, 0080G0 같은 영문 포함 코드 허용), 미국은 영문 티커. 영문은 대소문자를 구분하지 않음. 시스템에서 확인되지 않는 코드는 저장하지 않음</td></tr>
+    <tr><td class="name">그룹</td><td>필수</td><td>회원의 그룹 중 하나. 그룹 이름은 20자 이내, 같은 회원 안에서 중복 불가</td></tr>
+    <tr><td class="name">관리 연도</td><td>필수</td><td>올해 또는 과거 연도(최근 10년 기본)</td></tr>
+    <tr><td class="name">분류</td><td>필수</td><td>국내·해외·해외추종 중 하나</td></tr>
+    <tr><td class="name">이월 수량</td><td>선택</td><td>0 이상, 소수 6자리까지. 전년 기록 없이 이월로 등록할 때만 입력(전년 보유가 있으면 전년 말 수량 사용)</td></tr>
+    <tr><td class="name">이월 금액(전년)</td><td>선택</td><td>0 이상의 숫자(거래 통화). 비우면 이월 수량 × 전년 종가로 계산해 고정</td></tr>
+    <tr><td class="name">이월 여부</td><td>자동</td><td>이월 수량·이월 금액이 있으면 이월, 없으면 신규</td></tr>
+    <tr><td class="name">총 수량</td><td>필수</td><td>그 해 말 보유 수량. 0보다 큰 숫자, 소수 6자리까지 허용</td></tr>
+    <tr><td class="name">총 매입금액</td><td>필수</td><td>0보다 큰 숫자. 보유 수량 전체의 매입금액, 해당 종목의 거래 통화 기준(국내 원, 미국 달러)</td></tr>
+    <tr><td class="name">매입단가(평균)</td><td>자동</td><td>총 매입금액 ÷ 총 수량으로 자동 계산(직접 입력하지 않음)</td></tr>
+    <tr><td class="name">실현손익</td><td>선택</td><td>삭제(전량 매도) 팝업에서만 입력. 매도금액 − 매입금액, 거래 통화, 손실은 − 부호, 소수 둘째 자리까지</td></tr>
+    <tr><td class="name">종목 메모</td><td>선택</td><td>200자 이내</td></tr>
+    <tr><td class="name">배당 회차 보유수량</td><td>필수</td><td>선택한 회차마다 0보다 큰 숫자, 소수 6자리까지. 기본값은 현재 보유수량</td></tr>
+    <tr><td class="name">배당 월 기간</td><td>필수</td><td>1~12월, 시작 월이 종료 월보다 늦으면 서로 바꿈</td></tr>
+    <tr><td class="name">공유받을 회원</td><td>필수</td><td>가입한 회원의 이메일(본인 제외). 화면 권한은 하나 이상</td></tr>
+    <tr><td class="name">화면 테마 색</td><td>선택</td><td>#RRGGBB 형식</td></tr>
+    <tr><td class="name">클라우드 서버 주소</td><td>선택</td><td>https:// 로 시작하는 주소(앱)</td></tr>
+    <tr><td class="name">가입 코드</td><td>서버 설정 시</td><td>서버 관리자가 정한 코드와 같아야 함</td></tr>
+    <tr><td class="name">백업 파일</td><td>복원 시</td><td>주식 관리시스템 백업 형식(JSON)이어야 하며, 지원하는 버전 이하일 것</td></tr>
+      <tr><td class="name">별명 <span class="new">신규</span></td><td>필수</td><td>한글·영문·숫자 2~20자(공백·_·-·. 가능, @ 불가). 다른 사용자의 아이디·별명과 겹칠 수 없음(대소문자 무시)</td></tr>
+    <tr><td class="name">비밀번호 <span class="new">신규</span></td><td>필수</td><td>4자리(글자 종류 제한 없음, 공백만 불가). 4자리 칸에 한 글자씩</td></tr>
+    <tr><td class="name">동기화 비밀번호 <span class="new">신규</span></td><td>필수</td><td>6자리. 백업 비밀번호는 4자리</td></tr>
+</table>
+
+  <h2>4.3 표시 형식</h2>
+  <ul>
+    <li>원화는 원 단위 정수, 달러는 소수 둘째 자리까지 표시합니다. 비율은 소수 첫째 자리까지 표시하고 0은 ‘0.0%’로 표시합니다(‘-0.0%’ 없음).</li>
+    <li>금액은 내부적으로 반올림하지 않고 계산하며, 화면에 표시할 때만 반올림합니다.</li>
+    <li>상승·이익은 빨간색, 하락·손실은 파란색으로 표시하고 부호(+/−)를 붙입니다.</li>
+    <li>표 제목은 가운데 정렬합니다. 데이터는 종목(·메모) 열을 왼쪽, 지급일을 가운데, 수량·금액 열을 오른쪽으로 정렬합니다. 합계·소계 행은 일반 행과 같은 높이로 하고 배경색으로 구분합니다.</li>
+    <li>확인할 수 없는 값(상장 전 연도의 종가, 출처가 없는 주당과세표준액·실지급일 등)은 ‘-’로 표시합니다.</li>
+  </ul>
+</section>
+
+<!-- 5. 비기능 요구사항 / 6. 화면 목록 -->
+<section class="page" id="ch5">
+  <h1>5. 비기능 요구사항</h1>
+  <table>
+    <tr><th style="width:82px">ID</th><th style="width:76px">구분</th><th>요구사항</th></tr>
+    <tr><td class="id">NFR-SEC-01</td><td class="name">보안</td><td>비밀번호는 단방향 해시로 저장하고, 모든 통신은 HTTPS로 암호화한다.</td></tr>
+    <tr><td class="id">NFR-SEC-02</td><td class="name">접근 제어</td><td>서버에서 요청마다 데이터 소유자를 확인해 다른 회원의 데이터(그룹·주식 항목·설정 포함) 접근을 차단한다. 공유받은 화면은 공유 권한을 확인한 뒤에만 허용한다(FR-SHR-04).</td></tr>
+    <tr><td class="id">NFR-SEC-03</td><td class="name">공개 서버 보안</td><td>인터넷에 공개하는 서버는 HTTPS만 받고, 웹 포트(80·443)와 관리용 접속 외 포트를 닫으며, 관리용 접속은 키 파일로만 한다. 운영체제 보안 업데이트를 자동 설치한다.</td></tr>
+    <tr><td class="id">NFR-SEC-04</td><td class="name">보안 헤더</td><td>화면은 같은 서버의 파일만 불러오도록 제한(CSP)하고, 다른 사이트 안에 넣어 보이기를 막고(X-Frame-Options), HTTPS 강제(HSTS)·응답 형식 추측 금지 등 보안 헤더를 붙인다. API 응답은 캐시하지 않는다.</td></tr>
+    <tr><td class="id">NFR-SEC-05</td><td class="name">앱 브리지 보호</td><td>앱이 서버 화면을 열 때는 휴대폰 안의 DB 읽기·쓰기와 외부 시세 호출 기능을 서버 화면에 열지 않는다. 외부 호출은 허용 목록의 주소로만 한다.</td></tr>
+    <tr><td class="id">NFR-SEC-06</td><td class="name">보안 <span class="new">신규</span></td><td>파일 암호화: 동기화 파일과 백업 파일은 AES-256-GCM으로 암호화한 바이너리로 저장한다. 열쇠는 비밀번호(동기화 6자리, 백업 4자리)에서 PBKDF2-SHA256(600,000번)으로 만들고, 압축 후 암호화한다. 비밀번호를 잊으면 파일을 열 수 없다. 동기화 파일의 사용자 비밀번호는 단방향 해시로만 담는다. 짧은 비밀번호는 파일을 손에 넣은 사람이 모든 조합을 대입하면 풀릴 수 있어 숫자만 쓰지 않도록 안내한다.</td></tr>
+    <tr><td class="id">NFR-PRI-01</td><td class="name">개인정보</td><td>필요한 최소 정보만 수집하고, 개인정보 처리방침을 제공하며, 탈퇴 시 회원 데이터를 파기한다.</td></tr>
+    <tr><td class="id">NFR-PER-01</td><td class="name">성능</td><td>보유 종목 50개 기준으로 나의 자산과 연도별 자산 (요약) 화면을 3초 이내에 표시한다.</td></tr>
+    <tr><td class="id">NFR-REL-01</td><td class="name">안정성</td><td>외부 출처 장애가 나도 저장된 데이터로 조회 화면을 계속 제공한다.</td></tr>
+    <tr><td class="id">NFR-UX-01</td><td class="name">사용 환경</td><td>최신 Chrome, Edge, Safari를 지원하며 PC와 모바일 화면 크기에 맞게 표시한다. 휴대폰 너비에서 넓은 표와 팝업 안의 표는 가로로 밀어서 보며, 화면 전체가 가로로 넘치지 않아야 한다.</td></tr>
+    <tr><td class="id">NFR-UX-02</td><td class="name">안드로이드 앱 <span class="chg">변경</span></td><td>Android 6.0 이상에 설치하는 앱으로 웹과 같은 기능을 제공하며, 휴대폰 안의 데이터로 쓰거나 클라우드 서버에 연결해 쓴다(FR-CLD-01). 엑셀 파일은 기기의 다운로드 폴더에 저장한다. 앱 업데이트는 같은 서명 키로 배포해 기존 데이터를 유지한 채 설치되어야 하며, 서명 키가 바뀌어 재설치해야 할 때는 백업·복원(FR-BAK)으로 데이터를 옮긴다. (v1.4) 앱을 종료했다 다시 켜면 로그인 비밀번호를 다시 입력한다(앱이 켜져 있는 동안만 로그인 정보 보관). 사진 올리기는 휴대폰 사진 선택 창을 쓴다.</td></tr>
+    <tr><td class="id">NFR-MIG-01</td><td class="name">데이터 이전</td><td>데이터 구조가 바뀌어도(예: 보유 종목 → 연도별 주식 항목) 기존 회원 데이터를 자동으로 옮겨, 옮기기 전후의 자산 금액이 같아야 한다.</td></tr>
+    <tr><td class="id">NFR-BAK-01</td><td class="name">백업 보존</td><td>백업 파일은 앱 삭제와 상관없이 남는 위치에 저장되어야 하고, 같은 파일을 PC 웹과 앱 양쪽에서 복원할 수 있어야 한다.</td></tr>
+    <tr><td class="id">NFR-BAK-02</td><td class="name">서버 백업</td><td>클라우드 서버는 DB를 매일 백업해 14일 보관하고, 업데이트 전에도 백업한다. 무료 서버는 회수·정지될 수 있으므로 회원은 백업 파일(FR-BAK-01)로 서버 밖에도 데이터를 보관한다.</td></tr>
+    <tr><td class="id">NFR-EXT-01</td><td class="name">외부 출처 이용</td><td>외부 출처는 이용약관을 지키고, 1일 재사용 등으로 호출을 줄이며 짧은 시간에 몰아서 요청하지 않는다. 출처가 자동 접근을 차단하면 우회하지 않고 다른 출처나 데이터 제공 계약으로 해결한다.</td></tr>
+    <tr><td class="id">NFR-LGL-01</td><td class="name">고지</td><td>시세는 지연되거나 부정확할 수 있으며, 정보는 투자 권유가 아닌 참고용임을 안내한다. 주당과세표준액도 참고용이며 실제 세액은 계좌 유형에 따라 다를 수 있음을 안내한다.</td></tr>
+  </table>
+  <p class="note">3초, 50개는 제안값입니다.</p>
+
+    <h1 id="ch6" class="newpage">6. 화면 목록</h1>
+  <p class="note" style="margin-top:-6px">메뉴 순서대로 적었습니다. SC-01 로그인·사용자 추가는 메뉴 밖, SC-09 홈 대시보드는 K-Stock 옆 집 모양 버튼입니다.</p>
+  <table>
+    <tr><th style="width:44px">ID</th><th style="width:100px">화면</th><th>주요 내용</th><th style="width:112px">관련 요구사항</th></tr>
+    <tr><td class="id">SC-01</td><td class="name">로그인·사용자 추가 <span class="chg">변경</span></td><td>로그인 사용자 선택(사진·별명) + 4자리 비밀번호, 사용자 추가(별명·프로필 사진·4자리 비밀번호, 공개 서버는 가입 코드), 언어 선택, 앱의 클라우드 서버 모드 전환</td><td>FR-AUTH, FR-COM-07, FR-CLD-01·02</td></tr>
+    <tr><td class="id">SC-09</td><td class="name">홈 대시보드 <span class="new">신규</span></td><td>로그인 후 첫 화면. 국내·미국·기타 지표, 증시 개장·휴장 달력, 나의 자산 요약, 보유 종목 주요 키워드, 지표 상세 팝업</td><td>FR-DSH</td></tr>
+    <tr><td class="id">SC-03</td><td class="name">종목 조회 <span class="chg">변경</span></td><td>메뉴 맨 위. 종목명·코드 검색 팝업, 내 보유 종목·내가 조회한 종목 바로가기, 종목명(언어별)·구분·현재가, 날짜별 종가 표·차트·기간 수익률, 배당금 지급내역 팝업, 보유 종목 등록으로 이동. 공유 대상 아님</td><td>FR-STK, FR-CHT-01, FR-DATA-09·10</td></tr>
+    <tr><td class="id">SC-05</td><td class="name">연도별 자산 · 배당 조회 <span class="chg">변경</span></td><td>연도별 자산 증감(누적 막대·환율 선, 표, 연도 행·막대를 누르면 종목별 내역), 연도별 배당 증감(연도를 누르면 그 해 배당 내역), 접기·펴기, 엑셀</td><td>FR-YR, FR-CHT-02·03, FR-DIV-03, FR-XLS-02</td></tr>
+    <tr><td class="id">SC-02</td><td class="name">나의 자산 조회 <span class="chg">변경</span></td><td>기준 연도·그룹 탭·통합, 요약(총자산·금년 손익·전체 손익·환율 전일 대비), 그룹별·분류별 합계, 종목별 평가금액, 종목 팝업, 접기·펴기, 엑셀</td><td>FR-AST, FR-XLS-01, FR-COM</td></tr>
+    <tr><td class="id">SC-06</td><td class="name">나의 배당 조회 <span class="new">신규</span></td><td>기준 연도·월·그룹 탭, 요약(월·누적 배당·과세표준·세금), 월별 배당 그래프(분류별 누적 막대·과세표준 선), 배당 내역 표. v1.2에서 삭제한 번호를 다시 사용</td><td>FR-DIV-02·11~14</td></tr>
+    <tr><td class="id">SC-04</td><td class="name">보유 종목 등록 <span class="chg">변경</span></td><td>관리 연도, 그룹 탭·그룹 관리, 종목 등록·수정(종목명·코드 검색), 전년도 일괄이월 팝업, 주식 항목 목록, 삭제(실현손익 입력), 접기·펴기</td><td>FR-HLD, FR-COM</td></tr>
+    <tr><td class="id">SC-08</td><td class="name">배당 내역 입력 <span class="chg">변경</span></td><td>연도·월 기간·그룹 탭별 배당 목록(월 배당액·누적, 그룹 소계·합계), 월 배당금 입력 팝업(회차 선택·보유수량 수정·저장)</td><td>FR-DIV-06~10</td></tr>
+    <tr><td class="id">SC-07</td><td class="name">환경 설정 <span class="chg">변경</span></td><td>사용자 관리(사진·별명·별명 변경·등록일), 언어(Language) 변경, 대시보드 설정, 데이터 동기화(구글 계정 연결·동기화 비밀번호), 화면 공유 · 권한 관리, 데이터 백업 · 복원, 화면 테마 설정, 비밀번호 변경, 사용자 삭제</td><td>FR-AUTH, FR-COM-05·07, FR-DSH-02, FR-BAK, FR-SHR</td></tr>
+  </table>
+  <p class="note">모든 화면은 PC 웹 브라우저와 안드로이드 앱(NFR-UX-02)에서 같은 구성으로 제공합니다. 공유받은 화면을 보는 중에는 허용된 화면과 내 메뉴(종목 조회·환경 설정)만 메뉴에 나옵니다(FR-SHR-03).</p>
+</section>
+
+<!-- 7. 미결 사항 -->
+<section class="page" id="ch7">
+  <h1>7. 미결 사항</h1>
+  <p class="note" style="margin-top:-6px">기능 요구사항은 이 문서로 확정합니다. 아래 항목은 운영 조건에 따라 개발 착수 전에 정해야 하는 사항입니다.</p>
+  <h2>7.1 확정이 필요한 항목</h2>
+  <table>
+    <tr><th style="width:118px">항목</th><th>내용</th></tr>
+    <tr><td class="name">시세 데이터 출처</td><td>다중 사용자 서비스는 개인 조회와 달리 데이터 사용·재제공 조건을 지켜야 합니다. 프로토타입은 비공식 경로(야후 파이낸스, 네이버 증권, FunETF, 운용사 홈페이지)를 사용했으며 이용약관은 확인하지 않았습니다. 개발 전에 7.2의 후보별 이용약관을 확인해 주 출처와 예비 출처를 정해야 합니다.</td></tr>
+    <tr><td class="name">서비스 공개 범위</td><td>지인 대상 비공개 운영인지, 불특정 다수 공개인지에 따라 데이터 출처의 조건, 개인정보 처리 절차, 서버 규모가 달라집니다. 현재 클라우드 서버는 가입 코드로 가족·지인만 가입하는 운영을 전제로 합니다.</td></tr>
+    <tr><td class="name">운영자 기능</td><td>회원 관리와 수집 상태 모니터링 화면의 필요 여부를 정해야 합니다. 이 문서에는 포함하지 않았습니다.</td></tr>
+    <tr><td class="name">ETN 과거 종가 범위</td><td>예비 출처로 대체하는 ETN은 출처에 따라 최근 약 1년치만 받을 수 있어, 그 이전 연도는 연도별 자산에서 제외됩니다. 출처 확정 시 제공 범위를 확인해야 합니다.</td></tr>
+    <tr><td class="name">국내 ETF 과세표준 범위</td><td>프로토타입에서 확인한 운용사별 제공 범위는 다음과 같습니다.<br />· KODEX: FunETF에서 제공, 2022년 이후 회차만 있음<br />· SOL: 신한자산운용 홈페이지에서 제공<br />· TIGER: 미래에셋자산운용 홈페이지에서 제공. 다만 클라우드 서버에서 오는 요청은 차단하므로, 서버에서 수집하는 구조로 운영하면 사용하지 못할 수 있음<br />· ACE·PLUS·RISE 등 그 밖의 운용사: 연동하지 않음<br />· 예탁결제원(SEIBro)은 과표기준가만 제공해 주당과세표준액 출처로 쓸 수 없음<br />정식 서비스는 운용사 데이터 제공 계약이나 유료 데이터로 출처를 확정해야 하며, 확정 전까지 회원이 직접 입력하는 방식도 검토할 수 있습니다.</td></tr>
+    <tr><td class="name">배당 실제 지급일</td><td>국내 ETF는 운용사·FunETF 공시로 실지급일을 표시할 수 있습니다. 국내 주식과 미국 종목은 프로토타입 출처가 배당락일만 제공해 실지급일을 표시하지 못합니다. 필요하면 이를 제공하는 출처를 함께 확정해야 합니다.</td></tr>
+    <tr><td class="name">미국 종목 환차손익</td><td>매입 시점 환율을 입력받지 않아, 미국 종목 손익은 매입·평가 모두 현재 환율로 계산합니다(2.3). 환차손익까지 보려면 주식 항목에 매입 환율(또는 원화 매입금액) 입력을 추가해야 합니다.</td></tr>
+    <tr><td class="name">손익 계산 범위</td><td>금년·전체 손익에 수령 배당금과 매매 수수료·세금을 포함할지 정해야 합니다. 현재는 배당을 포함하지 않으며, 수수료·세금은 회원이 입력하는 실현손익에 들어간 만큼만 반영됩니다. 같은 해에 사고판 거래를 정확히 나누려면 매매 단위 입력이 필요합니다(1.3 범위 제외).</td></tr>
+    <tr><td class="name">세율 기준 <span class="chg">변경</span></td><td>연도별 배당 증감의 세금은 16.5%, 나의 배당 조회의 세금은 15.4%로 서로 다른 요청 기준을 따릅니다. 하나로 맞출지와 계좌 유형(ISA·연금 등)별 세율 적용 여부를 정해야 합니다.</td></tr>
+    <tr><td class="name">이월 종목 수량 변경</td><td>손익 기준액(금년)이 고정된 이월 금액이라, 연중에 사거나 판 수량이 금년 손익에 그대로 들어갑니다. 연중 매매를 자동 반영할지(올해 매수금액·매도금액 반영), 회원이 이월 금액을 직접 고치게 둘지 정해야 합니다.</td></tr>
+    <tr><td class="name">이전 배당 기록</td><td>삭제한 배당금 조회(요약)에서 입력한 실제 수령 기록은 화면에 나오지 않고 백업에만 포함됩니다. 배당 회차로 옮길지, 그대로 둘지 정해야 합니다.</td></tr>
+    <tr><td class="name">클라우드 서버 운영</td><td>앱이 서버에 접속하는 구조(클라우드 서버 모드, 3.13)를 만들었습니다. 운영 전에 정할 것:<br />· 서버 업체(Oracle Cloud 무료, Google Cloud 무료, 집 PC + 사설망 등)와 무료 서버 회수 대비<br />· 서버 밖 백업 보관 방법(현재는 서버 안 14일 + 회원의 백업 파일)<br />· 비밀번호 재설정 메일 발송 기능 도입 여부(현재는 관리자 도구)<br />· 서버를 인터넷에 공개할지, 가족 기기끼리만 연결되는 사설망(Tailscale 등)으로만 쓸지<br />· 실제 서버 설치·휴대폰 연결 확인. 설치 스크립트는 실제 클라우드 서버에서 아직 실행해 보지 않았음<br />· 앱 배포 방식(스토어 등록 또는 직접 설치)과 서명 키 보관 방법</td></tr>
+    <tr><td class="name">공유 범위 확장</td><td>공유는 화면 단위이며 그룹(ISA·연금 등) 단위로 일부만 보여 주는 기능은 없습니다. 공유 이력(누가 언제 보았는지) 기록과 공유 만료 기한이 필요한지 정해야 합니다. 공유 추가 시 가입 여부가 드러나는 점(가입한 이메일만 공유 가능)도 공개 범위에 따라 검토가 필요합니다.</td></tr>
+    <tr><td class="name">검색 출처</td><td>종목명 검색은 네이버 증권 자동완성(비공식 경로)을 주로, 야후 검색을 보조로 씁니다. 이용약관을 확인하고 출처를 확정해야 합니다(7.2).</td></tr>
+    <tr><td class="name">구글 드라이브 인증 <span class="new">신규</span></td><td>동기화는 앱이 만든 파일만 다루는 drive.file 권한만 써서 구글의 민감 권한 심사 대상이 아니며, 동의 화면이 프로덕션으로 게시되어 있으면 사용자 수 제한이 없습니다. 동의 화면에 앱 이름·로고를 보이려면 브랜드 인증(도메인 인증)이 필요합니다. 권한을 추가하면 다시 확인해야 합니다.</td></tr>
+    <tr><td class="name">비밀번호 길이 <span class="new">신규</span></td><td>로그인·백업 비밀번호는 4자리, 동기화 비밀번호는 6자리입니다. 짧은 비밀번호는 파일을 손에 넣은 사람이 모든 조합을 대입하면 풀릴 수 있어, 더 긴 비밀번호나 기기 보안 저장소 사용을 검토해야 합니다.</td></tr>
+    <tr><td class="name">동기화 충돌 <span class="new">신규</span></td><td>동기화는 버튼을 누를 때만 맞추며 양쪽이 바뀌면 한쪽을 고릅니다(합치지 않음). 같은 사용자가 여러 기기에서 동시에 고치는 경우의 병합 방식과 자동 동기화 필요 여부를 정해야 합니다.</td></tr>
+    <tr><td class="name">제안값 확인</td><td>현재가 캐시 5분, 배당 지급내역 재사용 1일, 과세표준 회차 대응 범위 7일, 과거 데이터 10년, 연도별 자산 기본 5년·최대 10년, 관리 연도 최근 10년, 응답 3초·보유 종목 50개 기준을 확인해야 합니다. 과거 데이터 범위는 선택한 출처의 제공 범위에도 맞춰야 합니다.</td></tr>
+  </table>
+
+  <h2 class="newpage">7.2 데이터 출처 후보</h2>
+  <table>
+    <tr><th style="width:150px">출처</th><th style="width:170px">제공 데이터</th><th>확인 사항</th></tr>
+    <tr><td class="name">네이버 증권</td><td>국내·해외 시세, 일별 종가, 국내 종목 한글 이름, 종목명 검색(자동완성)</td><td>공개 API 제공 여부, 수집·재제공 약관</td></tr>
+    <tr><td class="name">야후 파이낸스</td><td>국내·미국 시세, 과거 종가, 액면분할, 배당락일·주당 배당금, 환율</td><td>공개 API 제공 여부, 수집·재제공 약관. 일부 회차 누락 사례 있음</td></tr>
+    <tr><td class="name">Investing.com</td><td>국내·해외 시세, 과거 종가</td><td>공개 API 제공 여부, 수집·재제공 약관</td></tr>
+    <tr><td class="name">공공데이터포털 주식시세정보(금융위원회)</td><td>국내 일별 시세</td><td>공식 API. 장중 현재가 제공 여부, 반영 지연</td></tr>
+    <tr><td class="name">증권사·유료 시세 API</td><td>국내·미국 시세</td><td>비용, 계약 조건, 서비스 재제공 허용 범위</td></tr>
+    <tr><td class="name">한국수출입은행 환율 API</td><td>원/달러 고시 환율</td><td>공식 API. 과거 환율 조회 범위, 호출 한도</td></tr>
+    <tr><td class="name">FunETF</td><td>국내 ETF 분배금, 실지급일, 주당과세표준액(KODEX만)</td><td>비공식 경로, 수집·재제공 약관. 짧은 시간에 많이 호출하면 일시 차단됨</td></tr>
+    <tr><td class="name">운용사 홈페이지 (SOL·TIGER 등)</td><td>국내 ETF 분배금, 실지급일, 주당과세표준액</td><td>비공식 경로, 수집·재제공 약관, 운용사별 연동 필요. 일부는 서버 접속 차단(TIGER)</td></tr>
+    <tr><td class="name">한국예탁결제원 SEIBro</td><td>국내 ETF 분배금, 과표기준가</td><td>공식 API 아님. 주당과세표준액은 제공하지 않음</td></tr>
+  </table>
+  <p class="note">후보별 제공 범위와 약관은 이 문서 작성 시점에 검증하지 않았으며, 출처 확정 단계에서 확인해야 합니다.</p>
+</section>
+
+</body>
+</html>
