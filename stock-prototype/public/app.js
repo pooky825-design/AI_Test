@@ -1110,7 +1110,7 @@
     // 보유 종목 등록의 주식 항목 표는 10% 넓게 (v0.30.78)
     // 나의 배당 조회 배당 내역 표: 지급일 열을 10% 줄인 만큼 종목 열을 넓게 (v0.30.86)
     const mydivList = table.matches('.mydiv-page [data-fold="list"] .divhist-table');
-    const w = Math.round(NAME_COL_W() * (table.closest('[data-trades]') ? 1.1 : mydivList ? 1.082 : 1));
+    const w = Math.round(NAME_COL_W() * (table.closest('[data-trades]') || table.matches('.divm-table') ? 1.1 : mydivList ? 1.082 : 1));
     // 1단계: 열의 모든 칸 폭을 먼저 줄이고, 2단계: 줄어든 폭에서 넘치는 글자만 작게
     const todo = [];
     [...table.rows].forEach((tr) => {

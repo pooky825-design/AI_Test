@@ -993,3 +993,25 @@ td .pend-bell, .pend-bell { width: auto; height: auto; padding: 1px 7px; margin-
 .pend-bell:hover { background: #b91c1c; border-color: #b91c1c; animation-play-state: paused; opacity: 1; }
 @keyframes pendblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .pend-bell { animation: none; } }
+/* v0.30.91 배당 내역 등록 표: 종목 열 10% 확대(200→220px, 휴대폰 140→154px), 늘린 만큼 누적 과세표준액 열 축소. 다른 열은 그대로 */
+.divm-table { table-layout: fixed; width: 100%; }
+.divm-table th:nth-child(2) { width: 7.56%; }
+.divm-table th:nth-child(3) { width: 9.23%; }
+.divm-table th:nth-child(4) { width: 12.61%; }
+.divm-table th:nth-child(5) { width: 11.58%; }
+.divm-table th:nth-child(6) { width: 10.56%; }
+.divm-table th:nth-child(7) { width: 9.24%; }
+.divm-table th:nth-child(8) { width: 9.73%; }
+.divm-table th:nth-child(9) { width: 5.98%; }
+@media (max-width: 640px) {
+  .divm-table { min-width: 857px; }
+  .divm-table th:nth-child(2) { width: 69.0px; }
+  .divm-table th:nth-child(3) { width: 84.2px; }
+  .divm-table th:nth-child(4) { width: 114.9px; }
+  .divm-table th:nth-child(5) { width: 105.6px; }
+  .divm-table th:nth-child(6) { width: 96.2px; }
+  .divm-table th:nth-child(7) { width: 84.2px; }
+  .divm-table th:nth-child(8) { width: 94.2px; }
+  .divm-table th:nth-child(9) { width: 54.5px; }
+}
+.divm-table thead th { white-space: normal; word-break: keep-all; } /* 좁아진 열 이름은 낱말 단위 줄바꿈 */
