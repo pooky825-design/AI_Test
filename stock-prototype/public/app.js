@@ -1876,11 +1876,12 @@
       {
         const req = {};
         const empty = (v) => String(v ?? '').trim() === '';
-        if (empty(form.groupId.value)) req.groupId = '그룹을 선택하세요.';
-        if (!form.code.disabled && empty(form.code.value)) req.code = '종목코드를 입력하세요.';
-        if (empty(form.category.value)) req.category = '국내 · 해외를 선택하세요.';
-        if (empty(form.quantity.value)) req.quantity = '최종 수량을 입력하세요.';
-        else if (Number(String(form.quantity.value).replace(/,/g, '')) !== 0 && empty(form.purchaseAmount.value)) req.purchaseAmount = '총 매입금액을 입력하세요.';
+        // v0.30.82: 빈 필수 칸은 칸 색으로만 표시(붉은 안내 글 없음). 총 매입금액은 최종 수량이 0일 때만 비워도 됨
+        if (empty(form.groupId.value)) req.groupId = '';
+        if (!form.code.disabled && empty(form.code.value)) req.code = '';
+        if (empty(form.category.value)) req.category = '';
+        if (empty(form.quantity.value)) req.quantity = '';
+        if (empty(form.purchaseAmount.value) && (empty(form.quantity.value) || Number(String(form.quantity.value).replace(/,/g, '')) !== 0)) req.purchaseAmount = '';
         if (Object.keys(req).length) { showFieldErrors(form, req); return; }
       }
       const btn = form.querySelector('[data-submit]');
