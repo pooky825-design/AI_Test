@@ -1107,7 +1107,8 @@
     if (!idx) return;
     const col = idx.start;
     // v0.30.65: 모든 표의 종목 열을 같은 고정 폭으로 (PC 200px · 휴대폰 140px)
-    const w = NAME_COL_W();
+    // 보유 종목 등록의 주식 항목 표는 10% 넓게 (v0.30.78)
+    const w = Math.round(NAME_COL_W() * (table.closest('[data-trades]') ? 1.1 : 1));
     // 1단계: 열의 모든 칸 폭을 먼저 줄이고, 2단계: 줄어든 폭에서 넘치는 글자만 작게
     const todo = [];
     [...table.rows].forEach((tr) => {
