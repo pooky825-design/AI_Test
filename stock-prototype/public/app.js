@@ -272,9 +272,9 @@
     ['#/stock', '종목 조회', 'SC-03'], // v0.30.33: 맨 위, 다른 메뉴와 줄로 구분
     ['#/assets', '나의 자산 조회', 'SC-02'], // v0.30.36 이름: 나의 자산 조회, 연도별 자산 · 배당 조회, 환경 설정
     ['#/mydiv', '나의 배당 조회', 'SC-06'], // v0.30.52: 배당 내역 조회(연도별 화면에서 옮김)
-    ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.59: 나의 배당 조회 아래로 · v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 배당 내역 입력, v0.30.50: 보유 종목 등록)
+    ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.59: 나의 배당 조회 아래로 · v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 배당 내역 등록, v0.30.50: 보유 종목 등록)
     ['#/holdings', '보유 종목 등록', 'SC-04'],
-    ['#/divmgmt', '배당 내역 입력', 'SC-08'],
+    ['#/divmgmt', '배당 내역 등록', 'SC-08'],
     ['#/me', '환경 설정', 'SC-07'],
   ];
   const NAV_GROUP = { '#/stock': 1, '#/yearly': 2, '#/assets': 2, '#/mydiv': 2, '#/holdings': 3, '#/divmgmt': 3, '#/me': 4 };
@@ -324,7 +324,7 @@
     const navEl = $app.querySelector('.mobile-top nav');
     if (navEl) mnavScroll = navEl.scrollLeft;
     const nav = state.actAs ? NAV.filter(([h]) => MY_MENU(h) || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
-    // 메뉴 묶음 사이 구분선 (v0.30.50): 종목 조회 | 연도별·나의 자산 조회 | 보유 종목 등록·배당 내역 입력 | 환경 설정
+    // 메뉴 묶음 사이 구분선 (v0.30.50): 종목 조회 | 연도별·나의 자산 조회 | 보유 종목 등록·배당 내역 등록 | 환경 설정
     //  (공유받은 화면을 볼 때 빠진 메뉴가 있어도 묶음이 바뀌는 곳에만 한 줄)
     const navSep = (i) => i > 0 && NAV_GROUP[nav[i][0]] !== NAV_GROUP[nav[i - 1][0]];
     const links = nav.map(([h, label, sc], i) => `${navSep(i) ? '<hr class="side-sep" aria-hidden="true" />' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
@@ -2349,9 +2349,9 @@
 
   const DIV_WITHHOLD_RATE = 0.154; // 나의 배당 조회의 세금 = 과세표준 × 15.4%
   // 나의 배당 조회 (v0.30.52, v0.30.53: 나의 자산 조회처럼 조회 조건 → 요약 → 그래프 → 상세 표)
-  //  배당 내역 입력에서 저장한 회차를 지급일(없으면 배당락일) 기간·종목으로 조회
+  //  배당 내역 등록에서 저장한 회차를 지급일(없으면 배당락일) 기간·종목으로 조회
   function viewMyDiv(query = {}) {
-    // 조회 조건 (v0.30.54): 배당 내역 입력과 같은 모양 — 기준 연도 · 월(시작~끝) · 그룹 탭
+    // 조회 조건 (v0.30.54): 배당 내역 등록과 같은 모양 — 기준 연도 · 월(시작~끝) · 그룹 탭
     const saved = settings.get('dividends.filter') || {};
     const year = Math.min(Number(query.year) || Number(saved.year) || THIS_YEAR, THIS_YEAR);
     const groupParam = query.group !== undefined ? query.group : (saved.group || '');
@@ -2368,7 +2368,7 @@
       return `year=${o.year || year}&group=${g || ''}${f ? `&from=${f}` : ''}${t ? `&to=${t}` : ''}`;
     };
     const main = shell('#/mydiv', `
-      <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 입력에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).</p></div></div>
+      <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 등록에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).</p></div></div>
       <div class="card"><div class="group-bar"><div class="group-left">
         <div class="field inline-field year-ctrl"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
         <div class="field inline-field year-ctrl"><span class="inline-label" data-noi18n>${isEn() ? 'Month' : '월'}</span><span class="range-group"><select data-from aria-label="시작 월">${monthOpts(fromM)}</select><span class="range-sep">~</span><select data-to aria-label="종료 월">${monthOpts(toM)}</select></span></div>
@@ -2457,7 +2457,7 @@
               <td>${r.tax_amount == null ? dash : money(r.tax_amount * DIV_WITHHOLD_RATE, r.currency) + krwTip(r, r.tax_amount * DIV_WITHHOLD_RATE)}</td>
             </tr>`).join('')}</tbody>
             <tfoot><tr><td colspan="4">합계 (원화)</td><td>${krw(tot.div)}</td><td>${krw(tot.tax)}${star(taxMissing)}</td><td>${krw(tot.tax * DIV_WITHHOLD_RATE)}${star(taxMissing)}</td></tr></tfoot></table></div>`
-          : '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당 내역 입력에서 회차를 저장하면 여기에 나옵니다.</div>'}
+          : '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당 내역 등록에서 회차를 저장하면 여기에 나옵니다.</div>'}
           <p class="small muted" style="margin:6px 0 0">월 배당 = 수량 × 주당배당 · 세금 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨) · 지급일이 없는 회차는 배당락일 기준</p>
         </div>`;
       makeFoldable(main, 'mydiv.collapsed');
@@ -2593,7 +2593,7 @@
     }).join('')}</tbody></table>`;
     // 주석은 그래프 영역부터 (연도별 자산 증감과 같게, v0.26.12)
     const note = card.querySelector('[data-yearly-note]');
-    if (note) note.textContent = '배당·수령회차·과세표준액 = 배당 내역 입력에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)';
+    if (note) note.textContent = '배당·수령회차·과세표준액 = 배당 내역 등록에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)';
     if (card._chart) { card._chart.destroy(); state.charts = state.charts.filter((c) => c !== card._chart); }
     const pal = chartPalette();
     card._chart = new Chart(card.querySelector('canvas'), {
@@ -2741,7 +2741,7 @@
         <tr><td class="left">백업 일시</td><td class="right">${esc(fmtTime(backup.exportedAt))}</td></tr>
         <tr><td class="left">그룹</td><td class="right">${c.groups || 0}개</td></tr>
         <tr><td class="left">주식 항목(연도별)</td><td class="right">${c.items || 0}건</td></tr>
-        <tr><td class="left">배당 내역 입력 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
+        <tr><td class="left">배당 내역 등록 회차</td><td class="right">${c.holdingDividends || 0}건</td></tr>
         <tr><td class="left">종목 분류 · 화면 설정</td><td class="right">${c.categories || 0}건 · ${c.settings || 0}건</td></tr>
         ${c.shares != null ? `<tr><td class="left">화면 공유</td><td class="right">${c.shares}건</td></tr>` : ''}
       </tbody></table>
@@ -3201,7 +3201,7 @@
           <tr><td class="left">저장 일시</td><td class="right">지금</td><td class="right">${esc(fmtTime(file.savedAt))}<br/><small class="muted">${esc(file.device || '')}</small></td></tr>
           <tr><td class="left">그룹</td><td class="right">${lc.groups || 0}개</td><td class="right">${fc.groups || 0}개</td></tr>
           <tr><td class="left">주식 항목(연도별)</td><td class="right">${lc.items || 0}건</td><td class="right">${fc.items || 0}건</td></tr>
-          <tr><td class="left">배당 내역 입력 회차</td><td class="right">${lc.holdingDividends || 0}건</td><td class="right">${fc.holdingDividends || 0}건</td></tr>
+          <tr><td class="left">배당 내역 등록 회차</td><td class="right">${lc.holdingDividends || 0}건</td><td class="right">${fc.holdingDividends || 0}건</td></tr>
           <tr><td class="left" data-noi18n>${isEn() ? 'Dividend records' : '배당 내역'}</td><td class="right">${lc.dividends || 0}건</td><td class="right">${fc.dividends || 0}건</td></tr>
           <tr><td class="left">화면 공유</td><td class="right">${lc.shares || 0}건</td><td class="right">${fc.shares || 0}건</td></tr>
         </tbody></table>
@@ -3509,7 +3509,7 @@
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
         <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
           ? 'View: see the screen and export to Excel only · Edit: also change Holdings (add·edit·delete items, carry over, groups) and Dividends (save rounds) · Yearly assets & dividends and My assets can be shared as view only · Settings and Stock lookup are never shared · Setting every permission to None removes the share · <b>Other devices</b>: connect both devices to Google Drive with the same Google account; when the receiver syncs, the sharer\'s latest data arrives as view only (the sharer must sync first; edit becomes view)'
-          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 내역 입력(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경 설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
+          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 내역 등록(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경 설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
       body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
         try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
         load();
@@ -3611,7 +3611,7 @@
       </div>
       <div class="card" data-fold="backup">
         <h2>데이터 백업 · 복원 ${req('FR-BAK-01 · 02')}</h2>
-        <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 내역 입력 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
+        <p style="margin:0 0 10px">보유 종목(그룹·연도별 항목·이월 금액), 종목 분류, 배당 내역 등록 회차, 화면 설정 등 <b>내 데이터 전부</b>를 파일 하나로 저장합니다. 앱을 지웠다가 다시 설치해도 이 파일로 복원하면 그대로 이어서 쓸 수 있습니다.</p>
         <div class="field-row" style="gap:10px;flex-wrap:wrap">
           <button data-backup>백업 파일 저장</button>
           <button class="secondary" data-restore>백업 파일로 복원</button>
@@ -3902,7 +3902,7 @@
           <tbody>${d.events.map((e) => `<tr><td>${esc(e.exDate)}</td>${d.hasPayDate ? `<td>${esc(e.payDate || '-')}</td>` : ''}<td class="num">${money(e.amount, c)}</td><td class="num">${e.taxBase == null ? '-' : money(e.taxBase, c)}</td>${held ? `<td class="num">${money(e.estimate, c)}${c === 'USD' && e.estimateKrw != null ? ` <small class="muted">≈ ${krw(e.estimateKrw)}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
         </table></div>`);
     }
-    parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 실지급일은 운용사·FunETF가 제공하는 국내 ETF 회차만 표시합니다. 실제 배당은 배당 내역 입력 화면에서 회차를 선택해 저장하세요.</p>`);
+    parts.push(`<p class="small muted" style="margin:12px 0 0">출처 ${esc(d.source || '-')} · 저장 ${fmtTime(d.loadedAt)} (1일 동안 재사용) · 실지급일은 운용사·FunETF가 제공하는 국내 ETF 회차만 표시합니다. 실제 배당은 배당 내역 등록 화면에서 회차를 선택해 저장하세요.</p>`);
     body.innerHTML = parts.join('');
     const retry = body.querySelector('[data-retry]');
     if (retry) retry.addEventListener('click', () => { closeModal(); openDividendModal(code, true); });
@@ -3968,7 +3968,7 @@
     };
     const main = shell('#/divmgmt', `
       <div class="page-head">
-        <div><h1>배당 내역 입력 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
+        <div><h1>배당 내역 등록 ${req('SC-08')}</h1><p>그룹별 보유 종목의 배당 회차를 골라 저장하면 그 해 누적 배당액과 누적 과세표준액에 반영됩니다. 오른쪽 <b>연필 아이콘(입력)</b>을 누르면 종목의 배당 내역을 자동으로 불러옵니다.</p></div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-left">
         <div class="field inline-field year-ctrl"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
