@@ -916,3 +916,7 @@ th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; o
 .seg button { background: #fff; color: var(--t-700); border: 0; border-radius: 0; padding: 4px 12px; font-size: 12.5px; font-weight: 600; min-height: 0; }
 .seg button.on { background: var(--t-500, var(--primary)); color: #fff; }
 .seg button + button { border-left: 1px solid var(--t-300); }
+
+/* v0.30.61 나의 배당 조회: 칸 사이 세로 점선(가로줄보다 연하게) */
+.mydiv-page .content table th + th, .mydiv-page .content table td + td,
+.mydiv-page table th + th, .mydiv-page table td + td { border-left: 1px dashed hsl(27, 30%, 93%); }
