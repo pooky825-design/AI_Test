@@ -810,10 +810,10 @@
         : '');
       // 올해 손익(1월 1일 기준 + 올해 실현손익)과 전체기간 손익(원래 매입금액 기준 + 누적 실현손익) (v0.10)
       const pnlCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}${x.returnPct == null ? '' : `<br/><small>${pct(x.returnPct)}</small>`}</td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}${x.totalPct == null ? '' : `<br/><small>${pct(x.totalPct)}</small>`}</td>`;
-      const pnlHead = '<th class="num">금년 손익</th><th class="num">전체 손익</th>';
+      const pnlHead = '<th class="num">금년 손익<br/><small class="th-period">(C−B)</small></th><th class="num">전체 손익<br/><small class="th-period">(C−A)</small></th>';
       // v0.30.70: 매입금액 · 손익 기준액(금년) · 평가금액 (손익 기준액·평가금액 아래 작은 글씨로 비중)
       const shareOf = (v, tot) => (tot && v != null ? pct(v / tot).replace('+', '') : '-');
-      const amtHead = '<th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th>';
+      const amtHead = '<th class="num">매입금액<br/><small class="th-period">(A)</small></th><th class="num">손익 기준액(금년)<br/><small class="th-period">(B)</small></th><th class="num">평가금액<br/><small class="th-period">(C)</small></th>';
       const amtCells = (x, has = true, hasVal = true) => `<td class="num">${has ? krw(x.origCostKrw) : '-'}</td><td class="num">${has ? `${krw(x.costKrw)}<br/><small class="muted">${shareOf(x.costKrw, t.costKrw)}</small>` : '-'}</td><td class="num">${hasVal ? `<b>${krw(x.valueKrw)}</b><br/><small class="muted">${shareOf(x.valueKrw, t.valueKrw)}</small>` : '-'}</td>`;
       const todayNote = d.ongoing ? `<p class="small muted" style="margin:8px 0 0">오늘 손익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · 오늘 손익률 = 오늘 손익 ÷ 전일 종가 기준 평가금액 (환율 변동은 반영하지 않음) · 합계 오늘 손익 ${sKrw(t.todayPnlKrw)} (${pct(t.todayPct)})</p>` : '';
       html.push(`
@@ -880,8 +880,8 @@
           ${d.merged ? '<p class="small muted" style="margin:-4px 0 10px">그룹 구분 없이 같은 종목의 보유 수량과 매입금액을 합쳤습니다. 평균 매입단가 = 합계 매입금액 ÷ 합계 수량</p>' : ''}
           <div class="table-wrap"><table class="stock-table">
             <thead><tr>
-              <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
-              <th class="num">금년 손익</th><th class="num">전체 손익</th>
+              <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액<br/><small class="th-period">(A)</small></th><th class="num">손익 기준액(금년)<br/><small class="th-period">(B)</small></th><th class="num">평가금액<br/><small class="th-period">(C)</small></th>${d.ongoing ? '<th class="num">전일 대비</th>' : ''}
+              <th class="num">금년 손익<br/><small class="th-period">(C−B)</small></th><th class="num">전체 손익<br/><small class="th-period">(C−A)</small></th>
             </tr></thead>
             <tbody>${(() => {
               const cols = d.ongoing ? 9 : 8;
@@ -2275,7 +2275,7 @@
       return `<div class="inner" style="margin-top:12px">
       <h3 style="margin:0 0 8px">${y.year}년${ong ? '' : ' 말'} 종목별 평가금액${ong ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
       <div class="table-wrap"><table class="stock-table yr-detail"><thead><tr>
-        <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th><th class="num">전일 대비</th><th class="num">금년 손익</th><th class="num">전체 손익</th>
+        <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액<br/><small class="th-period">(A)</small></th><th class="num">손익 기준액(금년)<br/><small class="th-period">(B)</small></th><th class="num">평가금액<br/><small class="th-period">(C)</small></th><th class="num">전일 대비</th><th class="num">금년 손익<br/><small class="th-period">(C−B)</small></th><th class="num">전체 손익<br/><small class="th-period">(C−A)</small></th>
       </tr></thead><tbody>${body}</tbody>
       <tfoot><tr><td colspan="3">합계 (원화)</td>${sumCells(d.total)}</tr></tfoot></table></div>
       <p class="small muted" style="margin:6px 0 0">나의 자산 조회(전체 통합)와 같은 계산 · 투자 지역별로 묶어 소계 · 현 평가금액 = ${ong ? '현재가' : '연말 종가'} × 보유수량 × 환율</p></div>`;
