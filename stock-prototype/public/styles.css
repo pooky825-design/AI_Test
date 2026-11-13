@@ -965,3 +965,6 @@ form[data-add] .field > .hint, form[data-add] .field > .err { display: block; te
 /* v0.30.80 버튼 글자 왼쪽 아이콘 */
 button:has(> .btn-ico) { display: inline-flex; align-items: center; gap: 6px; }
 .btn-ico { flex: none; }
+/* v0.30.81 전년도 일괄이월 버튼: 테마 색을 아주 살짝 */
+button.carry-btn { background: var(--t-50); border-color: var(--t-200); color: var(--t-900); }
+button.carry-btn:hover { background: var(--t-100); }
