@@ -956,3 +956,5 @@ table.yr-detail { table-layout: fixed; width: 100%; min-width: 1040px; }
 table:has(.th-period) thead th { vertical-align: top; }
 /* v0.30.74 모든 표: 칸 내용을 위쪽에 맞춰 두 줄 칸(금액·비중 등)의 첫 줄과 한 줄 칸이 가로로 나란히 */
 table th, table td { vertical-align: top; }
+/* v0.30.75 보유 종목 등록 입력 상자: 입력 항목 이름(라벨) 가운데 정렬 */
+form[data-add] .field > label { display: block; text-align: center; }
