@@ -858,7 +858,7 @@
                     <p class="small muted" style="margin:4px 0 0">분류 = 종목 종류(주식 · ETF · ETN)</p>
         </div>` : ''}
         ${(d.categoryTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="category">
-          <h2>투자 지역별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
+          <h2>국내 · 해외별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
             <thead><tr><th>투자 지역</th><th class="num">종목 수</th>${amtHead}${todayHead}${pnlHead}</tr></thead>
             <tbody>${d.categoryTotals.map((c) => `<tr>

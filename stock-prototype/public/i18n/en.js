@@ -1011,6 +1011,7 @@ window.I18N_EN = {
 "배당 내역 등록에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).": "View the dividend rounds saved in Dividend Entry by year, month and group (by payment date, or ex-date if none).",
 "투자 지역": "Region",
 "투자 지역별 합계": "Totals by region",
+"국내 · 해외별 합계": "Totals by region",
 "국내 · 해외 · 해외추종": "Domestic · Overseas · Overseas-tracking",
 "분류 = 종목 종류(주식 · ETF · ETN)": "Category = product type (Stock · ETF · ETN)",
 "투자 지역은 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).": "The region is chosen when registering a stock in Holdings (Domestic · Overseas · Overseas-tracking: Korean-listed ETFs tracking overseas assets, etc.).",
