@@ -2225,14 +2225,14 @@
         <div class="grid c2 yr-grid">
           <div class="chart-box" style="height:300px"><canvas data-c1></canvas></div>
           <div class="table-wrap"><table class="yr-table">
-            <thead><tr><th>연도</th><th class="num">총자산</th><th class="num">국내</th><th class="num">해외</th><th class="num">해외추종</th><th class="num">전년 대비</th></tr></thead>
+            <thead><tr><th>연도</th><th class="num">국내</th><th class="num">해외</th><th class="num">해외추종</th><th class="num">총자산</th><th class="num">전년 대비</th></tr></thead>
             <tbody>${years.slice().reverse().map((y) => `
               <tr class="clickable" data-y="${y.year}">
                 <td><b>${y.year}</b> <span class="small muted">▾</span>${y.ongoing ? '<br/><span class="badge ongoing">진행 중</span>' : ''}${y.excludedCount ? `<br/><small class="up">제외 ${y.excludedCount}개</small>` : ''}</td>
-                <td class="num"><span class="tip" data-tip="연말 환율 ${esc(rate(y.fxRate))}" tabindex="0"><b>${krw(y.valueKrw)}</b></span></td>
                 <td class="num">${catCell(y, 'DOMESTIC')}</td>
                 <td class="num">${catCell(y, 'OVERSEAS')}</td>
                 <td class="num">${catCell(y, 'OVERSEAS_TRACK')}</td>
+                <td class="num"><span class="tip" data-tip="연말 환율 ${esc(rate(y.fxRate))}" tabindex="0"><b>${krw(y.valueKrw)}</b></span></td>
                 <td class="num ${cls(y.diffKrw)}">${y.diffKrw == null ? '-' : `${sKrw(y.diffKrw)}<br/><small>${pct(y.diffPct)}</small>`}</td>
               </tr>`).join('')}</tbody>
           </table></div>
