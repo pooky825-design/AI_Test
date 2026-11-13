@@ -902,9 +902,9 @@ th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; o
 
 /* v0.30.55 배당 주기 배지 */
 .badge.dfreq { border-color: transparent; }
-.badge.df-monthly { background: #dcfce7; color: #166534; }
+.badge.df-monthly { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; font-weight: 800; } /* v0.30.56 월배당 강조(붉은 계열) */
 .badge.df-quarterly { background: #dbeafe; color: #1e40af; }
 .badge.df-semiannual { background: #ede9fe; color: #5b21b6; }
 .badge.df-annual { background: #fef3c7; color: #92400e; }
 .badge.df-none { background: #f1f5f9; color: #64748b; }
-.badge.df-stopped { background: #fee2e2; color: #991b1b; }
+.badge.df-stopped { background: #f8fafc; color: #64748b; border: 1px dashed #94a3b8; } /* 월배당과 구분되게 회색 점선 */
