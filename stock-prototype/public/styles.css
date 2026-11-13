@@ -918,6 +918,13 @@ th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; o
 .seg button + button { border-left: 1px solid var(--t-300); }
 
 /* v0.30.61 나의 배당 조회: 칸 사이 세로 점선(가로줄보다 연하게) */
-.vlines table th + th, .vlines table td + td { border-left: 1px dashed hsl(27, 30%, 93%); } /* 나의 자산 조회(v0.30.63)·나의 배당 조회 */
+table th + th, table td + td { border-left: 1px dashed hsl(27, 30%, 93%); } /* v0.30.64 모든 테이블 */
 /* v0.30.62 배당 주기별 합계: 첫 칸(배당 주기 배지·합계 글자) 가운데 정렬 */
 .yr-page .freq-table td:first-child { text-align: center; }
+/* v0.30.64 컬럼 타이틀 진하게 · 소계/합계 행은 기본 줄보다 아주 약간만 진하게 */
+th { color: var(--text); font-weight: 700; }
+tfoot td, tr.group-sub td, tr.sum-row td,
+.card[data-ckey] tfoot td, .divm-table tfoot td, .divhist-table tfoot td { background: hsl(27, 40%, 97.5%); }
+.card[data-ckey] tfoot td { color: var(--text); }
+.card[data-ckey] tfoot td.today-col { background: hsl(27, 60%, 95.5%); }
+tr.group-sub td { border-bottom: 1px solid var(--border); }
