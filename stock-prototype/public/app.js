@@ -2685,7 +2685,19 @@
         ${confirm ? `<div class="field" style="margin-top:10px"><label>비밀번호 확인</label>${pinBoxesHtml('fp2', '비밀번호 확인', len)}</div>` : ''}
         <div class="notice error small" data-msg hidden style="margin-top:10px"></div>`; // 4자리를 다 넣으면 바로 진행(확인·취소 버튼 없음, 닫으려면 ✕, v0.30.43)
       let done = false;
-      const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
+      // 창을 닫을 때 화면이 아래로 튀지 않게 열기 전 위치로 되돌린다 (v0.30.49)
+      const y = window.scrollY;
+      const keep = () => { if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y); };
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        closeModal();
+        keep();
+        requestAnimationFrame(keep);
+        [60, 200, 450].forEach((t) => setTimeout(keep, t));
+        resolve(v);
+      };
       const msg = body.querySelector('[data-msg]');
       const p2 = confirm ? bindPin(body.querySelector('[data-pin="fp2"]'), () => ok()) : null;
       const p1 = bindPin(body.querySelector('[data-pin="fp1"]'), () => (p2 ? p2.focus() : ok()));
