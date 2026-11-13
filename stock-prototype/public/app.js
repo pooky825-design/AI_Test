@@ -2237,17 +2237,43 @@
       </div>
       <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>`;
     // 종목별 내역 (연도 행을 누르면 표 아래에 전체 폭으로 표시)
-    const detailHtml = (y) => `<div class="inner" style="margin-top:12px">
-      <h3 style="margin:0 0 8px">${y.year}년 종목별 내역${y.ongoing ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
-      <div class="table-wrap"><table><thead><tr><th>종목</th><th>구분</th><th class="num">연말 보유 수량</th><th class="num">${y.ongoing ? '현재가' : '연말 종가'}</th><th>종가 기준일</th><th class="num">적용 환율</th><th class="num">원화 금액</th></tr></thead>
-      <tbody>${y.items.map((i) => `<tr>
-        <td class="left"><div class="name-cell">${ud(i.name)}<small>${esc(i.code)}${i.tradedThisYear ? ' · 이 해 매매 있음' : ' · 이전 연도 수량 이어 씀'}</small></div></td><td>${badge(i.type)}</td>
-        <td class="num">${qty(i.quantity)}</td>
-        <td class="num">${i.close == null ? '-' : money(i.close, i.currency)}</td>
-        <td class="small muted">${i.closeDate ? (y.ongoing ? fmtTime(i.closeDate) : esc(i.closeDate)) : '-'}</td>
-        <td class="num">${i.excluded ? '-' : i.currency === 'USD' ? rate(i.fxRate) : '1'}</td>
-        <td class="num">${i.excluded ? `- <span class="small up">(${esc(i.reason)} · 합계 제외)</span>` : krw(i.valueKrw)}</td>
-      </tr>`).join('')}</tbody></table></div></div>`;
+    // 종목별 내역 (v0.30.66): 나의 자산 조회 ‘종목별 평가금액’과 같은 열, 투자 지역(국내·해외·해외추종)별로 묶어 소계·합계
+    // 그 해 나의 자산 조회(전체 통합)와 같은 계산을 그대로 불러온다
+    const detailHtml = (y, d) => {
+      const ong = d.ongoing;
+      const cols = ong ? 9 : 8;
+      const dash = '<span class="muted">-</span>';
+      const pnlTd = (v, p) => `<td class="num ${cls(v)}">${v == null ? dash : sKrw(v)}${p == null ? '' : `<br/><small>${pct(p)}</small>`}</td>`;
+      const nameTd = (r, extra = '') => `<td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud((r.instrument && r.instrument.name) || r.code)}</a><small>${esc(r.code)} ${badge(r.instrument && r.instrument.type)}${extra}</small></div></td>`;
+      const rowHtml = (r) => {
+        if (r.error) return `<tr>${nameTd(r)}<td class="num">${qty(r.quantity)}</td><td class="small up" colspan="${cols - 2}">${esc(r.error)} · 합계 제외</td></tr>`;
+        const c = r.instrument.currency;
+        return `<tr>${nameTd(r)}
+          <td class="num">${qty(r.quantity)}</td>
+          <td class="num">${money(r.origAvgPrice, c)}</td>
+          <td class="num">${krw(r.origCostKrw)}</td>
+          <td class="num">${krw(r.costKrw)}</td>
+          <td class="num"><b>${krw(r.valueKrw)}</b></td>
+          ${ong ? `<td class="num ${cls(r.change)}">${r.todayPnlKrw == null ? sMoney(r.change, c) : sKrw(r.todayPnlKrw)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
+          ${pnlTd(r.pnlKrw, r.returnPct)}${pnlTd(r.totalPnlKrw, r.totalPct)}</tr>`;
+      };
+      const soldHtml = (r) => `<tr class="sold-row">${nameTd(r, ` · <span class="badge sold">${d.year}년 전량 매도</span>`)}
+        <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${ong ? '<td class="num muted">-</td>' : ''}
+        ${pnlTd(r.pnlKrw, r.returnPct)}${pnlTd(r.totalPnlKrw, r.totalPct)}</tr>`;
+      const sumCells = (x) => `<td class="num">${krw(x.origCostKrw)}</td><td class="num">${krw(x.costKrw)}</td><td class="num">${krw(x.valueKrw)}</td>${ong ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}${pnlTd(x.pnlKrw, x.returnPct)}${pnlTd(x.totalPnlKrw, x.totalPct)}`;
+      const sold = d.soldRows || [];
+      const body = (d.categoryTotals || []).filter((ct) => d.rows.some((r) => r.category === ct.id) || sold.some((r) => r.category === ct.id)).map((ct) => `
+        <tr class="group-row"><td colspan="${cols}"><span class="cat cat-${esc(ct.id)}">${esc(ct.label)}</span> <span class="muted" style="font-weight:400">${ct.count || 0}종목${ct.soldCount ? ` · 전량 매도 ${ct.soldCount}` : ''}</span></td></tr>
+        ${d.rows.filter((r) => r.category === ct.id).map(rowHtml).join('')}${sold.filter((r) => r.category === ct.id).map(soldHtml).join('')}
+        <tr class="group-sub"><td colspan="3">${esc(ct.label)} 소계</td>${sumCells(ct)}</tr>`).join('');
+      return `<div class="inner" style="margin-top:12px">
+      <h3 style="margin:0 0 8px">${y.year}년${ong ? '' : ' 말'} 종목별 평가금액${ong ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
+      <div class="table-wrap"><table class="stock-table"><thead><tr>
+        <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th>${ong ? '<th class="num">전일 대비</th>' : ''}<th class="num">금년 손익</th><th class="num">전체 손익</th>
+      </tr></thead><tbody>${body}</tbody>
+      <tfoot><tr><td colspan="3">합계 (원화)</td>${sumCells(d.total)}</tr></tfoot></table></div>
+      <p class="small muted" style="margin:6px 0 0">나의 자산 조회(전체 통합)와 같은 계산 · 투자 지역별로 묶어 소계 · 현 평가금액 = ${ong ? '현재가' : '연말 종가'} × 보유수량 × 환율</p></div>`;
+    };
     if (!hasHoldings) return;
     makeFoldable(main, 'yearly.collapsed');
     main.classList.add('yr-page'); // 표 데이터 정렬: 종목·메모 왼쪽, 지급일 가운데, 나머지 오른쪽
@@ -2256,9 +2282,13 @@
       const open = box.dataset.year === tr.dataset.y;
       main.querySelectorAll('tr[data-y]').forEach((r) => r.classList.remove('on'));
       if (open) { box.innerHTML = ''; box.dataset.year = ''; return; }
-      box.innerHTML = detailHtml(years.find((y) => String(y.year) === tr.dataset.y));
+      const y = years.find((x) => String(x.year) === tr.dataset.y);
       box.dataset.year = tr.dataset.y;
       tr.classList.add('on');
+      box.innerHTML = '<div class="empty is-loading">종목별 평가금액을 불러오는 중…</div>';
+      api('GET', `/assets?year=${y.year}&merged=1`).then((ad) => {
+        if (box.dataset.year === String(y.year)) box.innerHTML = detailHtml(y, ad);
+      }).catch((err) => { if (box.dataset.year === String(y.year)) box.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; });
     }));
     destroyCharts();
     const labels = years.map((y) => (y.ongoing ? `${y.year} (${tt('진행 중')})` : String(y.year)));
@@ -2357,6 +2387,8 @@
     let toM = Number(query.to) || (query.year ? (year >= THIS_YEAR ? curMonth : 12) : Number(saved.toM) || (year >= THIS_YEAR ? curMonth : 12));
     if (fromM > toM) [fromM, toM] = [toM, fromM];
     settings.set('dividends.filter', { year, fromM, toM, group: groupParam || '' });
+    // 통합 (v0.30.66): ‘전체’에서 같은 종목·같은 지급일 회차를 그룹 구분 없이 합산 (마지막 선택 기억)
+    const merged = query.merged !== undefined ? query.merged === '1' : !!settings.get('mydiv.merged'); // 실제 적용은 ‘전체’일 때만(load 에서 gid 로 판단)
     const monthOpts = (sel) => Array.from({ length: 12 }, (_, i) => i + 1).map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${m}월</option>`).join('');
     const qsOf = (o = {}) => {
       const g = o.group !== undefined ? o.group : groupParam;
@@ -2371,6 +2403,19 @@
         <div class="field inline-field year-ctrl"><span class="inline-label" data-noi18n>${isEn() ? 'Month' : '월'}</span><span class="range-group"><select data-from aria-label="시작 월">${monthOpts(fromM)}</select><span class="range-sep">~</span><select data-to aria-label="종료 월">${monthOpts(toM)}</select></span></div>
         <div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
       <div data-mydiv-body><div class="empty">불러오는 중…</div></div>`);
+    {
+      const link = main.querySelector('.group-bar > a[href="#/holdings"]');
+      const fr = document.createElement('div');
+      fr.className = 'field-row';
+      fr.style.cssText = 'gap:14px;align-items:center';
+      fr.innerHTML = `<label class="merge-toggle" data-merge-wrap hidden><input type="checkbox" data-merge ${merged ? 'checked' : ''} /> 통합 <span class="muted small">(그룹 구분 없이 종목별 합산)</span></label>`;
+      link.replaceWith(fr);
+      fr.appendChild(link);
+      fr.querySelector('[data-merge]').addEventListener('change', (e) => {
+        settings.set('mydiv.merged', e.target.checked);
+        go(`#/mydiv?${qsOf({})}&merged=${e.target.checked ? 1 : 0}`);
+      });
+    }
     main.classList.add('yr-page', 'mydiv-page', 'vlines'); // vlines: 표 세로 점선 (v0.30.61)
     main.querySelector('[data-year]').addEventListener('change', (e) => go(`#/mydiv?${qsOf({ year: e.target.value, from: '', to: '' })}`)); // 연도를 바꾸면 월은 기본값
     const onMonth = () => {
@@ -2392,6 +2437,7 @@
       const tabs = main.querySelector('[data-tabs]');
       tabs.innerHTML = [`<button class="${gid ? '' : 'on'}" data-g="">전체</button>`].concat(groups.map((g) => `<button class="${gid === g.id ? 'on' : ''}" data-g="${g.id}">${ud(g.name)}</button>`)).join('');
       tabs.querySelectorAll('[data-g]').forEach((bt) => bt.addEventListener('click', () => go(`#/mydiv?${qsOf({ group: bt.dataset.g })}`)));
+      main.querySelector('[data-merge-wrap]').hidden = !!gid; // ‘전체’일 때만 통합 체크박스 표시
       const lastDay = new Date(year, toM, 0).getDate();
       const qs = `from=${year}-${pad(fromM)}-01&to=${year}-${pad(toM)}-${pad(lastDay)}${gid ? `&groupId=${gid}` : ''}`;
       let rows;
@@ -2421,6 +2467,23 @@
       const star = (miss) => (miss ? '*' : '');
       const mLabel = lastM ? `${lastM.slice(0, 4)}년 ${Number(lastM.slice(5))}월` : '';
       const krwTip = (r, v) => (r.currency === 'USD' && v != null ? `<br/><small class="muted">${krw(v * r.fx_rate)}</small>` : '');
+      // 통합: 같은 종목·같은 지급일 회차를 하나로 (수량·배당·과세표준 합산, 그룹 이름은 함께 표시)
+      const listRows = !(merged && !gid) ? rows : (() => {
+        const m = new Map();
+        const add = (a, b) => (a == null && b == null ? null : (a || 0) + (b || 0));
+        for (const r of rows) {
+          const k = `${r.code}|${r.paid}`;
+          const x = m.get(k);
+          if (!x) { m.set(k, { ...r, _groups: r.group_name ? [r.group_name] : [] }); continue; }
+          x.quantity = (x.quantity || 0) + (r.quantity || 0);
+          x.amount = (x.amount || 0) + (r.amount || 0);
+          x.amount_krw = add(x.amount_krw, r.amount_krw);
+          x.tax_amount = add(x.tax_amount, r.tax_amount);
+          x.tax_krw = add(x.tax_krw, r.tax_krw);
+          if (r.group_name && !x._groups.includes(r.group_name)) x._groups.push(r.group_name);
+        }
+        return [...m.values()].map((x) => ({ ...x, group_name: x._groups.length > 1 ? `${x._groups.join('·')} 합산` : x._groups[0] || '' }));
+      })();
       body.innerHTML = `
         <div class="card fold-card" data-fold="summary"><h2>요약</h2>
           <div class="grid k3 mydiv-kpis">
@@ -2442,11 +2505,11 @@
           <div data-freq-table></div>
           <p class="small muted" style="margin:6px 0 0" data-noi18n>${isEn() ? 'Valuation = holdings value as in My Assets (year-end for past years) · Monthly = last month of the range · Total = whole range · Tax = Taxable base × 15.4% · Frequency from recent ex-dates (unknown until dividend history is loaded)' : '평가총액 = 나의 자산 조회와 같은 평가금액(지난 연도는 연말 기준) · 월 = 고른 월 범위의 마지막 달 · 누적 = 고른 기간 전체 · 세금 = 과세표준 × 15.4% · 배당 주기는 최근 배당락일 간격으로 판단(지급내역을 아직 불러오지 않은 종목은 ‘주기 모름’)'}</p>
         </div>
-        <div class="card" data-fold="list"><h2>배당 내역 <span class="muted small">${rows.length}건</span></h2>
-          ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
-            ${rows.map((r) => `<tr>
+        <div class="card" data-fold="list"><h2>배당 내역${merged && !gid ? ' · 전체 통합' : ''} <span class="muted small">${listRows.length}건</span></h2>
+          ${listRows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
+            ${listRows.map((r) => `<tr>
               <td class="center">${esc(r.paid)}${r.pay_date ? '' : '<br/><small class="muted">배당락일</small>'}</td>
-              <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
+              <td class="left"><div class="name-cell"><span>${ud(r.name)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''} ${badge(r.type)}</small></div></td>
               <td>${qty(r.quantity)}</td>
               <td>${money(r.per_share, r.currency)}</td>
               <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>
@@ -2633,7 +2696,7 @@
         ${rows.map((r) => `<tr>
           <td class="center">${esc(r.ex_date || '-')}</td>
           <td class="center">${r.pay_date ? esc(r.pay_date) : dash}</td>
-          <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
+          <td class="left"><div class="name-cell"><span>${ud(r.name)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''} ${badge(r.type)}</small></div></td>
           <td>${qty(r.quantity)}</td>
           <td>${money(r.per_share, r.currency)}</td>
           <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>
