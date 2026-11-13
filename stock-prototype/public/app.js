@@ -1722,10 +1722,10 @@
           <input type="hidden" name="id" />
           <div class="field" data-f="group" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
           <div class="field ac-field code-ac" data-f="code" style="width:190px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="종목명 또는 코드" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" /><div class="ac-menu" data-ac hidden role="listbox"></div><span class="hint code-hint" data-hint></span><span class="err" data-err="code"></span></div>
-          <div class="field" data-f="category" style="width:110px"><label>국내 · 해외</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">국내 · 해외 · 해외추종</span><span class="err" data-err="category"></span></div>
+          <div class="field" data-f="category" style="width:110px"><label>국내 · 해외</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
-          <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
-          <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
+          <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="err" data-err="carriedQty"></span></div>
+          <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="err" data-err="quantity"></span></div>
           <div class="field" data-f="amount" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" autocomplete="off" spellcheck="false" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" data-f="avg" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
           <div class="field" data-f="carry" style="width:160px" data-basis-field><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" autocomplete="off" spellcheck="false" placeholder="비우면 자동 계산" /><span class="hint" data-basis-hint>비우면 이월 수량 × 전년 종가</span><span class="err" data-err="carryAmount"></span></div>
@@ -1842,7 +1842,6 @@
       // 등록 화면: 수정 화면과 같은 배치, 이월 수량·이월 금액은 전년부터 보유한 종목만 입력
       form.carriedQty.readOnly = false;
       form.carriedQty.classList.remove('auto-calc');
-      main.querySelector('[data-cqty-hint]').textContent = '전년부터 보유 시 입력';
       main.querySelector('[data-basis-hint]').textContent = '비우면 이월 수량 × 전년 종가';
       form.querySelector('[data-carry]').hidden = false;
       form.id.value = '';
@@ -2067,7 +2066,6 @@
           form.carriedQty.readOnly = !!it.carry_has_prev;
           form.carriedQty.classList.toggle('auto-calc', !!it.carry_has_prev);
           form.carriedQty.value = carriedNow ? String(it.basis_carried_qty) : (it.carry_has_prev ? '-' : '');
-          main.querySelector('[data-cqty-hint]').textContent = it.carry_has_prev ? '전년 말 보유 수량' : '전년부터 보유 시 입력';
           form.querySelector('[data-carry]').hidden = true;
           // 저장한 계산식 (v0.26.7): 칸에는 결과값, 칸을 누르면 계산식
           Object.keys(CALC_FIELDS).forEach((k) => form[k]._setFormula(it.formulas && it.formulas[k]));
