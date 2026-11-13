@@ -972,3 +972,5 @@ button.carry-btn:hover { background: var(--t-100); }
 .pend-bell { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; margin-left: 2px; border: 1px solid #fca5a5; border-radius: 50%; background: #fee2e2; color: #dc2626; vertical-align: middle; cursor: pointer; animation: bellpulse 1.6s ease-in-out infinite; }
 .pend-bell:hover { background: #fecaca; filter: none; }
 @keyframes bellpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .35); } 50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); } }
+/* v0.30.85 배당 내역 표: 종목 아래 줄 배지(그룹·종류·배당 주기)는 잘리지 않게 줄바꿈 */
+.divhist-table td.name-col .name-cell > small { white-space: normal !important; overflow: visible; line-height: 1.9; }
