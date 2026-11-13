@@ -2324,46 +2324,58 @@
   const DIV_WITHHOLD_RATE = 0.154; // 나의 배당 조회의 세금 = 과세표준 × 15.4%
   // 나의 배당 조회 (v0.30.52, v0.30.53: 나의 자산 조회처럼 조회 조건 → 요약 → 그래프 → 상세 표)
   //  배당 내역 입력에서 저장한 회차를 지급일(없으면 배당락일) 기간·종목으로 조회
-  function viewMyDiv() {
+  function viewMyDiv(query = {}) {
+    // 조회 조건 (v0.30.54): 배당 내역 입력과 같은 모양 — 기준 연도 · 월(시작~끝) · 그룹 탭
     const saved = settings.get('dividends.filter') || {};
-    const from0 = /^\d{4}-\d{2}-\d{2}$/.test(saved.from || '') ? saved.from : `${THIS_YEAR}-01-01`;
-    const to0 = /^\d{4}-\d{2}-\d{2}$/.test(saved.to || '') ? saved.to : today();
+    const year = Math.min(Number(query.year) || Number(saved.year) || THIS_YEAR, THIS_YEAR);
+    const groupParam = query.group !== undefined ? query.group : (saved.group || '');
+    const curMonth = new Date().getMonth() + 1;
+    let fromM = Number(query.from) || (query.year ? 1 : Number(saved.fromM) || 1);
+    let toM = Number(query.to) || (query.year ? (year >= THIS_YEAR ? curMonth : 12) : Number(saved.toM) || (year >= THIS_YEAR ? curMonth : 12));
+    if (fromM > toM) [fromM, toM] = [toM, fromM];
+    settings.set('dividends.filter', { year, fromM, toM, group: groupParam || '' });
+    const monthOpts = (sel) => Array.from({ length: 12 }, (_, i) => i + 1).map((m) => `<option value="${m}" ${m === sel ? 'selected' : ''}>${m}월</option>`).join('');
+    const qsOf = (o = {}) => {
+      const g = o.group !== undefined ? o.group : groupParam;
+      const f = o.from !== undefined ? o.from : fromM;
+      const t = o.to !== undefined ? o.to : toM;
+      return `year=${o.year || year}&group=${g || ''}${f ? `&from=${f}` : ''}${t ? `&to=${t}` : ''}`;
+    };
     const main = shell('#/mydiv', `
-      <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 입력에서 저장한 배당 회차를 지급일 기간과 종목으로 조회합니다.</p></div></div>
-      <div class="card">
-        <form class="field-row head-ctrl" data-filter>
-          <div class="field"><label>시작일</label><input type="date" name="from" value="${esc(from0)}" /></div>
-          <div class="field"><label>종료일</label><input type="date" name="to" value="${esc(to0)}" /></div>
-          <div class="field" style="width:120px"><label>종목코드</label><input name="code" list="hcodes" placeholder="전체" value="${esc(saved.code || '')}" /></div>
-          <button type="submit">조회</button>
-        </form>
-        <datalist id="hcodes"></datalist>
-      </div>
+      <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 입력에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).</p></div></div>
+      <div class="card"><div class="group-bar"><div class="group-left">
+        <div class="field inline-field year-ctrl"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year, THIS_YEAR - 9)}</select></div>
+        <div class="field inline-field year-ctrl"><span class="inline-label" data-noi18n>${isEn() ? 'Month' : '월'}</span><span class="range-group"><select data-from aria-label="시작 월">${monthOpts(fromM)}</select><span class="range-sep">~</span><select data-to aria-label="종료 월">${monthOpts(toM)}</select></span></div>
+        <div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
       <div data-mydiv-body><div class="empty">불러오는 중…</div></div>`);
     main.classList.add('yr-page');
-    api('GET', '/holdings').then(({ holdings }) => {
-      const dl = main.querySelector('#hcodes');
-      if (dl) dl.innerHTML = holdings.map((h) => `<option value="${esc(h.code)}">${esc(h.name || '')}</option>`).join('');
-    }).catch(() => {});
-    const filter = main.querySelector('[data-filter]');
+    main.querySelector('[data-year]').addEventListener('change', (e) => go(`#/mydiv?${qsOf({ year: e.target.value, from: '', to: '' })}`)); // 연도를 바꾸면 월은 기본값
+    const onMonth = () => {
+      let f = Number(main.querySelector('[data-from]').value);
+      let t = Number(main.querySelector('[data-to]').value);
+      if (f > t) [f, t] = [t, f];
+      go(`#/mydiv?${qsOf({ from: f, to: t })}`);
+    };
+    main.querySelector('[data-from]').addEventListener('change', onMonth);
+    main.querySelector('[data-to]').addEventListener('change', onMonth);
     const body = main.querySelector('[data-mydiv-body]');
     const dash = '<span class="muted">-</span>';
     const ym = (d) => String(d || '').slice(0, 7);
+    const pad = (m) => String(m).padStart(2, '0');
     async function load() {
-      const f = formData(filter);
-      if (f.from && f.to && f.from > f.to) return toast('시작일이 종료일보다 늦습니다.');
-      settings.set('dividends.filter', { from: f.from, to: f.to, code: f.code || '' });
-      const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+      let groups = [];
+      try { groups = (await api('GET', '/groups')).groups || []; } catch (_) { /* 그룹 없이 */ }
+      const gid = groups.some((g) => String(g.id) === String(groupParam)) ? Number(groupParam) : null;
+      const tabs = main.querySelector('[data-tabs]');
+      tabs.innerHTML = [`<button class="${gid ? '' : 'on'}" data-g="">전체</button>`].concat(groups.map((g) => `<button class="${gid === g.id ? 'on' : ''}" data-g="${g.id}">${ud(g.name)}</button>`)).join('');
+      tabs.querySelectorAll('[data-g]').forEach((bt) => bt.addEventListener('click', () => go(`#/mydiv?${qsOf({ group: bt.dataset.g })}`)));
+      const lastDay = new Date(year, toM, 0).getDate();
+      const qs = `from=${year}-${pad(fromM)}-01&to=${year}-${pad(toM)}-${pad(lastDay)}${gid ? `&groupId=${gid}` : ''}`;
       let rows;
       try { ({ rows } = await api('GET', `/divmgmt/history?${qs}`)); } catch (err) { body.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; return; }
       destroyCharts();
-      // 월별 합계 (기간의 모든 달, 원화)
-      const months = [];
-      for (let d = new Date(`${(f.from || `${THIS_YEAR}-01-01`).slice(0, 7)}-01T00:00:00`), end = ym(f.to || today()); ; d.setMonth(d.getMonth() + 1)) {
-        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (k > end || months.length > 240) break;
-        months.push(k);
-      }
+      // 월별 합계 (고른 월 범위의 모든 달, 원화)
+      const months = Array.from({ length: toM - fromM + 1 }, (_, i) => `${year}-${pad(fromM + i)}`);
       const byM = new Map(months.map((k) => [k, { div: 0, tax: 0, n: 0, taxMissing: 0 }]));
       for (const r of rows) {
         const m = byM.get(ym(r.paid));
@@ -2394,7 +2406,7 @@
         </div>
         <div class="card" data-fold="chart"><h2>월별 배당</h2>
           <div class="chart-box" style="height:280px"><canvas data-mchart></canvas></div>
-          <p class="small muted" style="margin:6px 0 0">막대 = 월 배당(원화), 막대 안의 진한 부분 = 그 달 과세표준</p>
+          <p class="small muted" style="margin:6px 0 0">막대 = 월 배당(원화, 국내·해외·해외추종을 층으로 쌓음) · 꺾은선 = 그 달 과세표준(원화)</p>
         </div>
         <div class="card" data-fold="list"><h2>배당 내역 <span class="muted small">${rows.length}건</span></h2>
           ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
@@ -2412,29 +2424,60 @@
           <p class="small muted" style="margin:6px 0 0">월 배당 = 수량 × 주당배당 · 세금 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨) · 지급일이 없는 회차는 배당락일 기준</p>
         </div>`;
       makeFoldable(main, 'mydiv.collapsed');
-      // 월별 막대: 한 막대에 월 배당(연한 색, 넓게)과 과세표준(진한 색, 좁게 안쪽)을 겹쳐 그린다
+      // 월별 배당 그래프 (v0.30.54): 연도별 자산 증감과 같은 모양 — 한 막대에 국내·해외·해외추종 배당을 층으로 쌓고,
+      // 과세표준은 꺾은선(막대 위쪽, 값 표시)으로 그린다
       const pal = chartPalette();
+      const CATS = { DOMESTIC: tt('국내'), OVERSEAS: tt('해외'), OVERSEAS_TRACK: tt('해외추종') };
+      const CAT_COLORS = { DOMESTIC: pal.c1, OVERSEAS: pal.c2, OVERSEAS_TRACK: pal.c3 };
+      const byMC = new Map(months.map((k) => [k, { DOMESTIC: 0, OVERSEAS: 0, OVERSEAS_TRACK: 0 }]));
+      for (const r of rows) { const m = byMC.get(ym(r.paid)); if (m) m[CATS[r.category] ? r.category : 'DOMESTIC'] += r.amount_krw || 0; }
       const mm = months.map((k) => byM.get(k));
+      const maxDiv = Math.max(1, ...mm.map((m) => m.div));
+      const short = (v) => (isEn() ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v >= 1e4 ? `${Number((v / 1e4).toFixed(1))}만` : nf0.format(v));
       state.charts.push(new Chart(main.querySelector('[data-mchart]'), {
         type: 'bar',
         data: {
           labels: months.map((k) => (months.length > 12 ? `${k.slice(2, 4)}.${k.slice(5)}` : `${Number(k.slice(5))}월`)),
           datasets: [
-            { label: tt('과세표준'), data: mm.map((m) => m.tax), backgroundColor: pal.c1, borderRadius: 3, barPercentage: 0.45, categoryPercentage: 0.8, grouped: false, order: 0 },
-            { label: tt('월 배당'), data: mm.map((m) => m.div), backgroundColor: pal.c3, borderRadius: 4, barPercentage: 0.9, categoryPercentage: 0.8, grouped: false, order: 1 },
+            { type: 'line', label: tt('과세표준'), data: mm.map((m) => (m.n && m.tax > 0 ? m.tax : null)), spanGaps: true, yAxisID: 'yTax', order: 0, borderColor: pal.line, backgroundColor: pal.line, borderWidth: 2, pointRadius: 4, tension: 0 },
+            ...Object.keys(CATS).map((id) => ({ label: CATS[id], data: months.map((k) => byMC.get(k)[id]), backgroundColor: CAT_COLORS[id], borderRadius: 4, stack: 'div', order: 1 })),
           ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
+          layout: { padding: { top: 18 } },
           plugins: {
-            legend: { display: true, position: 'bottom', labels: { boxWidth: 12 }, reverse: true },
-            tooltip: { mode: 'index', intersect: false, callbacks: { title: (it) => months[it[0].dataIndex], label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}`, footer: (it) => `${tt('세금')} ${krw(mm[it[0].dataIndex].tax * DIV_WITHHOLD_RATE)} · ${mm[it[0].dataIndex].n}${isEn() ? '' : '건'}` } },
+            legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
+            tooltip: { callbacks: {
+              title: (it) => months[it[0].dataIndex],
+              label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}`,
+              footer: (it) => `${tt('월 배당')} ${krw(mm[it[0].dataIndex].div)} · ${tt('세금')} ${krw(mm[it[0].dataIndex].tax * DIV_WITHHOLD_RATE)}`,
+            } },
           },
-          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: (v) => (isEn() ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v >= 1e4 ? `${Number((v / 1e4).toFixed(1))}만` : nf0.format(v)) } } },
+          scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, suggestedMax: maxDiv * 1.35, ticks: { callback: short } },
+            // 과세표준 선이 막대 위에 놓이도록 같은 금액 축을 쓰되 보이지 않게 (막대와 같은 기준이라 높이 비교 가능)
+            yTax: { display: false, beginAtZero: true, min: 0, max: maxDiv * 1.35 },
+          },
         },
+        plugins: [{
+          id: 'taxLabels',
+          afterDatasetsDraw(chart) {
+            const meta = chart.getDatasetMeta(0);
+            if (!meta || meta.hidden) return;
+            const { ctx } = chart;
+            ctx.save();
+            ctx.font = '600 11px sans-serif';
+            ctx.fillStyle = pal.line;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            meta.data.forEach((pt, i) => { if (mm[i].tax && pt && !Number.isNaN(pt.y)) ctx.fillText(short(Math.round(mm[i].tax)), pt.x, pt.y - 7); });
+            ctx.restore();
+          },
+        }],
       }));
     }
-    filter.addEventListener('submit', (e) => { e.preventDefault(); load(); });
     load();
   }
 

@@ -682,12 +682,14 @@ router.get('/divmgmt/history', async (req, res) => {
   const groups = new Map(positions.groupsOf(req.user.id).map((g) => [g.id, g.name]));
   // by=ex: 배당락일로 고른다(연도별 배당 증감의 연도 기준과 같게, v0.30.52). 기본은 지급일(없으면 배당락일)
   const dateCol = req.query.by === 'ex' ? 'h.ex_date' : 'COALESCE(h.pay_date, h.ex_date)';
+  const savedCats = categories.savedMap(req.user.id); // 종목 분류(국내·해외·해외추종) — 나의 배당 조회 그래프용 (v0.30.54)
+  const groupId = Number(req.query.groupId) || null; // 그룹 (나의 배당 조회, v0.30.54)
   const rows = db.all(
     `SELECT h.*, COALESCE(h.pay_date, h.ex_date) AS paid, i.name, i.type, i.currency FROM holding_dividends h
      LEFT JOIN instruments i ON i.code = h.code
-     WHERE h.user_id = ? AND ${dateCol} BETWEEN ? AND ? ${code ? 'AND h.code = ?' : ''}
+     WHERE h.user_id = ? AND ${dateCol} BETWEEN ? AND ? ${code ? 'AND h.code = ?' : ''} ${groupId ? 'AND h.group_id = ?' : ''}
      ORDER BY paid DESC, h.code`,
-    [req.user.id, from, to, ...(code ? [code] : [])]
+    [req.user.id, from, to, ...(code ? [code] : []), ...(groupId ? [groupId] : [])]
   ).map((r) => {
     const fx = r.currency === 'USD' ? market.fxOn(r.paid) : null;
     const rate = r.currency === 'USD' ? (fx ? fx.rate : null) : 1;
@@ -695,6 +697,7 @@ router.get('/divmgmt/history', async (req, res) => {
     return {
       id: r.id, paid: r.paid, pay_date: r.pay_date, ex_date: r.ex_date, code: r.code, name: r.name || r.code, type: r.type, currency: r.currency || 'KRW',
       group_name: groups.get(r.group_id) || '-', quantity: r.quantity, per_share: r.per_share, amount: r.amount, tax_amount: r.tax_amount,
+      category: categories.categoryOf(req.user.id, r.code, { name: r.name, type: r.type, currency: r.currency || 'KRW' }, savedCats).id,
       fx_rate: rate, amount_krw: k(r.amount), tax_krw: k(r.tax_amount),
     };
   });
