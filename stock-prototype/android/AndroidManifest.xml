@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.stockmanager.prototype"
-    android:versionCode="158"
-    android:versionName="0.30.58">
+    android:versionCode="159"
+    android:versionName="0.30.59">
 
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
 
