@@ -2321,14 +2321,121 @@
     loadDivYearly();
   }
 
-  // 나의 배당 조회 (v0.30.52): 배당 내역 입력에서 저장한 회차를 기간·종목으로 조회 (연도별 자산 · 배당 조회에서 옮김)
+  const DIV_WITHHOLD_RATE = 0.154; // 나의 배당 조회의 세금 = 과세표준 × 15.4%
+  // 나의 배당 조회 (v0.30.52, v0.30.53: 나의 자산 조회처럼 조회 조건 → 요약 → 그래프 → 상세 표)
+  //  배당 내역 입력에서 저장한 회차를 지급일(없으면 배당락일) 기간·종목으로 조회
   function viewMyDiv() {
+    const saved = settings.get('dividends.filter') || {};
+    const from0 = /^\d{4}-\d{2}-\d{2}$/.test(saved.from || '') ? saved.from : `${THIS_YEAR}-01-01`;
+    const to0 = /^\d{4}-\d{2}-\d{2}$/.test(saved.to || '') ? saved.to : today();
     const main = shell('#/mydiv', `
       <div class="page-head"><div><h1>나의 배당 조회 ${req('FR-DIV-02')}</h1><p>배당 내역 입력에서 저장한 배당 회차를 지급일 기간과 종목으로 조회합니다.</p></div></div>
-      <div class="card" data-divlist data-fold="divlist">${divListShell()}</div>`);
-    makeFoldable(main, 'mydiv.collapsed');
+      <div class="card">
+        <form class="field-row head-ctrl" data-filter>
+          <div class="field"><label>시작일</label><input type="date" name="from" value="${esc(from0)}" /></div>
+          <div class="field"><label>종료일</label><input type="date" name="to" value="${esc(to0)}" /></div>
+          <div class="field" style="width:120px"><label>종목코드</label><input name="code" list="hcodes" placeholder="전체" value="${esc(saved.code || '')}" /></div>
+          <button type="submit">조회</button>
+        </form>
+        <datalist id="hcodes"></datalist>
+      </div>
+      <div data-mydiv-body><div class="empty">불러오는 중…</div></div>`);
     main.classList.add('yr-page');
-    mountDivList(main.querySelector('[data-divlist]'));
+    api('GET', '/holdings').then(({ holdings }) => {
+      const dl = main.querySelector('#hcodes');
+      if (dl) dl.innerHTML = holdings.map((h) => `<option value="${esc(h.code)}">${esc(h.name || '')}</option>`).join('');
+    }).catch(() => {});
+    const filter = main.querySelector('[data-filter]');
+    const body = main.querySelector('[data-mydiv-body]');
+    const dash = '<span class="muted">-</span>';
+    const ym = (d) => String(d || '').slice(0, 7);
+    async function load() {
+      const f = formData(filter);
+      if (f.from && f.to && f.from > f.to) return toast('시작일이 종료일보다 늦습니다.');
+      settings.set('dividends.filter', { from: f.from, to: f.to, code: f.code || '' });
+      const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+      let rows;
+      try { ({ rows } = await api('GET', `/divmgmt/history?${qs}`)); } catch (err) { body.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; return; }
+      destroyCharts();
+      // 월별 합계 (기간의 모든 달, 원화)
+      const months = [];
+      for (let d = new Date(`${(f.from || `${THIS_YEAR}-01-01`).slice(0, 7)}-01T00:00:00`), end = ym(f.to || today()); ; d.setMonth(d.getMonth() + 1)) {
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (k > end || months.length > 240) break;
+        months.push(k);
+      }
+      const byM = new Map(months.map((k) => [k, { div: 0, tax: 0, n: 0, taxMissing: 0 }]));
+      for (const r of rows) {
+        const m = byM.get(ym(r.paid));
+        if (!m) continue;
+        m.div += r.amount_krw || 0;
+        m.tax += r.tax_krw || 0;
+        m.n += 1;
+        if (r.tax_krw == null) m.taxMissing += 1;
+      }
+      const lastM = months[months.length - 1];
+      const cur = byM.get(lastM) || { div: 0, tax: 0, n: 0, taxMissing: 0 };
+      const tot = { div: rows.reduce((a, r) => a + (r.amount_krw || 0), 0), tax: rows.reduce((a, r) => a + (r.tax_krw || 0), 0) };
+      const taxMissing = rows.some((r) => r.tax_krw == null);
+      const star = (miss) => (miss ? '*' : '');
+      const mLabel = lastM ? `${lastM.slice(0, 4)}년 ${Number(lastM.slice(5))}월` : '';
+      const krwTip = (r, v) => (r.currency === 'USD' && v != null ? `<br/><small class="muted">${krw(v * r.fx_rate)}</small>` : '');
+      body.innerHTML = `
+        <div class="card fold-card" data-fold="summary"><h2>요약</h2>
+          <div class="grid k3 mydiv-kpis">
+            <div class="kpi"><div class="label">월 배당 · ${esc(mLabel)}</div><div class="value">${krw(cur.div)}</div><div class="sub">${cur.n}건</div></div>
+            <div class="kpi"><div class="label">월 과세표준 · ${esc(mLabel)}</div><div class="value">${krw(cur.tax)}${star(cur.taxMissing)}</div><div class="sub">과세표준이 있는 회차 합계</div></div>
+            <div class="kpi"><div class="label">월 세금 · ${esc(mLabel)}</div><div class="value">${krw(cur.tax * DIV_WITHHOLD_RATE)}${star(cur.taxMissing)}</div><div class="sub">과세표준 × 15.4%</div></div>
+            <div class="kpi"><div class="label">누적 배당 · 조회 기간</div><div class="value">${krw(tot.div)}</div><div class="sub">${rows.length}건</div></div>
+            <div class="kpi"><div class="label">누적 과세표준 · 조회 기간</div><div class="value">${krw(tot.tax)}${star(taxMissing)}</div><div class="sub">과세표준이 있는 회차 합계</div></div>
+            <div class="kpi"><div class="label">누적 세금 · 조회 기간</div><div class="value">${krw(tot.tax * DIV_WITHHOLD_RATE)}${star(taxMissing)}</div><div class="sub">과세표준 × 15.4%</div></div>
+          </div>
+          <p class="small muted" style="margin:8px 0 0">월 = 조회 기간의 마지막 달 · 누적 = 조회 기간 전체 · 지급일(없으면 배당락일) 기준 · 미국 종목은 지급일 환율로 원화 환산${taxMissing ? ' · * 과세표준이 없는 회차 제외' : ''}</p>
+        </div>
+        <div class="card" data-fold="chart"><h2>월별 배당</h2>
+          <div class="chart-box" style="height:280px"><canvas data-mchart></canvas></div>
+          <p class="small muted" style="margin:6px 0 0">막대 = 월 배당(원화), 막대 안의 진한 부분 = 그 달 과세표준</p>
+        </div>
+        <div class="card" data-fold="list"><h2>배당 내역 <span class="muted small">${rows.length}건</span></h2>
+          ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
+            ${rows.map((r) => `<tr>
+              <td class="center">${esc(r.paid)}${r.pay_date ? '' : '<br/><small class="muted">배당락일</small>'}</td>
+              <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
+              <td>${qty(r.quantity)}</td>
+              <td>${money(r.per_share, r.currency)}</td>
+              <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>
+              <td>${r.tax_amount == null ? dash : money(r.tax_amount, r.currency) + krwTip(r, r.tax_amount)}</td>
+              <td>${r.tax_amount == null ? dash : money(r.tax_amount * DIV_WITHHOLD_RATE, r.currency) + krwTip(r, r.tax_amount * DIV_WITHHOLD_RATE)}</td>
+            </tr>`).join('')}</tbody>
+            <tfoot><tr><td colspan="4">합계 (원화)</td><td>${krw(tot.div)}</td><td>${krw(tot.tax)}${star(taxMissing)}</td><td>${krw(tot.tax * DIV_WITHHOLD_RATE)}${star(taxMissing)}</td></tr></tfoot></table></div>`
+          : '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당 내역 입력에서 회차를 저장하면 여기에 나옵니다.</div>'}
+          <p class="small muted" style="margin:6px 0 0">월 배당 = 수량 × 주당배당 · 세금 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨) · 지급일이 없는 회차는 배당락일 기준</p>
+        </div>`;
+      makeFoldable(main, 'mydiv.collapsed');
+      // 월별 막대: 한 막대에 월 배당(연한 색, 넓게)과 과세표준(진한 색, 좁게 안쪽)을 겹쳐 그린다
+      const pal = chartPalette();
+      const mm = months.map((k) => byM.get(k));
+      state.charts.push(new Chart(main.querySelector('[data-mchart]'), {
+        type: 'bar',
+        data: {
+          labels: months.map((k) => (months.length > 12 ? `${k.slice(2, 4)}.${k.slice(5)}` : `${Number(k.slice(5))}월`)),
+          datasets: [
+            { label: tt('과세표준'), data: mm.map((m) => m.tax), backgroundColor: pal.c1, borderRadius: 3, barPercentage: 0.45, categoryPercentage: 0.8, grouped: false, order: 0 },
+            { label: tt('월 배당'), data: mm.map((m) => m.div), backgroundColor: pal.c3, borderRadius: 4, barPercentage: 0.9, categoryPercentage: 0.8, grouped: false, order: 1 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'bottom', labels: { boxWidth: 12 }, reverse: true },
+            tooltip: { mode: 'index', intersect: false, callbacks: { title: (it) => months[it[0].dataIndex], label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}`, footer: (it) => `${tt('세금')} ${krw(mm[it[0].dataIndex].tax * DIV_WITHHOLD_RATE)} · ${mm[it[0].dataIndex].n}${isEn() ? '' : '건'}` } },
+          },
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: (v) => (isEn() ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v >= 1e4 ? `${Number((v / 1e4).toFixed(1))}만` : nf0.format(v)) } } },
+        },
+      }));
+    }
+    filter.addEventListener('submit', (e) => { e.preventDefault(); load(); });
+    load();
   }
 
   // ---------------------------------------------------------------------------
@@ -2411,61 +2518,6 @@
       : '<div class="empty">이 해에 저장한 배당 회차가 없습니다.</div>'}</div>`;
   }
 
-  // 배당 내역 조회 카드 (v0.14): 배당 내역 입력에서 저장한 회차를 지급일 기간으로 조회. 기본 올해 1월 1일 ~ 오늘
-  const DIV_WITHHOLD_RATE = 0.154; // 과세 = 과세표준 × 15.4%
-  function divListShell() {
-    return `<h2>배당 내역 조회 ${req('FR-DIV-02')}</h2>
-      <form class="field-row" data-filter style="margin-bottom:12px">
-        <div class="field"><label>시작일</label><input type="date" name="from" value="${THIS_YEAR}-01-01" /></div>
-        <div class="field"><label>종료일</label><input type="date" name="to" value="${today()}" /></div>
-        <div class="field" style="width:110px"><label>종목코드</label><input name="code" list="hcodes" /></div>
-        <button type="submit" class="secondary">조회</button>
-        <div class="divhist-sum" data-sum></div>
-      </form>
-      <datalist id="hcodes"></datalist>
-      <div data-list></div>`;
-  }
-  function mountDivList(card) {
-    api('GET', '/holdings').then(({ holdings }) => {
-      const dl = card.querySelector('#hcodes');
-      if (dl) dl.innerHTML = holdings.map((h) => `<option value="${esc(h.code)}">${esc(h.name || '')}</option>`).join('');
-    }).catch(() => {});
-    const filter = card.querySelector('[data-filter]');
-    const dash = '<span class="muted">-</span>';
-    async function load() {
-      const f = formData(filter);
-      if (f.from && f.to && f.from > f.to) return toast('시작일이 종료일보다 늦습니다.');
-      const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
-      const { rows } = await api('GET', `/divmgmt/history?${qs}`);
-      const list = card.querySelector('[data-list]');
-      const sumBox = card.querySelector('[data-sum]');
-      const tot = (f2) => rows.reduce((a, r) => a + (r[f2] || 0), 0);
-      const miss = rows.some((r) => r.tax_krw == null) ? '*' : '';
-      // 조회 버튼 옆 소계 요약 (v0.15.1): 표의 합계(원화)와 같은 값
-      if (sumBox) sumBox.innerHTML = `<span class="muted">(합계)</span> <span>월배당 <b>${krw(tot('amount_krw'))}</b></span> · <span>과세표준 <b>${krw(tot('tax_krw'))}${miss}</b></span> · <span>과세 <b>${krw(tot('tax_krw') * DIV_WITHHOLD_RATE)}${miss}</b></span>`;
-      if (!rows.length) {
-        list.innerHTML = '<div class="empty">조건에 맞는 배당 내역이 없습니다. 배당 내역 입력에서 회차를 저장하면 여기에 나옵니다.</div>';
-        return;
-      }
-      const krwTip = (r, v) => (r.currency === 'USD' && v != null ? `<br/><small class="muted">${krw(v * r.fx_rate)}</small>` : '');
-      const sum = (f2) => rows.reduce((a, r) => a + (r[f2] || 0), 0);
-      const taxMissing = rows.some((r) => r.tax_krw == null);
-      list.innerHTML = `<div class="table-wrap scroll-y"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>과세</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr>
-          <td class="center">${esc(r.paid)}${r.pay_date ? '' : '<br/><small class="muted">배당락일</small>'}</td>
-          <td class="left"><div class="name-cell"><span>${ud(r.name)} ${badge(r.type)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''}</small></div></td>
-          <td>${qty(r.quantity)}</td>
-          <td>${money(r.per_share, r.currency)}</td>
-          <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>
-          <td>${r.tax_amount == null ? dash : money(r.tax_amount, r.currency) + krwTip(r, r.tax_amount)}</td>
-          <td>${r.tax_amount == null ? dash : money(r.tax_amount * DIV_WITHHOLD_RATE, r.currency) + krwTip(r, r.tax_amount * DIV_WITHHOLD_RATE)}</td>
-        </tr>`).join('')}</tbody>
-        <tfoot><tr><td colspan="4">합계 (원화)</td><td>${krw(sum('amount_krw'))}</td><td>${krw(sum('tax_krw'))}${taxMissing ? '*' : ''}</td><td>${krw(sum('tax_krw') * DIV_WITHHOLD_RATE)}${taxMissing ? '*' : ''}</td></tr></tfoot></table></div>
-        <div class="small muted" style="margin-top:6px">${rows.length}건 · 배당 내역 입력에서 저장한 회차 기준 · 월 배당 = 수량 × 주당배당 · 과세 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨)${taxMissing ? ' · * 과세표준이 없는 회차 제외' : ''} · 지급일이 없는 회차는 배당락일 기준</div>`;
-    }
-    filter.addEventListener('submit', (e) => { e.preventDefault(); load(); });
-    return load();
-  }
 
   // ---------------------------------------------------------------------------
   // SC-07 내 정보

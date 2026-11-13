@@ -895,3 +895,7 @@ th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; o
 /* v0.30.47 6자리 칸(동기화 비밀번호): 좁은 화면에서도 한 줄 */
 .pin-boxes.pin6 { gap: 6px; } .pin-boxes.pin6 .pin-box { width: 42px; }
 @media (max-width: 400px) { .pin-boxes.pin6 .pin-box { width: 38px; height: 46px; } }
+
+/* v0.30.53 나의 배당 조회 요약: 3칸 × 2줄 */
+.grid.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { .grid.k3 { grid-template-columns: 1fr 1fr; gap: 10px; } }
