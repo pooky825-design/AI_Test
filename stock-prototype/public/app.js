@@ -1094,19 +1094,15 @@
       if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', off, true); }
     }, true));
   }
+  const NAME_COL_W = () => (window.matchMedia('(max-width: 640px)').matches ? 140 : 200);
   function fitNameColumn(table) {
     const firstRow = [...table.tBodies].flatMap((tb) => [...tb.rows]).find((tr) => tr.querySelector(':scope > td .name-cell'));
     if (!firstRow) return;
     const idx = rowCells(firstRow).find((c) => c.cell.querySelector('.name-cell'));
     if (!idx) return;
     const col = idx.start;
-    if (!table.dataset.nameW) {
-      const th = table.tHead && rowCells(table.tHead.rows[0]).find((c) => c.start === col);
-      const w = (th ? th.cell : idx.cell).getBoundingClientRect().width;
-      if (!w) return;
-      table.dataset.nameW = String(Math.max(90, Math.round(w * 0.8)));
-    }
-    const w = Number(table.dataset.nameW);
+    // v0.30.65: 모든 표의 종목 열을 같은 고정 폭으로 (PC 200px · 휴대폰 140px)
+    const w = NAME_COL_W();
     // 1단계: 열의 모든 칸 폭을 먼저 줄이고, 2단계: 줄어든 폭에서 넘치는 글자만 작게
     const todo = [];
     [...table.rows].forEach((tr) => {

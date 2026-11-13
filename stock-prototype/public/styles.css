@@ -928,3 +928,6 @@ tfoot td, tr.group-sub td, tr.sum-row td,
 .card[data-ckey] tfoot td { color: var(--text); }
 .card[data-ckey] tfoot td.today-col { background: hsl(27, 60%, 95.5%); }
 tr.group-sub td { border-bottom: 1px solid var(--border); }
+/* v0.30.65 종목 열 고정 폭: name-cell 표는 app.js fitNameColumn, 키워드 표는 여기서 */
+.kw-table td.kw-name, .kw-table th:first-child { width: 200px; min-width: 200px; max-width: 200px; white-space: normal; }
+@media (max-width: 640px) { .kw-table td.kw-name, .kw-table th:first-child { width: 140px; min-width: 140px; max-width: 140px; } }
