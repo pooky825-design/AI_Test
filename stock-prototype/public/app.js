@@ -747,6 +747,7 @@
         </div>
       </div>
       <div class="card"><div class="group-bar"><div class="group-left"><div class="field inline-field year-ctrl"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year)}</select><button type="button" class="icon-btn refresh-btn" data-refresh title="새로고침" aria-label="새로고침">${ICON_REFRESH}</button></div><div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div></div><div class="field-row" style="gap:14px;align-items:center"><label class="merge-toggle" data-merge-wrap hidden><input type="checkbox" data-merge ${merged ? 'checked' : ''} /> 통합 <span class="muted small">(그룹 구분 없이 종목별 합산)</span></label><a href="#/holdings" class="small">그룹 관리 →</a></div></div></div>`);
+    main.classList.add('vlines'); // 표 세로 점선 (v0.30.63)
     main.querySelector('[data-year]').addEventListener('change', (e) => {
       settings.set('assets.year', Number(e.target.value));
       go(`#/assets?year=${e.target.value}${groupQs}`);
@@ -2374,7 +2375,7 @@
         <div class="field inline-field year-ctrl"><span class="inline-label" data-noi18n>${isEn() ? 'Month' : '월'}</span><span class="range-group"><select data-from aria-label="시작 월">${monthOpts(fromM)}</select><span class="range-sep">~</span><select data-to aria-label="종료 월">${monthOpts(toM)}</select></span></div>
         <div class="group-tabs" data-tabs><span class="small muted">그룹 불러오는 중…</span></div></div><a href="#/holdings" class="small">그룹 관리 →</a></div></div>
       <div data-mydiv-body><div class="empty">불러오는 중…</div></div>`);
-    main.classList.add('yr-page', 'mydiv-page'); // mydiv-page: 표 세로 점선 (v0.30.61)
+    main.classList.add('yr-page', 'mydiv-page', 'vlines'); // vlines: 표 세로 점선 (v0.30.61)
     main.querySelector('[data-year]').addEventListener('change', (e) => go(`#/mydiv?${qsOf({ year: e.target.value, from: '', to: '' })}`)); // 연도를 바꾸면 월은 기본값
     const onMonth = () => {
       let f = Number(main.querySelector('[data-from]').value);
