@@ -816,39 +816,39 @@
         <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
         <div class="grid k4">
           <div class="kpi"><div class="label">총자산 (원화) ${req('FR-AST-02')}</div><div class="value">${krw(t.valueKrw)}</div><div class="sub">매입금액 ${krw(t.origCostKrw)} · 손익 기준액 ${krw(t.costKrw)}</div></div>
+          <div class="kpi"><div class="label">오늘 손익</div><div class="value ${d.ongoing ? cls(t.todayPnlKrw) : ''}">${d.ongoing && t.todayPnlKrw != null ? sKrw(t.todayPnlKrw) : '-'}</div><div class="sub">${d.ongoing ? `수익률 <b class="${cls(t.todayPct)}">${t.todayPct == null ? '-' : pct(t.todayPct)}</b> · 전일 종가 대비` : '올해(진행 중인 연도)만 표시'}</div></div>
           <div class="kpi"><div class="label">${d.ongoing ? '금년' : `${d.year}년`} 손익 ${req('FR-AST-03')}</div><div class="value ${cls(t.pnlKrw)}">${sKrw(t.pnlKrw)}</div><div class="sub">수익률 <b class="${cls(t.returnPct)}">${pct(t.returnPct)}</b> · 평가금액 − 손익 기준액(금년)</div></div>
           <div class="kpi"><div class="label">전체기간 손익 ${req('FR-AST-11')}</div><div class="value ${cls(t.totalPnlKrw)}">${sKrw(t.totalPnlKrw)}</div><div class="sub">수익률 <b class="${cls(t.totalPct)}">${pct(t.totalPct)}</b> · 매입금액 ${krw(t.origCostKrw)} 기준</div></div>
-          <div class="kpi"><div class="label">${d.ongoing ? '적용 환율' : '연말 환율'} (USD/KRW) ${req('FR-AST-04')}</div><div class="value">${rate(d.basis.fxRate)}${d.basis.fxChangePct == null ? '' : ` <span class="kpi-chg ${cls(d.basis.fxChangePct)}">${pct(d.basis.fxChangePct)}</span>`}</div><div class="sub">${d.basis.fxChangePct == null ? '' : `전일 대비 ${sMoney(d.basis.fxRate - d.basis.fxPrev, 'KRW')} (${esc(String(d.basis.fxPrevDate || ''))} ${rate(d.basis.fxPrev)}) · `}${d.ongoing ? `${fmtTime(d.basis.fxTime)} 기준` : `${esc(String(d.basis.fxTime || '').slice(0, 10))} 기준`}</div></div>
         </div></div>
         ${showGroup && d.groupTotals.length > 1 ? `<div class="card" data-ckey="group">
           <h2>그룹별 합계</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${todayHead}${pnlHead}</tr></thead>
             <tbody>${d.groupTotals.map((g) => `<tr>
               <td><a href="#/assets?year=${d.year}&group=${g.groupId}">${ud(g.name)}</a></td><td class="num">${g.count}${g.soldCount ? `<br/><small class="muted">매도 ${g.soldCount}</small>` : ''}</td>
               <td class="num">${krw(g.costKrw)}</td><td class="num"><b>${krw(g.valueKrw)}</b></td><td class="num">${pct(t.valueKrw ? g.valueKrw / t.valueKrw : null).replace('+', '')}</td>
-              ${pnlCells(g)}${todayCells(g)}
+              ${todayCells(g)}${pnlCells(g)}
             </tr>`).join('')}</tbody>
             <tfoot><tr class="sum-row">
               <td>소계</td><td class="num">${d.groupTotals.reduce((n, g) => n + g.count, 0)}</td>
               <td class="num">${krw(t.costKrw)}</td><td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
-              ${pnlCells(t)}${todayCells(t)}
+              ${todayCells(t)}${pnlCells(t)}
             </tr></tfoot>
           </table></div>
         </div>` : ''}
         ${(d.typeTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="type">
           <h2>분류별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${todayHead}${pnlHead}</tr></thead>
             <tbody>${d.typeTotals.map((c) => `<tr>
               <td>${badge(c.id)}</td><td class="num">${c.count}</td>
               <td class="num">${c.count || c.soldCount ? krw(c.costKrw) : '-'}</td><td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
-              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}
+              ${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}
             </tr>`).join('')}</tbody>
             <tfoot><tr class="sum-row">
               <td>소계</td><td class="num">${d.typeTotals.reduce((n, c) => n + c.count, 0)}</td>
               <td class="num">${krw(t.costKrw)}</td><td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
-              ${pnlCells(t)}${todayCells(t)}
+              ${todayCells(t)}${pnlCells(t)}
             </tr></tfoot>
           </table></div>
                     <p class="small muted" style="margin:4px 0 0">분류 = 종목 종류(주식 · ETF · ETN)</p>
@@ -856,16 +856,16 @@
         ${(d.categoryTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="category">
           <h2>투자 지역별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>투자 지역</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>투자 지역</th><th class="num">종목 수</th><th class="num">손익 기준액(금년)</th><th class="num">평가금액</th><th class="num">비중</th>${todayHead}${pnlHead}</tr></thead>
             <tbody>${d.categoryTotals.map((c) => `<tr>
               <td><span class="cat cat-${c.id}">${esc(c.label)}</span></td><td class="num">${c.count}</td>
               <td class="num">${c.count || c.soldCount ? krw(c.costKrw) : '-'}</td><td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
-              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}
+              ${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}
             </tr>`).join('')}</tbody>
             <tfoot><tr class="sum-row">
               <td>소계</td><td class="num">${d.categoryTotals.reduce((n, c) => n + c.count, 0)}</td>
               <td class="num">${krw(t.costKrw)}</td><td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
-              ${pnlCells(t)}${todayCells(t)}
+              ${todayCells(t)}${pnlCells(t)}
             </tr></tfoot>
           </table></div>
           ${todayNote}
