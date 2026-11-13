@@ -954,3 +954,5 @@ table.yr-detail { table-layout: fixed; width: 100%; min-width: 1040px; }
 [data-ckey="summary"] .kpi .label, .mydiv-kpis .kpi .label { font-size: 13px; font-weight: 700; }
 /* v0.30.72 두 줄 열 이름((A)·(B)… 기호 등)이 있는 표: 모든 열 이름을 위쪽에 맞춰 첫 줄이 한 줄로 나란히 */
 table:has(.th-period) thead th { vertical-align: top; }
+/* v0.30.74 모든 표: 칸 내용을 위쪽에 맞춰 두 줄 칸(금액·비중 등)의 첫 줄과 한 줄 칸이 가로로 나란히 */
+table th, table td { vertical-align: top; }
