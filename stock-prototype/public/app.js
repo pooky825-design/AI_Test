@@ -2755,7 +2755,7 @@
         ${rows.map((r) => `<tr>
           <td class="center">${esc(r.ex_date || '-')}</td>
           <td class="center">${r.pay_date ? esc(r.pay_date) : dash}</td>
-          <td class="left"><div class="name-cell"><span>${ud(r.name)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''} ${badge(r.type)}</small></div></td>
+          <td class="left"><div class="name-cell"><span>${ud(r.name)}</span><small>${esc(r.code)} ${r.group_name ? `<span class="badge grp-tag" data-noi18n>${esc(r.group_name)}</span>` : ''} ${badge(r.type)} ${divFreqBadge(r.div_freq)}</small></div></td>
           <td>${qty(r.quantity)}</td>
           <td>${money(r.per_share, r.currency)}</td>
           <td><b>${money(r.amount, r.currency)}</b>${krwTip(r, r.amount)}</td>

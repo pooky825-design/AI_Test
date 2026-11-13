@@ -982,3 +982,5 @@ button.carry-btn:hover { background: var(--t-100); }
 .mydiv-page [data-fold="list"] .divhist-table th:nth-child(5) { width: 13.3%; }
 .mydiv-page [data-fold="list"] .divhist-table th:nth-child(6) { width: 14.7%; }
 .mydiv-page [data-fold="list"] .divhist-table th:nth-child(7) { width: 14.6%; }
+/* v0.30.87 모든 표: 종목명 굵게 */
+.name-cell > a:first-child, .name-cell > span:first-child, td.kw-name > div > span:first-child { font-weight: 700; }
