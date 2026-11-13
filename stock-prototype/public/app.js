@@ -926,14 +926,14 @@
               const sumCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}<br/><small>${pct(x.returnPct)}</small></td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}<br/><small>${pct(x.totalPct)}</small></td>`;
               // 그 해 전량 매도한 종목 행: 보유 수량 0, 손익만 표시
               const soldHtml = (r) => `<tr class="sold-row">
-                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} ${divFreqBadge(r.div_freq)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
+                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
                 <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}
                 ${yearCell(r)}${totalCell(r)}
               </tr>`;
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
-                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} ${divFreqBadge(r.div_freq)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
+                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.origAvgPrice, c)}</td>
                 <td class="num">${krwCell(r, r.origCostKrw, r.origCost, false)}</td>
@@ -2398,7 +2398,13 @@
       const lastDay = new Date(year, toM, 0).getDate();
       const qs = `from=${year}-${pad(fromM)}-01&to=${year}-${pad(toM)}-${pad(lastDay)}${gid ? `&groupId=${gid}` : ''}`;
       let rows;
-      try { ({ rows } = await api('GET', `/divmgmt/history?${qs}`)); } catch (err) { body.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; return; }
+      let assets = null;
+      try {
+        // 배당 주기별 평가총액용: 나의 자산 조회와 같은 계산(그 해·그 그룹, v0.30.58). 실패해도 배당은 보여 줌
+        const [h, as] = await Promise.all([api('GET', `/divmgmt/history?${qs}`), api('GET', `/assets?year=${year}${gid ? `&group=${gid}` : ''}`).catch(() => null)]);
+        rows = h.rows;
+        assets = as;
+      } catch (err) { body.innerHTML = `<div class="notice error">${esc(err.message)}</div>`; return; }
       destroyCharts();
       // 월별 합계 (고른 월 범위의 모든 달, 원화)
       const months = Array.from({ length: toM - fromM + 1 }, (_, i) => `${year}-${pad(fromM + i)}`);
@@ -2434,6 +2440,11 @@
           <div class="chart-box" style="height:280px"><canvas data-mchart></canvas></div>
           <p class="small muted" style="margin:6px 0 0">막대 = 월 배당(원화, 국내·해외·해외추종을 층으로 쌓음) · 꺾은선 = 그 달 과세표준(원화)</p>
         </div>
+        <div class="card" data-fold="freq"><div class="card-head freq-head"><h2>배당 주기별 합계</h2>
+          <div class="seg" data-taxmode role="group" aria-label="과세표준·세금 표시"><button type="button" data-tm="base">과세표준</button><button type="button" data-tm="tax">세금</button></div></div>
+          <div data-freq-table></div>
+          <p class="small muted" style="margin:6px 0 0" data-noi18n>${isEn() ? 'Valuation = holdings value as in My Assets (year-end for past years) · Monthly = last month of the range · Total = whole range · Tax = Taxable base × 15.4% · Frequency from recent ex-dates (unknown until dividend history is loaded)' : '평가총액 = 나의 자산 조회와 같은 평가금액(지난 연도는 연말 기준) · 월 = 고른 월 범위의 마지막 달 · 누적 = 고른 기간 전체 · 세금 = 과세표준 × 15.4% · 배당 주기는 최근 배당락일 간격으로 판단(지급내역을 아직 불러오지 않은 종목은 ‘주기 모름’)'}</p>
+        </div>
         <div class="card" data-fold="list"><h2>배당 내역 <span class="muted small">${rows.length}건</span></h2>
           ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>월 배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
             ${rows.map((r) => `<tr>
@@ -2450,6 +2461,55 @@
           <p class="small muted" style="margin:6px 0 0">월 배당 = 수량 × 주당배당 · 세금 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨) · 지급일이 없는 회차는 배당락일 기준</p>
         </div>`;
       makeFoldable(main, 'mydiv.collapsed');
+      // 배당 주기별 합계 (v0.30.58): 평가총액·월 배당·월 과세표준(또는 세금)·누적 배당·누적 과세표준(또는 세금)
+      const FREQ_ORDER = ['monthly', 'quarterly', 'semiannual', 'annual', 'stopped', 'none', 'unknown'];
+      const FREQ_LABEL = { monthly: '월배당', quarterly: '분기배당', semiannual: '반기배당', annual: '연배당', stopped: '배당 중단?', none: '무배당', unknown: '주기 모름' };
+      const fq = new Map(FREQ_ORDER.map((k) => [k, { value: 0, codes: new Set(), mDiv: 0, mTax: 0, cDiv: 0, cTax: 0, taxMissing: false }]));
+      const fid = (f) => (f && f.id && fq.has(f.id) ? f.id : 'unknown');
+      const freqByCode = new Map();
+      for (const r of (assets && assets.rows) || []) {
+        const k = fid(r.div_freq);
+        freqByCode.set(r.code, k);
+        if (r.valueKrw != null && !r.error) { fq.get(k).value += r.valueKrw; fq.get(k).codes.add(r.code); }
+      }
+      for (const r of rows) {
+        const k = r.div_freq ? fid(r.div_freq) : (freqByCode.get(r.code) || 'unknown');
+        const g = fq.get(k);
+        g.codes.add(r.code);
+        g.cDiv += r.amount_krw || 0;
+        g.cTax += r.tax_krw || 0;
+        if (r.tax_krw == null) g.taxMissing = true;
+        if (ym(r.paid) === lastM) { g.mDiv += r.amount_krw || 0; g.mTax += r.tax_krw || 0; }
+      }
+      const shownF = FREQ_ORDER.filter((k) => { const g = fq.get(k); return g.value || g.cDiv || g.codes.size; });
+      let taxMode = 'base';
+      try { taxMode = localStorage.getItem('mydiv.taxMode') === 'tax' ? 'tax' : 'base'; } catch (_) { /* 무시 */ }
+      const drawFreq = () => {
+        const tax = taxMode === 'tax';
+        const tv = (v) => (tax ? v * DIV_WITHHOLD_RATE : v);
+        const T = (k) => shownF.reduce((a, f) => a + fq.get(f)[k], 0);
+        const miss = shownF.some((f) => fq.get(f).taxMissing);
+        main.querySelectorAll('[data-taxmode] [data-tm]').forEach((bt) => bt.classList.toggle('on', bt.dataset.tm === taxMode));
+        main.querySelector('[data-freq-table]').innerHTML = shownF.length ? `<div class="table-wrap"><table class="freq-table"><thead><tr>
+            <th>배당 주기</th><th class="num">종목 수</th><th class="num">평가총액</th><th class="num">월 배당</th><th class="num">${tax ? '월 세금' : '월 과세표준'}</th><th class="num">누적 배당</th><th class="num">${tax ? '누적 세금' : '누적 과세표준'}</th></tr></thead>
+          <tbody>${shownF.map((k) => { const g = fq.get(k); return `<tr>
+            <td>${k === 'unknown' ? `<span class="badge dfreq df-none" data-noi18n>${isEn() ? 'Unknown' : '주기 모름'}</span>` : divFreqBadge({ id: k, label: FREQ_LABEL[k] })}</td>
+            <td class="num">${g.codes.size}</td>
+            <td class="num">${g.value ? krw(g.value) : dash}</td>
+            <td class="num">${g.mDiv ? `<b>${krw(g.mDiv)}</b>` : dash}</td>
+            <td class="num">${g.mDiv ? krw(tv(g.mTax)) : dash}</td>
+            <td class="num">${g.cDiv ? `<b>${krw(g.cDiv)}</b>` : dash}</td>
+            <td class="num">${g.cDiv ? `${krw(tv(g.cTax))}${g.taxMissing ? '*' : ''}` : dash}</td></tr>`; }).join('')}</tbody>
+          <tfoot><tr class="sum-row"><td>합계</td><td class="num">${new Set(shownF.flatMap((f) => [...fq.get(f).codes])).size}</td><td class="num">${krw(T('value'))}</td><td class="num">${krw(T('mDiv'))}</td><td class="num">${krw(tv(T('mTax')))}</td><td class="num">${krw(T('cDiv'))}</td><td class="num">${krw(tv(T('cTax')))}${miss ? '*' : ''}</td></tr></tfoot></table></div>`
+          : '<div class="empty">보유 종목과 배당 내역이 없습니다.</div>';
+      };
+      main.querySelectorAll('[data-taxmode] [data-tm]').forEach((bt) => bt.addEventListener('click', (e) => {
+        e.stopPropagation(); // 상자 접기·펴기로 번지지 않게
+        taxMode = bt.dataset.tm;
+        try { localStorage.setItem('mydiv.taxMode', taxMode); } catch (_) { /* 무시 */ }
+        drawFreq();
+      }));
+      drawFreq();
       // 월별 배당 그래프 (v0.30.54): 연도별 자산 증감과 같은 모양 — 한 막대에 국내·해외·해외추종 배당을 층으로 쌓고,
       // 과세표준은 꺾은선(막대 위쪽, 값 표시)으로 그린다
       const pal = chartPalette();

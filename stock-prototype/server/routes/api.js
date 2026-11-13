@@ -693,6 +693,8 @@ router.get('/divmgmt/history', async (req, res) => {
   const dateCol = req.query.by === 'ex' ? 'h.ex_date' : 'COALESCE(h.pay_date, h.ex_date)';
   const savedCats = categories.savedMap(req.user.id); // 종목 분류(국내·해외·해외추종) — 나의 배당 조회 그래프용 (v0.30.54)
   const groupId = Number(req.query.groupId) || null; // 그룹 (나의 배당 조회, v0.30.54)
+  const freqCache = new Map();
+  const freqOf = (c) => { if (!freqCache.has(c)) freqCache.set(c, market.divFrequency(c)); return freqCache.get(c); };
   const rows = db.all(
     `SELECT h.*, COALESCE(h.pay_date, h.ex_date) AS paid, i.name, i.type, i.currency FROM holding_dividends h
      LEFT JOIN instruments i ON i.code = h.code
@@ -707,6 +709,7 @@ router.get('/divmgmt/history', async (req, res) => {
       id: r.id, paid: r.paid, pay_date: r.pay_date, ex_date: r.ex_date, code: r.code, name: r.name || r.code, type: r.type, currency: r.currency || 'KRW',
       group_name: groups.get(r.group_id) || '-', quantity: r.quantity, per_share: r.per_share, amount: r.amount, tax_amount: r.tax_amount,
       category: categories.categoryOf(req.user.id, r.code, { name: r.name, type: r.type, currency: r.currency || 'KRW' }, savedCats).id,
+      div_freq: freqOf(r.code), // 배당 주기 (나의 배당 조회 주기별 합계, v0.30.58)
       fx_rate: rate, amount_krw: k(r.amount), tax_krw: k(r.tax_amount),
     };
   });

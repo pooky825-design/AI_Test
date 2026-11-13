@@ -1013,5 +1013,9 @@ window.I18N_EN = {
 "투자 지역별 합계": "Totals by region",
 "국내 · 해외 · 해외추종": "Domestic · Overseas · Overseas-tracking",
 "분류 = 종목 종류(주식 · ETF · ETN)": "Category = product type (Stock · ETF · ETN)",
-"투자 지역은 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).": "The region is chosen when registering a stock in Holdings (Domestic · Overseas · Overseas-tracking: Korean-listed ETFs tracking overseas assets, etc.)."
+"투자 지역은 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).": "The region is chosen when registering a stock in Holdings (Domestic · Overseas · Overseas-tracking: Korean-listed ETFs tracking overseas assets, etc.).",
+"배당 주기별 합계": "Totals by dividend frequency",
+"배당 주기": "Frequency",
+"평가총액": "Valuation",
+"보유 종목과 배당 내역이 없습니다.": "No holdings or dividend records."
 };

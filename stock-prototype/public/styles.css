@@ -908,3 +908,11 @@ th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; o
 .badge.df-annual { background: #fef3c7; color: #92400e; }
 .badge.df-none { background: #f1f5f9; color: #64748b; }
 .badge.df-stopped { background: #f8fafc; color: #64748b; border: 1px dashed #94a3b8; } /* 월배당과 구분되게 회색 점선 */
+
+/* v0.30.58 나의 배당 조회: 배당 주기별 합계, 과세표준·세금 선택 */
+.freq-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.freq-head h2 { margin: 0; }
+.seg { display: inline-flex; border: 1px solid var(--t-300); border-radius: 999px; overflow: hidden; margin-right: 44px; }
+.seg button { background: #fff; color: var(--t-700); border: 0; border-radius: 0; padding: 4px 12px; font-size: 12.5px; font-weight: 600; min-height: 0; }
+.seg button.on { background: var(--t-500, var(--primary)); color: #fff; }
+.seg button + button { border-left: 1px solid var(--t-300); }
