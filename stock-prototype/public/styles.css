@@ -950,3 +950,5 @@ table th + th, table td + td { border-left-color: color-mix(in srgb, var(--borde
 /* v0.30.67 연도별 자산·배당 상세 표: 연도를 바꿔도 열 폭이 그대로(고정 배치, 종목 열은 fitNameColumn 고정 폭) */
 table.yr-detail { table-layout: fixed; width: 100%; min-width: 1040px; }
 @media (max-width: 640px) { table.yr-detail { min-width: 860px; } }
+/* v0.30.70 나의 자산 조회·나의 배당 조회 요약: 항목 제목 한 단계 크게·굵게 */
+[data-ckey="summary"] .kpi .label, .mydiv-kpis .kpi .label { font-size: 13px; font-weight: 700; }
