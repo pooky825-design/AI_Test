@@ -803,13 +803,14 @@
       // 소계·합계 행 (v0.12.6 열 순서): 손익 기준액 · 현 평가금액 · 전일 대비
       const gapCells = (x) => `<td class="num">${krw(x.costKrw)}</td><td class="num">${krw(x.valueKrw)}</td>${d.ongoing ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}`;
       // 오늘 손익·손익률 열 (올해만: 전일 종가 대비)
-      const todayHead = d.ongoing ? '<th class="num today-col">오늘 손익</th><th class="num today-col">오늘 손익률</th>' : '';
+      // v0.30.67: 손익 칸은 금액 아래 수익률(작은 글씨), 오늘 손익도 다른 열과 같은 바탕
+      const todayHead = d.ongoing ? '<th class="num">오늘 손익</th>' : '';
       const todayCells = (x) => (d.ongoing
-        ? `<td class="num today-col ${cls(x.todayPnlKrw)}">${x.todayPnlKrw == null ? '-' : sKrw(x.todayPnlKrw)}</td><td class="num today-col ${cls(x.todayPct)}">${x.todayPct == null ? '-' : pct(x.todayPct)}</td>`
+        ? `<td class="num ${cls(x.todayPnlKrw)}">${x.todayPnlKrw == null ? '-' : `${sKrw(x.todayPnlKrw)}${x.todayPct == null ? '' : `<br/><small>${pct(x.todayPct)}</small>`}`}</td>`
         : '');
       // 올해 손익(1월 1일 기준 + 올해 실현손익)과 전체기간 손익(원래 매입금액 기준 + 누적 실현손익) (v0.10)
-      const pnlCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}</td><td class="num ${cls(x.returnPct)}">${pct(x.returnPct)}</td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}</td><td class="num ${cls(x.totalPct)}">${pct(x.totalPct)}</td>`;
-      const pnlHead = '<th class="num">금년 손익</th><th class="num">금년 수익률</th><th class="num">전체 손익</th><th class="num">전체 수익률</th>';
+      const pnlCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}${x.returnPct == null ? '' : `<br/><small>${pct(x.returnPct)}</small>`}</td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}${x.totalPct == null ? '' : `<br/><small>${pct(x.totalPct)}</small>`}</td>`;
+      const pnlHead = '<th class="num">금년 손익</th><th class="num">전체 손익</th>';
       const todayNote = d.ongoing ? `<p class="small muted" style="margin:8px 0 0">오늘 손익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · 오늘 손익률 = 오늘 손익 ÷ 전일 종가 기준 평가금액 (환율 변동은 반영하지 않음) · 합계 오늘 손익 ${sKrw(t.todayPnlKrw)} (${pct(t.todayPct)})</p>` : '';
       html.push(`
         <div class="card fold-card" data-ckey="summary"><h2>요약</h2>
@@ -822,7 +823,7 @@
         ${showGroup && d.groupTotals.length > 1 ? `<div class="card" data-ckey="group">
           <h2>그룹별 합계</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>그룹</th><th class="num">종목 수</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
             <tbody>${d.groupTotals.map((g) => `<tr>
               <td><a href="#/assets?year=${d.year}&group=${g.groupId}">${ud(g.name)}</a></td><td class="num">${g.count}${g.soldCount ? `<br/><small class="muted">매도 ${g.soldCount}</small>` : ''}</td>
               <td class="num"><b>${krw(g.valueKrw)}</b></td><td class="num">${pct(t.valueKrw ? g.valueKrw / t.valueKrw : null).replace('+', '')}</td>
@@ -838,11 +839,11 @@
         ${(d.typeTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="type">
           <h2>분류별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
             <tbody>${d.typeTotals.map((c) => `<tr>
               <td>${badge(c.id)}</td><td class="num">${c.count}</td>
               <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
-              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td><td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num today-col">-</td><td class="num today-col">-</td>' : '')}
+              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}
             </tr>`).join('')}</tbody>
             <tfoot><tr class="sum-row">
               <td>소계</td><td class="num">${d.typeTotals.reduce((n, c) => n + c.count, 0)}</td>
@@ -855,11 +856,11 @@
         ${(d.categoryTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="category">
           <h2>투자 지역별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
-            <thead><tr><th>투자 지역</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <thead><tr><th>투자 지역</th><th class="num">종목 수</th><th class="num">평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
             <tbody>${d.categoryTotals.map((c) => `<tr>
               <td><span class="cat cat-${c.id}">${esc(c.label)}</span></td><td class="num">${c.count}</td>
               <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
-              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td><td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num today-col">-</td><td class="num today-col">-</td>' : '')}
+              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num">-</td>' : '')}
             </tr>`).join('')}</tbody>
             <tfoot><tr class="sum-row">
               <td>소계</td><td class="num">${d.categoryTotals.reduce((n, c) => n + c.count, 0)}</td>
@@ -2241,7 +2242,8 @@
     // 그 해 나의 자산 조회(전체 통합)와 같은 계산을 그대로 불러온다
     const detailHtml = (y, d) => {
       const ong = d.ongoing;
-      const cols = ong ? 9 : 8;
+      // v0.30.67: 연도를 바꿔도 열이 움직이지 않게 전일 대비 열은 늘 두고(지난 연도는 ‘-’) 표 폭·열 폭을 고정
+      const cols = 9;
       const dash = '<span class="muted">-</span>';
       const pnlTd = (v, p) => `<td class="num ${cls(v)}">${v == null ? dash : sKrw(v)}${p == null ? '' : `<br/><small>${pct(p)}</small>`}</td>`;
       const nameTd = (r, extra = '') => `<td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud((r.instrument && r.instrument.name) || r.code)}</a><small>${esc(r.code)} ${badge(r.instrument && r.instrument.type)}${extra}</small></div></td>`;
@@ -2254,13 +2256,13 @@
           <td class="num">${krw(r.origCostKrw)}</td>
           <td class="num">${krw(r.costKrw)}</td>
           <td class="num"><b>${krw(r.valueKrw)}</b></td>
-          ${ong ? `<td class="num ${cls(r.change)}">${r.todayPnlKrw == null ? sMoney(r.change, c) : sKrw(r.todayPnlKrw)}<br/><small>${pct(r.changePct)}</small></td>` : ''}
+          ${ong ? `<td class="num ${cls(r.change)}">${r.todayPnlKrw == null ? sMoney(r.change, c) : sKrw(r.todayPnlKrw)}<br/><small>${pct(r.changePct)}</small></td>` : `<td class="num">${dash}</td>`}
           ${pnlTd(r.pnlKrw, r.returnPct)}${pnlTd(r.totalPnlKrw, r.totalPct)}</tr>`;
       };
       const soldHtml = (r) => `<tr class="sold-row">${nameTd(r, ` · <span class="badge sold">${d.year}년 전량 매도</span>`)}
-        <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${ong ? '<td class="num muted">-</td>' : ''}
+        <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>
         ${pnlTd(r.pnlKrw, r.returnPct)}${pnlTd(r.totalPnlKrw, r.totalPct)}</tr>`;
-      const sumCells = (x) => `<td class="num">${krw(x.origCostKrw)}</td><td class="num">${krw(x.costKrw)}</td><td class="num">${krw(x.valueKrw)}</td>${ong ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : ''}${pnlTd(x.pnlKrw, x.returnPct)}${pnlTd(x.totalPnlKrw, x.totalPct)}`;
+      const sumCells = (x) => `<td class="num">${krw(x.origCostKrw)}</td><td class="num">${krw(x.costKrw)}</td><td class="num">${krw(x.valueKrw)}</td>${ong ? `<td class="num ${cls(x.todayPnlKrw)}">${sKrw(x.todayPnlKrw)}<br/><small>${pct(x.todayPct)}</small></td>` : `<td class="num">${dash}</td>`}${pnlTd(x.pnlKrw, x.returnPct)}${pnlTd(x.totalPnlKrw, x.totalPct)}`;
       const sold = d.soldRows || [];
       const body = (d.categoryTotals || []).filter((ct) => d.rows.some((r) => r.category === ct.id) || sold.some((r) => r.category === ct.id)).map((ct) => `
         <tr class="group-row"><td colspan="${cols}"><span class="cat cat-${esc(ct.id)}">${esc(ct.label)}</span> <span class="muted" style="font-weight:400">${ct.count || 0}종목${ct.soldCount ? ` · 전량 매도 ${ct.soldCount}` : ''}</span></td></tr>
@@ -2268,8 +2270,8 @@
         <tr class="group-sub"><td colspan="3">${esc(ct.label)} 소계</td>${sumCells(ct)}</tr>`).join('');
       return `<div class="inner" style="margin-top:12px">
       <h3 style="margin:0 0 8px">${y.year}년${ong ? '' : ' 말'} 종목별 평가금액${ong ? ' <span class="badge ongoing">진행 중</span>' : ''}</h3>
-      <div class="table-wrap"><table class="stock-table"><thead><tr>
-        <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th>${ong ? '<th class="num">전일 대비</th>' : ''}<th class="num">금년 손익</th><th class="num">전체 손익</th>
+      <div class="table-wrap"><table class="stock-table yr-detail"><thead><tr>
+        <th>종목</th><th class="num">보유수량</th><th class="num">매입단가</th><th class="num">매입금액</th><th class="num">손익 기준액(금년)</th><th class="num">현 평가금액</th><th class="num">전일 대비</th><th class="num">금년 손익</th><th class="num">전체 손익</th>
       </tr></thead><tbody>${body}</tbody>
       <tfoot><tr><td colspan="3">합계 (원화)</td>${sumCells(d.total)}</tr></tfoot></table></div>
       <p class="small muted" style="margin:6px 0 0">나의 자산 조회(전체 통합)와 같은 계산 · 투자 지역별로 묶어 소계 · 현 평가금액 = ${ong ? '현재가' : '연말 종가'} × 보유수량 × 환율</p></div>`;
@@ -2656,17 +2658,56 @@
     if (note) note.textContent = '배당·수령회차·과세표준액 = 배당 내역 등록에 저장한 회차 합계(배당락일 연도, 미국 종목은 지급일 환율로 원화 환산) · 세금 = 과세표준액 × 16.5%(배당소득세 추정, 계좌 유형에 따라 다를 수 있음)';
     if (card._chart) { card._chart.destroy(); state.charts = state.charts.filter((c) => c !== card._chart); }
     const pal = chartPalette();
+    // v0.30.67: 연도별 자산 증감 그래프와 같은 모양 — 한 막대에 국내·해외·해외추종 배당을 층으로 쌓고,
+    // 과세표준액은 꺾은선(막대 위쪽 구간, 값 표시)
+    const CAT_LABELS = { DOMESTIC: tt('국내'), OVERSEAS: tt('해외'), OVERSEAS_TRACK: tt('해외추종') };
+    const CAT_COLORS = { DOMESTIC: pal.c1, OVERSEAS: pal.c2, OVERSEAS_TRACK: pal.c3 };
+    const short = (v) => (isEn() ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : v >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : v >= 1e4 ? `${Number((v / 1e4).toFixed(1))}만` : nf0.format(v));
+    const taxVals = shown.map((y) => (y.divCount && y.taxKrw > 0 ? y.taxKrw : null));
+    const maxDiv = Math.max(1, ...shown.map((y) => y.divKrw || 0));
+    const maxTax = Math.max(1, ...taxVals.filter((v) => v != null));
     card._chart = new Chart(card.querySelector('canvas'), {
       type: 'bar',
       data: {
         labels: shown.map((y) => (y.year === THIS_YEAR ? `${y.year} (${tt('진행 중')})` : String(y.year))),
         datasets: [
-          { label: tt('배당'), data: shown.map((y) => y.divKrw), backgroundColor: pal.c1, borderRadius: 4 },
-          { label: tt('과세표준액'), data: shown.map((y) => y.taxKrw), backgroundColor: pal.c2, borderRadius: 4 },
-          { label: tt('세금'), data: shown.map((y) => y.taxKrw * DIV_TAX_RATE), backgroundColor: pal.c3, borderRadius: 4 },
+          { type: 'line', label: tt('과세표준액'), data: taxVals, spanGaps: true, yAxisID: 'yTax', order: 0, borderColor: pal.line, backgroundColor: pal.line, borderWidth: 2, pointRadius: 4, tension: 0 },
+          ...Object.keys(CAT_LABELS).map((id) => ({
+            label: CAT_LABELS[id], data: shown.map((y) => (y.divByCategory ? y.divByCategory[id] || 0 : 0)), backgroundColor: CAT_COLORS[id], borderRadius: 4, stack: 'div', order: 1,
+          })),
         ],
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}` } } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => nf0.format(v) } }, x: { grid: { display: false } } } },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 18 } },
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
+          tooltip: { callbacks: {
+            label: (c) => `${c.dataset.label} ${krw(c.parsed.y)}`,
+            footer: (it) => { const y = shown[it[0].dataIndex]; return `${tt('배당')} ${krw(y.divKrw)} · ${tt('세금')} ${krw(y.taxKrw * DIV_TAX_RATE)}`; },
+          } },
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, suggestedMax: maxDiv * 1.35, ticks: { precision: 0, callback: (v) => short(v) } },
+          // 과세표준 선은 막대 위쪽에 놓이도록 위 25% 구간만 쓴다
+          yTax: { display: false, min: -maxTax * 3, max: maxTax * 1.15 },
+        },
+      },
+      plugins: [{
+        id: 'taxLabels',
+        afterDatasetsDraw(chart) {
+          const meta = chart.getDatasetMeta(0);
+          if (meta.hidden) return;
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.font = '600 11px sans-serif';
+          ctx.fillStyle = pal.line;
+          ctx.textAlign = 'center';
+          meta.data.forEach((pt, i) => { if (taxVals[i] != null) ctx.fillText(short(taxVals[i]), pt.x, pt.y - 8); });
+          ctx.restore();
+        },
+      }],
     });
     state.charts.push(card._chart);
     // 연도를 누르면(표의 행 또는 그래프 막대) 아래에 그 해 배당 상세 (v0.30.52, 연도별 자산 증감과 같은 방식)
@@ -2692,7 +2733,7 @@
     const taxMissing = rows.some((r) => r.tax_krw == null);
     box.innerHTML = `<div class="inner" style="margin-top:12px">
       <h3 style="margin:0 0 8px">${year}년 배당 내역${year === THIS_YEAR ? ' <span class="badge ongoing">진행 중</span>' : ''} <span class="muted small">${rows.length}건</span></h3>
-      ${rows.length ? `<div class="table-wrap"><table class="divhist-table"><thead><tr><th>배당락일</th><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
+      ${rows.length ? `<div class="table-wrap"><table class="divhist-table yr-detail"><thead><tr><th>배당락일</th><th>지급일</th><th>종목</th><th>수량</th><th>주당배당</th><th>배당</th><th>과세표준</th><th>세금</th></tr></thead><tbody>
         ${rows.map((r) => `<tr>
           <td class="center">${esc(r.ex_date || '-')}</td>
           <td class="center">${r.pay_date ? esc(r.pay_date) : dash}</td>
