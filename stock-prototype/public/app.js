@@ -267,12 +267,13 @@
   // ---------------------------------------------------------------------------
   const NAV = [
     ['#/stock', '종목 조회', 'SC-03'], // v0.30.33: 맨 위, 다른 메뉴와 줄로 구분
-    ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 보유 종목 등록(변경), 배당 입력)
+    ['#/yearly', '연도별 자산 · 배당 조회', 'SC-05'], // v0.30.34 순서: 종목 조회 · 연도별 · 나의 자산 · 보유 종목 · 배당 · 환경 설정 (v0.30.35 이름: 배당 입력, v0.30.50: 보유 종목 등록)
     ['#/assets', '나의 자산 조회', 'SC-02'], // v0.30.36 이름: 나의 자산 조회, 연도별 자산 · 배당 조회, 환경 설정
-    ['#/holdings', '보유 종목 등록(변경)', 'SC-04'],
+    ['#/holdings', '보유 종목 등록', 'SC-04'],
     ['#/divmgmt', '배당 입력', 'SC-08'],
     ['#/me', '환경 설정', 'SC-07'],
   ];
+  const NAV_GROUP = { '#/stock': 1, '#/yearly': 2, '#/assets': 2, '#/holdings': 3, '#/divmgmt': 3, '#/me': 4 };
   // 메뉴 아이콘 (v0.22): 글자색(currentColor)을 따르는 선 아이콘
   const NAV_ICON_PATHS = {
     // 홈 (v0.30.3~0.30.4): 흰색으로 채운 집, 지붕 끝·처마·아래 모서리를 둥글게, 아치형 문(v0.30.5: 폭·높이 키움, v0.30.6: 지붕은 그대로 몸체는 좁게·문은 더 넓게)
@@ -318,9 +319,11 @@
     const navEl = $app.querySelector('.mobile-top nav');
     if (navEl) mnavScroll = navEl.scrollLeft;
     const nav = state.actAs ? NAV.filter(([h]) => MY_MENU(h) || (SHARE_PATH[h] && state.actAs.perms[SHARE_PATH[h]])) : NAV;
-    const links = nav.map(([h, label, sc]) => `<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
-    // 공유받은 화면을 보는 중이면 내 메뉴(환경 설정) 앞에 구분선 (v0.27.6)
-    const mlinks = nav.map(([h, label], i) => `${h === '#/me' && nav[i - 1] && nav[i - 1][0] !== '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>${h === '#/stock' ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}`).join('');
+    // 메뉴 묶음 사이 구분선 (v0.30.50): 종목 조회 | 연도별·나의 자산 조회 | 보유 종목 등록·배당 입력 | 환경 설정
+    //  (공유받은 화면을 볼 때 빠진 메뉴가 있어도 묶음이 바뀌는 곳에만 한 줄)
+    const navSep = (i) => i > 0 && NAV_GROUP[nav[i][0]] !== NAV_GROUP[nav[i - 1][0]];
+    const links = nav.map(([h, label, sc], i) => `${navSep(i) ? '<hr class="side-sep" aria-hidden="true" />' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span><span class="sc">${sc}</span></a>`).join('');
+    const mlinks = nav.map(([h, label], i) => `${navSep(i) ? '<span class="nav-sep" aria-hidden="true"></span>' : ''}<a href="${h}" class="${active === h ? 'active' : ''}">${navIconFor(h)}<span class="nav-label">${label}</span></a>`).join('');
     // 내 사진·별명 | 로그아웃 (v0.30.12)
     const userBar = `<span class="user-bar"><span class="who" data-goprofile role="button" tabindex="0" title="사용자 관리">${avatarHtml(state.user.avatar, displayName(state.user), 'av-sm')}<span class="who-name" data-noi18n>${esc(displayName(state.user))}</span></span><span class="vsep" aria-hidden="true"></span><button class="linkish" data-logout>로그아웃</button></span>`;
     $app.innerHTML = `
@@ -328,7 +331,7 @@
         <aside class="side">
           <div class="brand"><img src="icon-192.png" alt="" class="brand-ico" /><div><span class="brand-name">K-Stock</span><small>주식 자산 관리</small></div>${homeBtn(active)}</div>
           ${shareSwitch()}
-          ${links.replace(/(<a href="#\/stock"[\s\S]*?<\/a>)/, '$1<hr class="side-sep" aria-hidden="true" />').replace(/(<\/a>)(<a href="#\/me")/, '$1<hr class="side-sep" aria-hidden="true" />$2')}
+          ${links}
           <div class="spacer"></div>
           <span data-sync-slot class="side-sync"></span>
           ${userBar}
@@ -753,7 +756,7 @@
       main.querySelector('[data-loading]').outerHTML = `<div class="notice error"><div class="grow">${esc(err.message)}</div><button class="sm" onclick="location.reload()">재시도</button></div>`;
       return;
     }
-    // 그룹 탭 (보유 종목 등록(변경)와 같은 방식)
+    // 그룹 탭 (보유 종목 등록와 같은 방식)
     const tabs = main.querySelector('[data-tabs]');
     tabs.innerHTML = [`<button class="${d.groupId ? '' : 'on'}" data-g="">전체</button>`]
       .concat(d.groups.map((g) => `<button class="${d.groupId === g.id ? 'on' : ''}" data-g="${g.id}">${ud(g.name)}</button>`)).join('');
@@ -772,7 +775,7 @@
     const ok = d.rows.filter((r) => !r.error);
     const html = [];
     if (!d.ongoing) {
-      html.push(`<div class="notice info"><div><b>${d.year}년 말 기준</b>: 보유 종목 등록(변경)에 입력한 ${d.year}년 말 보유 수량을 ${d.year}년 마지막 거래일 종가와 연말 환율로 평가했습니다. 평균 매입단가도 ${d.year}년 말 기준입니다.</div></div>`);
+      html.push(`<div class="notice info"><div><b>${d.year}년 말 기준</b>: 보유 종목 등록에 입력한 ${d.year}년 말 보유 수량을 ${d.year}년 마지막 거래일 종가와 연말 환율로 평가했습니다. 평균 매입단가도 ${d.year}년 말 기준입니다.</div></div>`);
     }
     if (d.basis.anyStale || d.basis.fxError) {
       html.push(`<div class="notice warn"><div><b>${d.ongoing ? '최신 시세가 아닐 수 있습니다.' : '일부 값을 계산하지 못했습니다.'}</b> ${d.ongoing ? `외부 출처에서 일부 시세·환율을 가져오지 못해 마지막 저장값을 표시합니다. ${req('FR-DATA-06')}` : ''}<br/><span class="small">${esc(d.basis.fxError || ok.filter((r) => r.stale).map((r) => `${r.code}: ${r.staleReason}`).join(' / '))}</span></div></div>`);
@@ -842,7 +845,7 @@
             </tr></tfoot>
           </table></div>
           ${todayNote}
-          <p class="small muted" style="margin:4px 0 0">분류는 보유 종목 등록(변경)에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
+          <p class="small muted" style="margin:4px 0 0">분류는 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
         </div>` : ''}
         <div class="card" data-ckey="stocks">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
@@ -865,7 +868,7 @@
               const basisTip = (r) => {
                 const c = r.instrument.currency;
                 const parts = [];
-                if (r.carryFixed) parts.push('보유 종목 등록(변경)에 저장한 이월액(수량을 바꿔도 그대로)');
+                if (r.carryFixed) parts.push('보유 종목 등록에 저장한 이월액(수량을 바꿔도 그대로)');
                 else if (r.carriedQty > 0) parts.push(r.basisFallback ? `이월 ${qty(r.carriedQty)}주: 전년 종가가 없어 실제 매입금액 적용` : `이월 ${qty(r.carriedQty)}주 × ${esc(r.startClose ? r.startClose.date : '')} 종가 ${money(r.startClose ? r.startClose.close : null, c)}`);
                 else parts.push(`${d.year}년 신규 매수(이월 없음)`);
                 if (c === 'USD' && r.carry) parts.push(`${usd(r.carry)} × ${rate(r.fxRate)}`);
@@ -935,7 +938,7 @@
             <span>환율 <b>${rate(d.basis.fxRate)}</b> (${d.ongoing ? fmtTime(d.basis.fxTime) : esc(String(d.basis.fxTime || '').slice(0, 10))}, ${esc(d.basis.fxSource || '-')})</span>
             ${d.ongoing ? `<span>현재가는 5분간 캐시 ${req('FR-DATA-05')}</span>` : ''}
           </div>
-          <p class="small muted" style="margin:10px 0 0">매입단가·매입금액 = 실제로 산 평균 단가·금액(원화)(보유 종목 등록(변경)에 입력) · <b>손익 기준액(금년)</b> = 이월 금액(전년)이 있으면 이월 금액, 없으면 매입금액(보유 종목 등록(변경)와 같음, 누르면 근거) · 외화 종목은 원화 금액을 누르면 외화 금액, 현 평가금액을 누르면 ${priceLabel} × 수량이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 현 평가금액 = ${priceLabel} × ${d.year}년 말 보유수량 × 환율(국내 1, 원화) · <b>금년 손익</b> = 현 평가금액 − 손익 기준액(금년) · <b>전체 손익</b> = 현 평가금액 − 매입금액 + 누적 실현손익 · 금년 수익률 = 금년 손익 ÷ 손익 기준액, 전체 수익률 = 전체 손익 ÷ 매입금액 · 전량 매도 종목은 평가금액이 없어 금년 손익 없이 전체 손익(실현손익)만 표시 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 등록(변경)</a>에 입력한 연도별 보유 수량(주식 항목)으로 계산</p>
+          <p class="small muted" style="margin:10px 0 0">매입단가·매입금액 = 실제로 산 평균 단가·금액(원화)(보유 종목 등록에 입력) · <b>손익 기준액(금년)</b> = 이월 금액(전년)이 있으면 이월 금액, 없으면 매입금액(보유 종목 등록와 같음, 누르면 근거) · 외화 종목은 원화 금액을 누르면 외화 금액, 현 평가금액을 누르면 ${priceLabel} × 수량이 보입니다${d.ongoing ? " · 전일 대비 = 1주당 가격 변동 × 보유 수량 전체 × 현재 환율(원화, 금액을 누르면 1주당 변동 표시)" : ""} · 현 평가금액 = ${priceLabel} × ${d.year}년 말 보유수량 × 환율(국내 1, 원화) · <b>금년 손익</b> = 현 평가금액 − 손익 기준액(금년) · <b>전체 손익</b> = 현 평가금액 − 매입금액 + 누적 실현손익 · 금년 수익률 = 금년 손익 ÷ 손익 기준액, 전체 수익률 = 전체 손익 ÷ 매입금액 · 전량 매도 종목은 평가금액이 없어 금년 손익 없이 전체 손익(실현손익)만 표시 · 미국 종목 손익은 매입·평가 모두 같은 환율 적용(환차손익 미반영) · 보유 수량은 <a href="#/holdings?year=${d.year}">보유 종목 등록</a>에 입력한 연도별 보유 수량(주식 항목)으로 계산</p>
         </div>`);
     }
     main.querySelector('[data-loading]').outerHTML = html.join('');
@@ -1336,7 +1339,7 @@
         ? `<div class="card" data-fold="held">
             <h2>내 보유 종목 <span class="small muted" style="font-weight:400">${held.length}개 · 눌러서 조회</span></h2>
             <div class="stock-chips">${held.map((h) => `<a class="stock-chip ${h.code === cur ? 'on' : ''}" href="#/stock?code=${encodeURIComponent(h.code)}">${badge(h.type)} <span class="nm">${ud(h.name || h.code)}</span><span class="muted">(${esc(h.code)})</span></a>`).join('')}</div>
-            <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 등록(변경)</a>에 입력한 올해 보유 수량 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
+            <p class="small muted" style="margin:10px 0 0">보유 종목은 <a href="#/holdings">보유 종목 등록</a>에 입력한 올해 보유 수량 기준이며, 모든 그룹을 합쳐 보여줍니다. 다른 종목은 위에 종목코드를 입력하세요.</p>
           </div>`
         : (cur ? '' : `<div class="card empty">종목코드를 입력해 조회하세요.<br/><span class="small">보유 종목이 없어 예시를 보여줍니다: ${samples}</span></div>`);
       const recentCard = recent.length ? `<div class="card" data-fold="recent" data-recent>
@@ -1596,7 +1599,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // SC-04 보유 종목 등록(변경)
+  // SC-04 보유 종목 등록
   // ---------------------------------------------------------------------------
   // 숫자 칸 사칙연산 (v0.26.7): '= 10+30' 처럼 = 로 시작하면 계산한다. 칸을 벗어나면 결과(40)를 보여 주고,
   // 다시 칸을 누르면 입력한 계산식을 그대로 보여 준다. 허용: 숫자·소수점·쉼표, + − × ÷ (* / 도 가능), 괄호
@@ -1683,7 +1686,7 @@
     const yy = `'${String(year).slice(2)}`; // 예: '26 (이월액 라벨)
     const main = shell('#/holdings', `
       <div class="page-head">
-        <div><h1>보유 종목 등록(변경) ${req('SC-04 · FR-HLD')}</h1><p>그룹(ISA·연금·일반 등)과 연도를 골라 주식 항목을 관리합니다. 보유 수량은 목록의 <b>수정</b>에서 매수·매도 구분 없이 바로 바꾸면 됩니다. 손대지 않은 연도는 직전 연도 보유가 그대로 이어집니다(이월).</p></div>
+        <div><h1>보유 종목 등록 ${req('SC-04 · FR-HLD')}</h1><p>그룹(ISA·연금·일반 등)과 연도를 골라 주식 항목을 관리합니다. 보유 수량은 목록의 <b>수정</b>에서 매수·매도 구분 없이 바로 바꾸면 됩니다. 손대지 않은 연도는 직전 연도 보유가 그대로 이어집니다(이월).</p></div>
       </div>
       <div class="card">
         <div class="group-bar"><div class="group-left"><div class="field inline-field year-ctrl"><label class="inline-label">기준 연도</label><select data-year>${yearOptions(year)}</select></div><div class="group-tabs" data-tabs></div></div><button class="sm secondary" data-manage>그룹 관리</button></div>
@@ -2146,7 +2149,7 @@
     const opts = (sel) => Array.from({ length: 10 }, (_, k) => thisYear - 9 + k).map((y) => `<option ${y === sel ? 'selected' : ''}>${y}</option>`).join('');
     const main = shell('#/yearly', `
       <div class="page-head">
-        <div><h1>연도별 자산 · 배당 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 등록(변경)에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
+        <div><h1>연도별 자산 · 배당 조회 ${req('SC-05 · FR-YR · FR-DIV-04 · FR-XLS-02')}</h1><p>보유 종목 등록에 연도별로 입력한 연말 보유 수량으로 연도별 자산금액을 비교합니다.</p></div>
         <button data-export="/export/yearly.xlsx?from=${from}&to=${to}">엑셀 내보내기</button>
       </div>
       <div class="notice warn"><div><b>해석 주의:</b> 연도별로 입력한 연말 보유 수량 기준 금액입니다. 연도 중 매매 시점의 가격 변동은 반영하지 않으며, 종목을 입력하지 않은 연도는 직전 연도 보유 수량이 그대로 이어집니다. ${req('FR-YR-07')}</div></div>
@@ -2205,7 +2208,7 @@
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 등록(변경)의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 등록의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>
       <div class="card" data-divlist data-fold="divlist">${divListShell()}</div>`;
@@ -3276,7 +3279,7 @@
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유받은 화면이 없습니다.</div>'}
         <p class="small muted" style="margin:10px 0 0" data-noi18n>${isEn()
           ? 'View: see the screen and export to Excel only · Edit: also change Holdings (add·edit·delete items, carry over, groups) and Dividends (save rounds) · Yearly assets & dividends and My assets can be shared as view only · Settings and Stock lookup are never shared · Setting every permission to None removes the share · <b>Other devices</b>: connect both devices to Google Drive with the same Google account; when the receiver syncs, the sharer\'s latest data arrives as view only (the sharer must sync first; edit becomes view)'
-          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(변경)(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 입력(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경 설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
+          : '조회: 화면을 보기만 하고 엑셀 내보내기는 할 수 있음 · 편집: 보유 종목 등록(항목 등록·수정·삭제, 일괄이월, 그룹 관리)·배당 입력(회차 저장)까지 가능 · 연도별 자산 · 배당·나의 자산은 조회만 공유됩니다 · 환경 설정과 종목 조회는 공유되지 않습니다 · 권한을 모두 ‘없음’으로 바꾸면 공유가 해제됩니다 · <b>다른 기기</b>: 두 기기를 같은 구글 계정의 구글 드라이브에 연결하면, 공유받은 사람이 동기화할 때 공유한 사람의 최신 자료를 조회 전용으로 받아 옵니다(공유한 사람이 먼저 동기화해야 함, 편집 권한도 조회로 바뀜)'}</p>`;
       body.querySelectorAll('[data-unpend]').forEach((b) => b.addEventListener('click', async () => {
         try { await api('DELETE', `/shares/pending?email=${encodeURIComponent(b.dataset.unpend)}`); toast('대기 중인 공유를 해제했습니다.'); } catch (err) { toast(err.message); }
         load();
@@ -3399,7 +3402,7 @@
           <button class="sm secondary" data-reset>기본값(주황)으로</button>
         </div>
         <div class="theme-preview" aria-hidden="true">
-          <div class="pv-side"><b>미리보기</b><span class="on">나의 자산 조회</span><span>보유 종목 등록(변경)</span></div>
+          <div class="pv-side"><b>미리보기</b><span class="on">나의 자산 조회</span><span>보유 종목 등록</span></div>
           <div class="pv-main">
             <div class="pv-row"><button class="sm" tabindex="-1">기본 버튼</button><button class="sm secondary" tabindex="-1">보조 버튼</button><a href="#/me" tabindex="-1">링크</a></div>
             <div class="pv-row"><span class="pv-tot">소계 31,427,427원</span><span class="up">+5.2%</span><span class="down">-1.8%</span></div>
@@ -3772,7 +3775,7 @@
       const sumBox = main.querySelector('[data-dsum]');
       sumBox.hidden = true;
       if (!d.items.length) {
-        box.innerHTML = `<div class="empty">${year}년 ${ud(gname)}에 보유한 종목이 없습니다.<br/><a href="#/holdings?year=${year}">보유 종목 등록(변경)</a>에서 종목을 등록하세요.</div>`;
+        box.innerHTML = `<div class="empty">${year}년 ${ud(gname)}에 보유한 종목이 없습니다.<br/><a href="#/holdings?year=${year}">보유 종목 등록</a>에서 종목을 등록하세요.</div>`;
         return;
       }
       const cols = 9;

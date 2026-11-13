@@ -209,7 +209,7 @@ router.use((req, res, next) => {
 const SHARE_SCREENS = [
   { id: 'home', label: '홈', edit: false }, // 대시보드 (v0.28.0): 공유한 사람이 설정한 항목만 보임
   { id: 'assets', label: '나의 자산 조회', edit: false },
-  { id: 'holdings', label: '보유 종목 등록(변경)', edit: true },
+  { id: 'holdings', label: '보유 종목 등록', edit: true },
   { id: 'divmgmt', label: '배당 입력', edit: true },
   { id: 'yearly', label: '연도별 자산 · 배당 조회', edit: false },
 ];
