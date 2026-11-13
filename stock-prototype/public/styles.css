@@ -891,3 +891,7 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .badge.grp-tag { background: var(--t-50); color: var(--t-700); border-color: var(--t-200); margin-left: 2px; }
 /* v0.30.40 보유 종목 등록(변경) 표: 메모 칸 폭 30% 줄임 (약 15% → 10.7%) */
 th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; overflow-wrap: anywhere; } /* 기존 폭의 70% */
+
+/* v0.30.47 6자리 칸(동기화 비밀번호): 좁은 화면에서도 한 줄 */
+.pin-boxes.pin6 { gap: 6px; } .pin-boxes.pin6 .pin-box { width: 42px; }
+@media (max-width: 400px) { .pin-boxes.pin6 .pin-box { width: 38px; height: 46px; } }

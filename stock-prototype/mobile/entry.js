@@ -15,11 +15,14 @@ const ready = (async () => {
 })();
 
 // 세션 쿠키 보관 (PC 버전의 브라우저 쿠키 역할)
+// v0.30.47: 앱을 껐다 다시 켜면 로그인 화면에서 비밀번호를 다시 넣도록 sessionStorage 에 둔다
+//  (화면 새로고침에는 유지, 앱을 종료하면 사라짐). 예전에 localStorage 에 남은 로그인은 지운다
 const COOKIE_KEY = 'stock_cookie';
 let cookieMem = '';
+try { localStorage.removeItem(COOKIE_KEY); } catch (_) { /* ignore */ }
 const jar = {
-  get() { try { return localStorage.getItem(COOKIE_KEY) || ''; } catch (_) { return cookieMem; } },
-  set(v) { cookieMem = v; try { localStorage.setItem(COOKIE_KEY, v); } catch (_) { /* ignore */ } },
+  get() { try { return sessionStorage.getItem(COOKIE_KEY) || ''; } catch (_) { return cookieMem; } },
+  set(v) { cookieMem = v; try { sessionStorage.setItem(COOKIE_KEY, v); } catch (_) { /* ignore */ } },
 };
 
 function applySetCookie(header) {

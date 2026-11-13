@@ -466,7 +466,7 @@
   }
   // 4자리 비밀번호 칸 (v0.30.0): 칸마다 한 글자, 자동으로 다음 칸, 지우면 앞 칸, 붙여넣기 가능
   const PIN_LEN = 4;
-  const pinBoxesHtml = (name, label) => `<div class="pin-boxes" data-pin="${esc(name || '')}" role="group" aria-label="${esc(label || '비밀번호 4자리')}">${Array.from({ length: PIN_LEN }, (_, i) => `<input class="pin-box" type="password" maxlength="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${i + 1}번째 글자" />`).join('')}</div>`;
+  const pinBoxesHtml = (name, label, len = PIN_LEN) => `<div class="pin-boxes${len > PIN_LEN ? ' pin6' : ''}" data-pin="${esc(name || '')}" role="group" aria-label="${esc(label || `비밀번호 ${len}자리`)}">${Array.from({ length: len }, (_, i) => `<input class="pin-box" type="password" maxlength="1" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${i + 1}번째 글자" />`).join('')}</div>`;
   function bindPin(el, onComplete) {
     const boxes = [...el.querySelectorAll('.pin-box')];
     const value = () => boxes.map((b) => b.value).join('');
@@ -475,7 +475,7 @@
       let i = start;
       for (const ch of chars) { if (i >= boxes.length) break; boxes[i].value = ch; i++; }
       boxes[Math.min(i, boxes.length - 1)].focus();
-      if (value().length === boxes.length && [...value()].length === PIN_LEN && onComplete) onComplete(value());
+      if ([...value()].length === boxes.length && onComplete) onComplete(value());
     };
     boxes.forEach((b, i) => {
       b.addEventListener('input', () => {
@@ -2651,6 +2651,7 @@
     let flags = 0;
     const z = await ksGzip(plain, false);
     if (z) { plain = z; flags = 1; }
+    if ([...pw].length === 6) flags |= 2; // 6자리 비밀번호로 만든 파일 (v0.30.47)
     const head = new Uint8Array([...KS_MAGIC, 1, flags, (KS_ITER >>> 24) & 255, (KS_ITER >>> 16) & 255, (KS_ITER >>> 8) & 255, KS_ITER & 255]);
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: head }, await ksKey(pw, salt, KS_ITER), plain));
     const out = new Uint8Array(head.length + 28 + ct.length);
@@ -2676,12 +2677,12 @@
   const bytesToB64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
   const b64ToBytes = (b64) => Uint8Array.from(atob(b64 || ''), (c) => c.charCodeAt(0));
   // 4자리 비밀번호 묻기 (동기화·백업 파일용). confirm=true 면 두 번 입력. 취소하면 null
-  function askFilePin(title, desc, confirm) {
+  function askFilePin(title, desc, confirm, len = PIN_LEN) {
     return new Promise((resolve) => {
       const body = openModal(title);
       body.innerHTML = `<p style="margin:0 0 12px">${desc}</p>
-        <div class="field"><label>비밀번호 (4자리)</label>${pinBoxesHtml('fp1')}</div>
-        ${confirm ? `<div class="field" style="margin-top:10px"><label>비밀번호 확인</label>${pinBoxesHtml('fp2', '비밀번호 확인')}</div>` : ''}
+        <div class="field"><label>비밀번호 (${len}자리)</label>${pinBoxesHtml('fp1', '', len)}</div>
+        ${confirm ? `<div class="field" style="margin-top:10px"><label>비밀번호 확인</label>${pinBoxesHtml('fp2', '비밀번호 확인', len)}</div>` : ''}
         <div class="notice error small" data-msg hidden style="margin-top:10px"></div>`; // 4자리를 다 넣으면 바로 진행(확인·취소 버튼 없음, 닫으려면 ✕, v0.30.43)
       let done = false;
       const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
@@ -2690,7 +2691,7 @@
       const p1 = bindPin(body.querySelector('[data-pin="fp1"]'), () => (p2 ? p2.focus() : ok()));
       const ok = () => {
         const v = p1.value();
-        if ([...v].length !== PIN_LEN) { msg.hidden = false; msg.textContent = '4자리를 모두 입력하세요.'; p1.shake(); return; }
+        if ([...v].length !== len) { msg.hidden = false; msg.textContent = `${len}자리를 모두 입력하세요.`; p1.shake(); return; }
         if (p2 && p2.value() !== v) { msg.hidden = false; msg.textContent = '비밀번호가 일치하지 않습니다.'; p2.shake(); p2.clear(); return; }
         finish(v);
       };
@@ -2704,12 +2705,14 @@
     get() { try { return localStorage.getItem('sync.pw') || ''; } catch (_) { return ''; } },
     set(v) { try { if (v) localStorage.setItem('sync.pw', v); else localStorage.removeItem('sync.pw'); } catch (_) { /* 무시 */ } },
   };
-  async function needSyncPw(create) {
+  // v0.30.47: 동기화 비밀번호는 6자리 (예전 4자리 파일은 4자리로 열고, 다음에 저장할 때 6자리를 새로 정함)
+  const SYNC_PW_LEN = 6;
+  async function needSyncPw(create, fileLen = SYNC_PW_LEN) {
     const cur = syncPw.get();
-    if (cur) return cur;
+    if (cur && (create ? [...cur].length === SYNC_PW_LEN : [...cur].length === fileLen)) return cur;
     const v = create
-      ? await askFilePin('동기화 비밀번호 정하기', '동기화 파일을 암호화할 <b>4자리 동기화 비밀번호</b>를 정하세요. 다른 기기에서 동기화할 때도 같은 비밀번호를 한 번 입력합니다. <b>잊으면 동기화 파일을 열 수 없으니</b> 꼭 기억해 두세요.', true)
-      : await askFilePin('동기화 비밀번호', '동기화 파일이 암호화되어 있습니다. 처음 동기화를 설정할 때 정한 <b>4자리 동기화 비밀번호</b>를 입력하세요.', false);
+      ? await askFilePin('동기화 비밀번호 정하기', `동기화 파일을 암호화할 <b>6자리 동기화 비밀번호</b>를 정하세요.${cur ? ' (동기화 비밀번호가 4자리에서 6자리로 바뀌었습니다.)' : ''} 다른 기기에서 동기화할 때도 같은 비밀번호를 한 번 입력합니다. <b>잊으면 동기화 파일을 열 수 없으니</b> 꼭 기억해 두세요.`, true, SYNC_PW_LEN)
+      : await askFilePin('동기화 비밀번호', `동기화 파일이 암호화되어 있습니다. 동기화를 설정할 때 정한 <b>${fileLen}자리 동기화 비밀번호</b>를 입력하세요.`, false, fileLen);
     if (!v) throw Object.assign(new Error('동기화를 취소했습니다.'), { name: 'AbortError' });
     return v;
   }
@@ -2720,11 +2723,12 @@
     let legacy = false;
     if (ksIsEnc(bytes)) {
       // 암호화된 파일 (v0.30.42): 기억한 비밀번호로 풀고, 맞지 않으면(다른 기기에서 바꿈 등) 다시 묻는다
-      let pw = await needSyncPw(false);
+      const fileLen = bytes[5] & 2 ? 6 : 4; // 6자리로 만든 파일 표시 (v0.30.47)
+      let pw = await needSyncPw(false, fileLen);
       for (;;) {
         try { text = await ksDecrypt(bytes, pw); syncPw.set(pw); break; } catch (e) {
           if (e.code !== 'BADPW') throw e;
-          pw = await askFilePin('동기화 비밀번호', '동기화 비밀번호가 맞지 않습니다. 다른 기기에서 바꿨다면 <b>새 4자리 동기화 비밀번호</b>를 입력하세요.', false);
+          pw = await askFilePin('동기화 비밀번호', `동기화 비밀번호가 맞지 않습니다. 다른 기기에서 바꿨다면 <b>새 ${fileLen}자리 동기화 비밀번호</b>를 입력하세요.`, false, fileLen);
           if (!pw) throw Object.assign(new Error('동기화를 취소했습니다.'), { name: 'AbortError' });
         }
       }
@@ -2767,7 +2771,7 @@
     try {
       const h = syncMode() === 'web' ? await webHandle(true) : null;
       const whole = await readSyncFile(h);
-      const v = await askFilePin('동기화 비밀번호 바꾸기', '새 <b>4자리 동기화 비밀번호</b>를 입력하세요. 다른 기기는 다음 동기화 때 새 비밀번호를 한 번 입력합니다.', true);
+      const v = await askFilePin('동기화 비밀번호 바꾸기', '새 <b>6자리 동기화 비밀번호</b>를 입력하세요. 다른 기기는 다음 동기화 때 새 비밀번호를 한 번 입력합니다.', true, SYNC_PW_LEN);
       if (!v) return;
       await writeWholeSync(h, whole, v);
       toast('동기화 비밀번호를 바꿨습니다. 다른 기기에서는 다음 동기화 때 새 비밀번호를 입력하세요.');
@@ -3075,7 +3079,7 @@
       if (m === 'gdrive') {
         box.innerHTML = `<div class="sync-status"><span class="gd-on">${GOOGLE_G}<span>구글 드라이브 직접 연결</span></span><b class="gd-acct" data-noi18n>${esc(IN_APP ? gdDevice() : (g && g.account) || '')}</b><span class="muted small">파일 내 드라이브 › K-Stock 폴더 › kstock-sync.kst (암호화)</span><span class="muted small">사용자 <span data-noi18n>${esc(state.user.email)}</span></span><span class="muted small">마지막 동기화 ${st && st.at ? esc(fmtTime(st.at)) : '없음'}</span></div>
           <div class="field-row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><button data-sync-now>⟳ 지금 동기화</button>${syncPw.get() ? '<button class="secondary" data-sync-pw>동기화 비밀번호 변경</button>' : ''}<button class="secondary" data-gd-off>구글 드라이브 연결 해제</button></div>
-          <p class="small muted" style="margin:8px 0 0">🔒 동기화 파일(kstock-sync.kst)은 4자리 동기화 비밀번호로 암호화되어, 파일만으로는 내용을 볼 수 없습니다.</p>`;
+          <p class="small muted" style="margin:8px 0 0">🔒 동기화 파일(kstock-sync.kst)은 6자리 동기화 비밀번호로 암호화되어, 파일만으로는 내용을 볼 수 없습니다.</p>`;
         box.querySelector('[data-sync-now]').addEventListener('click', runSync);
         const spw = box.querySelector('[data-sync-pw]');
         if (spw) spw.addEventListener('click', changeSyncPw);
@@ -3351,7 +3355,7 @@
       </div>` : ''}
       <div class="card" data-sync-card data-fold="sync">
         <h2>데이터 동기화 ${req('FR-BAK-03')}</h2>
-        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Connect each device to Google Drive with the same Google account, and tapping [Sync] brings the devices up to date through the sync file on Drive (kstock-sync.kst; not real time). The sync file is encrypted with a 4-character sync password (set on the first sync and entered once on each other device). If only this device changed, it saves to Drive; if another device changed, it takes those changes; if both changed, it asks which to keep. It syncs holdings, dividends, categories, screen settings, sharing permissions and user info (added users, nicknames, photos, passwords). Holdings and other data are stored per user, so devices logged in as the same user stay in sync.' : `각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.kst)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 동기화 파일은 4자리 동기화 비밀번호로 암호화됩니다(처음 동기화할 때 정하고, 다른 기기에서는 한 번 입력). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.`}</p>
+        <p style="margin:0 0 10px" data-noi18n>${isEn() ? 'Connect each device to Google Drive with the same Google account, and tapping [Sync] brings the devices up to date through the sync file on Drive (kstock-sync.kst; not real time). The sync file is encrypted with a 6-character sync password (set on the first sync and entered once on each other device). If only this device changed, it saves to Drive; if another device changed, it takes those changes; if both changed, it asks which to keep. It syncs holdings, dividends, categories, screen settings, sharing permissions and user info (added users, nicknames, photos, passwords). Holdings and other data are stored per user, so devices logged in as the same user stay in sync.' : `각 기기를 같은 구글 계정의 구글 드라이브에 연결하면, [동기화]를 누를 때 드라이브의 동기화 파일(kstock-sync.kst)로 기기끼리 데이터를 최신으로 맞춥니다(실시간 아님). 동기화 파일은 6자리 동기화 비밀번호로 암호화됩니다(처음 동기화할 때 정하고, 다른 기기에서는 한 번 입력). 이 기기만 바뀌었으면 드라이브에 저장하고, 다른 기기가 바꿨으면 가져오며, 양쪽 다 바뀌었으면 남길 쪽을 묻습니다. 보유 종목·배당·분류·화면 설정·화면 공유 권한과 사용자 정보(추가·별명·사진·비밀번호)를 맞추며, 보유 종목 등은 사용자별로 따로 저장되어 같은 사용자로 로그인한 기기끼리 맞춰집니다.`}</p>
         <div data-sync-body><span class="small muted">확인 중…</span></div>
       </div>
       <div class="card" data-share-card data-fold="share">
