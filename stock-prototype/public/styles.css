@@ -968,3 +968,7 @@ button:has(> .btn-ico) { display: inline-flex; align-items: center; gap: 6px; }
 /* v0.30.81 전년도 일괄이월 버튼: 테마 색을 아주 살짝 */
 button.carry-btn { background: var(--t-50); border-color: var(--t-200); color: var(--t-900); }
 button.carry-btn:hover { background: var(--t-100); }
+/* v0.30.83 배당 내역 등록: 최근 1개월 미등록 배당 알림(종 아이콘) */
+.pend-bell { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; margin-left: 2px; border: 1px solid #fca5a5; border-radius: 50%; background: #fee2e2; color: #dc2626; vertical-align: middle; cursor: pointer; animation: bellpulse 1.6s ease-in-out infinite; }
+.pend-bell:hover { background: #fecaca; filter: none; }
+@keyframes bellpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .35); } 50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); } }

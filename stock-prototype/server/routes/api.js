@@ -637,10 +637,24 @@ router.get('/divmgmt', async (req, res) => {
     const k = (v) => (v == null || rate == null ? null : v * rate);
     const value = price == null ? null : price * p.quantity;
     const ytdTax = ytd.n ? (ytd.taxMissing ? null : ytd.tax) : 0;
+    // 최근 1개월 안 배당락일인데 아직 등록하지 않은 회차 (v0.30.83, 올해 화면만)
+    let pending = [];
+    if (year >= ty) {
+      const today = new Date().toISOString().slice(0, 10);
+      const since = new Date(Date.now() - 31 * 86400000).toISOString().slice(0, 10);
+      pending = db.all(
+        `SELECT e.ex_date, e.pay_date, e.amount FROM dividend_events e WHERE e.code = ? AND e.ex_date BETWEEN ? AND ?
+         AND NOT EXISTS (SELECT 1 FROM holding_dividends h WHERE h.user_id = ? AND h.group_id = ? AND h.code = e.code AND h.ex_date = e.ex_date)
+         ORDER BY e.ex_date`,
+        [p.code, since, today, req.user.id, p.groupId]
+      );
+    }
     return {
       group_id: p.groupId, group_name: gname.get(p.groupId) || '-', code: p.code,
       name: inst.name, type: inst.type, currency: inst.currency, market: inst.market,
       quantity: p.quantity, price, price_time: priceTime, value,
+      div_freq: market.divFrequency(p.code), // 배당 주기 (v0.30.83)
+      pending,
       last: last ? { ex_date: last.ex_date, amount: last.amount, tax: last.tax_amount, quantity: last.quantity } : null,
       ytd_count: ytd.n, ytd_amount: ytd.n ? ytd.amount : 0, ytd_tax: ytdTax,
       // 원화 환산 (소계·합계용)
@@ -648,6 +662,8 @@ router.get('/divmgmt', async (req, res) => {
       krw: { value: k(value), last: last ? k(last.amount) : null, last_tax: last ? k(last.tax_amount) : null, ytd: k(ytd.n ? ytd.amount : 0), ytd_tax: k(ytdTax) },
     };
   });
+  // 배당 지급내역을 아직 불러오지 않은 종목은 뒤에서 불러 둔다(다음 조회부터 주기·미등록 알림 표시)
+  [...new Set(items.filter((it) => !it.div_freq).map((it) => it.code))].slice(0, 5).forEach((c) => { market.getDividendEvents(c).catch(() => {}); });
   res.json({ year, ongoing: year >= ty, fromMonth: fromM, toMonth: toM, groupId: gid, groups, yearRange: { min: ty - 9, max: ty }, fxRate, items });
 });
 
