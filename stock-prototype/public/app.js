@@ -1721,19 +1721,19 @@
         <h2 data-form-title></h2>
         <form class="inline edit-mode" data-add novalidate>
           <input type="hidden" name="id" />
-          <div class="field" data-f="group" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
-          <div class="field ac-field code-ac" data-f="code" style="width:190px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="종목명 또는 코드" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" /><div class="ac-menu" data-ac hidden role="listbox"></div><span class="hint code-hint" data-hint></span><span class="err" data-err="code"></span></div>
-          <div class="field" data-f="category" style="width:110px"><label>국내 · 해외</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="err" data-err="category"></span></div>
+          <div class="field" data-f="group" style="width:120px"><label><span class="req-mark" title="필수 입력" aria-label="필수 입력">*</span>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
+          <div class="field ac-field code-ac" data-f="code" style="width:190px"><label><span class="req-mark" title="필수 입력" aria-label="필수 입력">*</span>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="종목명 또는 코드" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" /><div class="ac-menu" data-ac hidden role="listbox"></div><span class="hint code-hint" data-hint></span><span class="err" data-err="code"></span></div>
+          <div class="field" data-f="category" style="width:110px"><label><span class="req-mark" title="필수 입력" aria-label="필수 입력">*</span>국내 · 해외</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
           <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="err" data-err="carriedQty"></span></div>
-          <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="err" data-err="quantity"></span></div>
-          <div class="field" data-f="amount" style="width:150px"><label>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" autocomplete="off" spellcheck="false" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
+          <div class="field" data-f="qty" style="width:110px"><label><span class="req-mark" title="필수 입력" aria-label="필수 입력">*</span>최종 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="err" data-err="quantity"></span></div>
+          <div class="field" data-f="amount" style="width:150px"><label><span class="req-mark" title="필수 입력" aria-label="필수 입력">*</span>총 매입금액 <span data-cur></span></label><input name="purchaseAmount" autocomplete="off" spellcheck="false" placeholder="총 매입금액" /><span class="hint">거래 통화 기준</span><span class="err" data-err="purchaseAmount"></span></div>
           <div class="field" data-f="avg" style="width:140px"><label>매입단가(평균)</label><input name="avgPrice" class="auto-calc" readonly tabindex="-1" placeholder="자동 계산" /><span class="hint">매입금액 ÷ 보유 수량</span><span class="err" data-err="avgPrice"></span></div>
           <div class="field" data-f="carry" style="width:160px" data-basis-field><label>이월 금액(전년) <span data-cur2></span></label><input name="carryAmount" autocomplete="off" spellcheck="false" placeholder="비우면 자동 계산" /><span class="hint" data-basis-hint>비우면 이월 수량 × 전년 종가</span><span class="err" data-err="carryAmount"></span></div>
           <div class="field" data-f="memo" style="flex:1;min-width:120px"><label>메모 (선택)</label><input name="memo" maxlength="200" /><span class="err" data-err="memo"></span></div>
           <div class="field" data-f="buttons"><label>&nbsp;</label><div class="field-row"><button type="submit" data-submit>등록</button><button type="button" class="secondary" data-carry title="${year - 1}년 말 보유 종목을 골라 ${year}년 이월 종목으로 한 번에 등록">전년도 일괄이월</button><button type="button" class="secondary" data-cancel hidden>취소</button></div></div>
         </form>
-        <p class="small muted calc-tip" style="margin:6px 0 0">숫자 칸(이월 수량·총 수량·총 매입금액·이월 금액)은 <b>= 10+30</b>처럼 <b>=</b>로 시작하면 사칙연산(+ − × ÷, 괄호)으로 계산합니다. 칸을 벗어나면 결과가 보이고, 다시 누르면 계산식을 고칠 수 있습니다.</p>
+        <p class="small muted calc-tip" style="margin:6px 0 0">숫자 칸(이월 수량·최종 수량·총 매입금액·이월 금액)은 <b>= 10+30</b>처럼 <b>=</b>로 시작하면 사칙연산(+ − × ÷, 괄호)으로 계산합니다. 칸을 벗어나면 결과가 보이고, 다시 누르면 계산식을 고칠 수 있습니다.</p>
         <div data-msg></div>
       </div>
       <div class="card" data-fold="list"><h2 data-list-title></h2><div data-trades><div class="empty">불러오는 중…</div></div></div>`);
@@ -1852,7 +1852,7 @@
       lookedUp = '';
       curLabel.textContent = '';
       showFieldErrors(form, {});
-      if (groups.length) form.groupId.value = String(groupId || groups[0].id);
+      form.groupId.value = '';
       form.querySelector('[data-submit]').textContent = '등록';
       form.querySelector('[data-cancel]').hidden = true;
       setTitles();
@@ -1872,6 +1872,17 @@
       const formulas = {};
       Object.keys(CALC_FIELDS).forEach((k) => { if (form[k].dataset.formula) formulas[k] = form[k].dataset.formula; });
       const d = { ...formData(form), code: form.code.value, groupId: form.groupId.value, year, formulas };
+      // 필수 입력 (v0.30.79): 그룹 · 종목코드 · 국내 · 해외 · 최종 수량 · 총 매입금액(최종 수량이 0이면 제외)
+      {
+        const req = {};
+        const empty = (v) => String(v ?? '').trim() === '';
+        if (empty(form.groupId.value)) req.groupId = '그룹을 선택하세요.';
+        if (!form.code.disabled && empty(form.code.value)) req.code = '종목코드를 입력하세요.';
+        if (empty(form.category.value)) req.category = '국내 · 해외를 선택하세요.';
+        if (empty(form.quantity.value)) req.quantity = '최종 수량을 입력하세요.';
+        else if (Number(String(form.quantity.value).replace(/,/g, '')) !== 0 && empty(form.purchaseAmount.value)) req.purchaseAmount = '총 매입금액을 입력하세요.';
+        if (Object.keys(req).length) { showFieldErrors(form, req); return; }
+      }
       const btn = form.querySelector('[data-submit]');
       btn.disabled = true;
       try {
@@ -1897,8 +1908,8 @@
         settings.set('holdings.group', b.dataset.g);
         go(`#/holdings?year=${year}&group=${b.dataset.g}`);
       }));
-      form.groupId.innerHTML = groups.map((g) => `<option value="${g.id}" data-noi18n>${esc(g.name)}</option>`).join('');
-      if (!form.id.value) form.groupId.value = String(groupId || groups[0].id);
+      form.groupId.innerHTML = '<option value="">선택</option>' + groups.map((g) => `<option value="${g.id}" data-noi18n>${esc(g.name)}</option>`).join('');
+      if (!form.id.value) form.groupId.value = ''; // 새 종목: 그룹은 ‘선택’부터 (v0.30.79)
     }
 
     async function loadGroups() {

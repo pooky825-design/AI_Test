@@ -958,3 +958,7 @@ table:has(.th-period) thead th { vertical-align: top; }
 table th, table td { vertical-align: top; }
 /* v0.30.75 보유 종목 등록 입력 상자: 입력 항목 이름(라벨) 가운데 정렬 */
 form[data-add] .field > label { display: block; text-align: center; }
+/* v0.30.79 보유 종목 등록 입력 상자: 라벨 한 단계 크게·진하게, 칸 아래 안내·오류 글은 칸 기준 가운데, 필수 입력 표시 */
+form[data-add] .field > label { font-size: 13px; font-weight: 700; color: var(--text); }
+form[data-add] .field > .hint, form[data-add] .field > .err { display: block; text-align: center; }
+.req-mark { display: inline-block; color: #dc2626; font-weight: 800; margin-right: 3px; }
