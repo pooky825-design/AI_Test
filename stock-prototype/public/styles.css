@@ -984,3 +984,7 @@ button.carry-btn:hover { background: var(--t-100); }
 .mydiv-page [data-fold="list"] .divhist-table th:nth-child(7) { width: 14.6%; }
 /* v0.30.87 모든 표: 종목명 굵게 */
 .name-cell > a:first-child, .name-cell > span:first-child, td.kw-name > div > span:first-child { font-weight: 700; }
+/* v0.30.88 표 안 글자 아이콘(배지·투자 지역 표시) 높이 10% 축소: 20.5px → 18.5px */
+td .badge, td .pend-bell { line-height: 14.5px; }
+td .cat { line-height: 14.85px; } /* 16.5px → 14.85px */
+td .pend-bell { width: 20px; height: 20px; }
