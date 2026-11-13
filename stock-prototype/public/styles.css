@@ -952,3 +952,5 @@ table.yr-detail { table-layout: fixed; width: 100%; min-width: 1040px; }
 @media (max-width: 640px) { table.yr-detail { min-width: 860px; } }
 /* v0.30.70 나의 자산 조회·나의 배당 조회 요약: 항목 제목 한 단계 크게·굵게 */
 [data-ckey="summary"] .kpi .label, .mydiv-kpis .kpi .label { font-size: 13px; font-weight: 700; }
+/* v0.30.72 두 줄 열 이름((A)·(B)… 기호 등)이 있는 표: 모든 열 이름을 위쪽에 맞춰 첫 줄이 한 줄로 나란히 */
+table:has(.th-period) thead th { vertical-align: top; }
