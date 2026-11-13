@@ -974,3 +974,11 @@ button.carry-btn:hover { background: var(--t-100); }
 @keyframes bellpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .35); } 50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); } }
 /* v0.30.85 배당 내역 표: 종목 아래 줄 배지(그룹·종류·배당 주기)는 잘리지 않게 줄바꿈 */
 .divhist-table td.name-col .name-cell > small { white-space: normal !important; overflow: visible; line-height: 1.9; }
+/* v0.30.86 나의 배당 조회 배당 내역: 지급일 열 10% 축소(164→148px), 줄인 만큼 종목 열 확대(200→216px). 다른 열 폭은 그대로 */
+.mydiv-page [data-fold="list"] .divhist-table { table-layout: fixed; width: 100%; min-width: 640px; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(1) { width: 15.8%; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(3) { width: 7.6%; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(4) { width: 10.9%; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(5) { width: 13.3%; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(6) { width: 14.7%; }
+.mydiv-page [data-fold="list"] .divhist-table th:nth-child(7) { width: 14.6%; }
