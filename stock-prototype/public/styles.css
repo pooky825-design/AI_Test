@@ -962,3 +962,6 @@ form[data-add] .field > label { display: block; text-align: center; }
 form[data-add] .field > label { font-size: 13px; font-weight: 700; color: var(--text); }
 form[data-add] .field > .hint, form[data-add] .field > .err { display: block; text-align: center; }
 .req-mark { display: inline-block; color: #dc2626; font-weight: 800; margin-right: 3px; }
+/* v0.30.80 버튼 글자 왼쪽 아이콘 */
+button:has(> .btn-ico) { display: inline-flex; align-items: center; gap: 6px; }
+.btn-ico { flex: none; }
