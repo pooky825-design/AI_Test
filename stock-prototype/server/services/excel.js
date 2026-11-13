@@ -94,10 +94,16 @@ async function assetsWorkbook(data) {
     header(ws, ['그룹', '종목 수', '원화 평가금액', '손익 기준액(금년)', '금년 손익', '금년 수익률', '매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const g of data.groupTotals) totalsRow(ws, g.name, g, data.ongoing);
   }
-  // 분류별 합계
-  if ((data.categoryTotals || []).length) {
+  // 분류(종류)별 합계 (v0.30.57)
+  if ((data.typeTotals || []).length) {
     ws.addRow([]);
     header(ws, ['분류', '종목 수', '원화 평가금액', '손익 기준액(금년)', '금년 손익', '금년 수익률', '매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
+    for (const c of data.typeTotals) totalsRow(ws, c.label, c, data.ongoing);
+  }
+  // 투자 지역별 합계
+  if ((data.categoryTotals || []).length) {
+    ws.addRow([]);
+    header(ws, ['투자 지역', '종목 수', '원화 평가금액', '손익 기준액(금년)', '금년 손익', '금년 수익률', '매입금액', '전체 손익', '전체 수익률', ...(data.ongoing ? ['오늘 손익', '오늘 손익률'] : [])]);
     for (const c of data.categoryTotals) totalsRow(ws, c.label, c, data.ongoing);
   }
   ws.columns.forEach((c, i) => (c.width = [10, 10, 30, 8, 12, 7, 12, 14, 12, 18, 10, 16, 16, 9, 22][i] || 12));

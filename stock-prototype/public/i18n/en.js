@@ -1008,5 +1008,10 @@ window.I18N_EN = {
 "월 = 조회 기간의 마지막 달 · 누적 = 조회 기간 전체 · 지급일(없으면 배당락일) 기준 · 미국 종목은 지급일 환율로 원화 환산": "Month = last month of the period · Total = whole period · by payment date (ex-date if none) · US stocks converted to KRW at the payment-date rate",
 "월 배당 = 수량 × 주당배당 · 세금 = 과세표준 × 15.4% · 미국 종목은 지급일 환율로 원화 환산(작은 글씨) · 지급일이 없는 회차는 배당락일 기준": "Monthly dividend = Qty × Dividend/share · Tax = Taxable base × 15.4% · US stocks in KRW at the payment-date rate (small text) · rounds without a pay date use the ex-date",
 "막대 = 월 배당(원화, 국내·해외·해외추종을 층으로 쌓음) · 꺾은선 = 그 달 과세표준(원화)": "Bars = monthly dividends (KRW, stacked by Domestic · Overseas · Overseas-tracking) · Line = that month's taxable base (KRW)",
-"배당 내역 입력에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).": "View the dividend rounds saved in Dividend Entry by year, month and group (by payment date, or ex-date if none)."
+"배당 내역 입력에서 저장한 배당 회차를 연도·월·그룹별로 조회합니다(지급일 기준, 지급일이 없으면 배당락일).": "View the dividend rounds saved in Dividend Entry by year, month and group (by payment date, or ex-date if none).",
+"투자 지역": "Region",
+"투자 지역별 합계": "Totals by region",
+"국내 · 해외 · 해외추종": "Domestic · Overseas · Overseas-tracking",
+"분류 = 종목 종류(주식 · ETF · ETN)": "Category = product type (Stock · ETF · ETN)",
+"투자 지역은 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).": "The region is chosen when registering a stock in Holdings (Domestic · Overseas · Overseas-tracking: Korean-listed ETFs tracking overseas assets, etc.)."
 };

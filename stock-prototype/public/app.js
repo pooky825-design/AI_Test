@@ -834,10 +834,27 @@
             </tr></tfoot>
           </table></div>
         </div>` : ''}
-        ${(d.categoryTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="category">
+        ${(d.typeTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="type">
           <h2>분류별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
           <div class="table-wrap"><table>
             <thead><tr><th>분류</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
+            <tbody>${d.typeTotals.map((c) => `<tr>
+              <td>${badge(c.id)}</td><td class="num">${c.count}</td>
+              <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
+              ${c.count || c.soldCount ? pnlCells(c) : '<td class="num">-</td><td class="num">-</td><td class="num">-</td><td class="num">-</td>'}${c.count ? todayCells(c) : (d.ongoing ? '<td class="num today-col">-</td><td class="num today-col">-</td>' : '')}
+            </tr>`).join('')}</tbody>
+            <tfoot><tr class="sum-row">
+              <td>소계</td><td class="num">${d.typeTotals.reduce((n, c) => n + c.count, 0)}</td>
+              <td class="num">${krw(t.valueKrw)}</td><td class="num">100.0%</td>
+              ${pnlCells(t)}${todayCells(t)}
+            </tr></tfoot>
+          </table></div>
+                    <p class="small muted" style="margin:4px 0 0">분류 = 종목 종류(주식 · ETF · ETN)</p>
+        </div>` : ''}
+        ${(d.categoryTotals || []).some((c) => c.count || c.soldCount) ? `<div class="card" data-ckey="category">
+          <h2>투자 지역별 합계${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : ''}</h2>
+          <div class="table-wrap"><table>
+            <thead><tr><th>투자 지역</th><th class="num">종목 수</th><th class="num">원화 평가금액</th><th class="num">비중</th>${pnlHead}${todayHead}</tr></thead>
             <tbody>${d.categoryTotals.map((c) => `<tr>
               <td><span class="cat cat-${c.id}">${esc(c.label)}</span></td><td class="num">${c.count}</td>
               <td class="num"><b>${c.count ? krw(c.valueKrw) : '-'}</b></td><td class="num">${c.count ? pct(t.valueKrw ? c.valueKrw / t.valueKrw : null).replace('+', '') : '-'}</td>
@@ -850,7 +867,7 @@
             </tr></tfoot>
           </table></div>
           ${todayNote}
-          <p class="small muted" style="margin:4px 0 0">분류는 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
+          <p class="small muted" style="margin:4px 0 0">투자 지역은 보유 종목 등록에서 종목을 등록할 때 고릅니다(국내 · 해외 · 해외추종: 해외 자산을 따라가는 국내 상장 ETF 등).</p>
         </div>` : ''}
         <div class="card" data-ckey="stocks">
           <h2>${d.year}년${d.ongoing ? '' : ' 말'} 종목별 평가금액${d.groupId ? ` · ${ud((d.groups.find((g) => g.id === d.groupId) || {}).name)}` : d.merged ? ' · 전체 통합' : ''} ${req('FR-AST-01 · FR-STK-06')}</h2>
@@ -909,14 +926,14 @@
               const sumCells = (x) => `<td class="num ${cls(x.pnlKrw)}">${sKrw(x.pnlKrw)}<br/><small>${pct(x.returnPct)}</small></td><td class="num ${cls(x.totalPnlKrw)}">${sKrw(x.totalPnlKrw)}<br/><small>${pct(x.totalPct)}</small></td>`;
               // 그 해 전량 매도한 종목 행: 보유 수량 0, 손익만 표시
               const soldHtml = (r) => `<tr class="sold-row">
-                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
+                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} ${divFreqBadge(r.div_freq)} · <span class="badge sold">${d.year}년 전량 매도${r.soldQty > 1e-9 ? ` ${qty(r.soldQty)}주` : ''}</span>${r.mergedGroups && r.mergedGroups.length ? ` · ${r.mergedGroups.map(esc).join('·')}` : ''}</small></div></td>
                 <td class="num">0</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="num muted">-</td>${d.ongoing ? '<td class="num muted">-</td>' : ''}
                 ${yearCell(r)}${totalCell(r)}
               </tr>`;
               const rowHtml = (r) => {
                 const c = r.instrument.currency;
                 return `<tr>
-                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
+                <td class="left"><div class="name-cell"><a href="#/stock?code=${encodeURIComponent(r.code)}" data-stock-popup="${esc(r.code)}" title="종목 조회 팝업 열기">${ud(r.instrument.name)}</a><small>${esc(r.code)} · ${esc(r.instrument.market)} · <span class="cat cat-${esc(r.category)}">${esc(r.categoryLabel)}</span> ${badge(r.instrument.type)} ${divFreqBadge(r.div_freq)}${r.stale ? ' · <span class="up">지연</span>' : ''}${r.mergedGroups && r.mergedGroups.length > 1 ? ` · <span class="badge grp">${r.mergedGroups.map(esc).join('·')} 합산</span>` : ''}</small></div></td>
                 <td class="num">${qty(r.quantity)}</td>
                 <td class="num">${money(r.origAvgPrice, c)}</td>
                 <td class="num">${krwCell(r, r.origCostKrw, r.origCost, false)}</td>
@@ -1703,7 +1720,7 @@
           <input type="hidden" name="id" />
           <div class="field" data-f="group" style="width:120px"><label>그룹</label><select name="groupId"></select><span class="err" data-err="groupId"></span></div>
           <div class="field ac-field code-ac" data-f="code" style="width:190px"><label>종목코드</label><input name="code" value="${esc(query.code || '')}" placeholder="종목명 또는 코드" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" /><div class="ac-menu" data-ac hidden role="listbox"></div><span class="hint code-hint" data-hint></span><span class="err" data-err="code"></span></div>
-          <div class="field" data-f="category" style="width:110px"><label>분류</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">종목별로 하나</span><span class="err" data-err="category"></span></div>
+          <div class="field" data-f="category" style="width:110px"><label>투자 지역</label><select name="category"><option value="">선택</option><option value="DOMESTIC">국내</option><option value="OVERSEAS">해외</option><option value="OVERSEAS_TRACK">해외추종</option></select><span class="hint">국내 · 해외 · 해외추종</span><span class="err" data-err="category"></span></div>
           <div class="field" data-f="carryMode" style="width:100px"><label>이월 여부</label><select name="carryMode"><option value="NEW">신규</option><option value="CARRIED">이월</option></select><span class="hint">이월: 전년도부터 보유</span><span class="err" data-err="carryMode"></span></div>
           <div class="field" data-f="cqty" style="width:120px"><label>이월 수량</label><input name="carriedQty" autocomplete="off" spellcheck="false" placeholder="전년부터 보유 시" /><span class="hint" data-cqty-hint>전년부터 보유 시 입력</span><span class="err" data-err="carriedQty"></span></div>
           <div class="field" data-f="qty" style="width:110px"><label>총 수량</label><input name="quantity" autocomplete="off" spellcheck="false" placeholder="예: 10" /><span class="hint">그 해 말 수량</span><span class="err" data-err="quantity"></span></div>
@@ -2219,7 +2236,7 @@
           </table></div>
         </div>
         <div data-ydetail></div>
-        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 등록의 종목 분류별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
+        <p class="small muted" style="margin:10px 0 0">연도별 자산금액 = Σ (연말 수정 종가 × 그 해 말 보유 수량 × 해당 연도 말 환율) · 그래프의 꺾은선 = 환율(USD/KRW, 지난 연도는 연말 환율, 올해는 현재 환율) · 국내·해외·해외추종 = 보유 종목 등록의 투자 지역별 합계(아래 작은 글씨는 비중) · 총자산을 누르면 연말 환율 · 진행 중인 연도는 최신 시세·현재 환율로 계산 · 연도를 누르면 아래에 종목별 내역이 펼쳐집니다 · 상장 전 연도의 종목은 ‘-’로 표시하고 합계에서 제외</p>
       </div>
       <div class="card" data-divyearly data-fold="dividends">${divYearlyShell()}</div>`;
     // 종목별 내역 (연도 행을 누르면 표 아래에 전체 폭으로 표시)

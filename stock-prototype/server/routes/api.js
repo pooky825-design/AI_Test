@@ -1073,7 +1073,11 @@ router.put('/settings/:key', (req, res) => {
 // 자산 현황 (3.4) / 연도별 조회 (3.5)
 // ---------------------------------------------------------------------------
 router.get('/assets', async (req, res) => {
-  res.json(await portfolio.getAssets(req.user.id, req.query.year, req.query.group, req.query.merged === '1'));
+  const d = await portfolio.getAssets(req.user.id, req.query.year, req.query.group, req.query.merged === '1');
+  // 배당 주기 (v0.30.57): 지급내역을 불러온 종목만, 모르는 종목은 뒤에서 불러 둔다
+  for (const r of [...(d.rows || []), ...(d.soldRows || [])]) r.div_freq = market.divFrequency(r.code);
+  [...new Set((d.rows || []).filter((r) => !r.div_freq).map((r) => r.code))].slice(0, 5).forEach((c) => { market.getDividendEvents(c).catch(() => {}); });
+  res.json(d);
 });
 
 function yearRange(q) {

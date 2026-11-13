@@ -269,7 +269,14 @@ async function getAssets(userId, year, groupId, merged) {
     groupId: gid,
     merged: isMerged,
     groupTotals,
-    // 분류별 합계 (선택한 그룹 범위 안에서)
+    // 분류(종류)별 합계 (v0.30.57): 주식·ETF·ETN
+    typeTotals: ['주식', 'ETF', 'ETN'].map((t) => {
+      const tOf = (r) => (r.instrument && r.instrument.type) || '주식';
+      const rs = ok.filter((r) => tOf(r) === t);
+      const ss = soldRows.filter((r) => tOf(r) === t);
+      return { id: t, label: t, count: new Set(rs.map((r) => r.code)).size, soldCount: ss.length, ...sumOf(rs, ss), ...todayOf(rs) };
+    }).filter((x) => x.count || x.soldCount),
+    // 투자 지역별 합계 (선택한 그룹 범위 안에서, v0.30.57 이름: 분류 → 투자 지역)
     categoryTotals: categories.CATEGORIES.map((c) => {
       const rs = ok.filter((r) => r.category === c.id);
       const ss = soldRows.filter((r) => r.category === c.id);
