@@ -480,6 +480,12 @@ router.get('/stocks/:code', async (req, res) => {
   res.json({ ...q, category: categories.categoryOf(req.user.id, q.instrument.code, q.instrument) });
 });
 
+// 배당 주기 (v0.30.55): 지급내역을 불러온 뒤(1일 재사용) 주기를 판단
+router.get('/stocks/:code/divfreq', async (req, res) => {
+  const d = await market.getDividendEvents(req.params.code);
+  res.json({ code: d.instrument.code, freq: market.divFrequency(d.instrument.code) });
+});
+
 router.get('/stocks/:code/prices', async (req, res) => {
   const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : today();
   const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : to;
@@ -565,8 +571,11 @@ router.get('/holdings', async (req, res) => {
       memo: p.memo, created_at: p.createdAt, updated_at: p.lastTradeAt,
       formulas: p.itemYear === year ? parseFormulas(req.user.id, p.groupId, p.code, year) : null,
       carried: p.carried, carry_mode: p.carryMode, item_year: p.itemYear, category: c.id, category_label: c.label,
+      div_freq: market.divFrequency(p.code), // 배당 주기 (v0.30.55, 지급내역을 불러온 종목만)
     };
   });
+  // 배당 주기를 아직 모르는 종목은 지급내역을 뒤에서 불러 둔다(다음에 열 때 표시)
+  items.filter((it) => !it.div_freq).slice(0, 5).forEach((it) => { market.getDividendEvents(it.code).catch(() => {}); });
   const range = positions.tradeYearRange(req.user.id);
   res.json({ year, groupId: gid, groups, yearRange: { min: Math.min(range.min || ty, ty - 9), max: ty }, holdings: list, items });
 });

@@ -512,7 +512,38 @@ async function collectDaily() {
   }
 }
 
+// 배당 주기 (v0.30.55): 저장된 배당 지급내역(dividend_events)의 최근 배당락일 간격으로 판단
+//  월배당(간격 ≤ 45일) · 분기배당(≤ 120일) · 반기배당(≤ 240일) · 연배당. 배당 기록이 없으면 무배당(지급내역을 불러온 경우만),
+//  마지막 배당이 평소 간격보다 한참 지났으면(간격 × 2 + 60일, 최소 1년 반) '배당 중단?'으로 표시
+const DIV_FREQ_LABEL = { monthly: '월배당', quarterly: '분기배당', semiannual: '반기배당', annual: '연배당', none: '무배당', stopped: '배당 중단?' };
+function divFrequency(code) {
+  const inst = getInstrumentRow(code);
+  if (!inst || !inst.div_loaded_at) return null; // 아직 지급내역을 불러오지 않음
+  const since = new Date(Date.now() - 3 * 365 * 86400000).toISOString().slice(0, 10);
+  const dates = db.all('SELECT ex_date FROM dividend_events WHERE code = ? AND ex_date >= ? ORDER BY ex_date', [code, since]).map((r) => r.ex_date);
+  const out = (id, extra = {}) => ({ id, label: DIV_FREQ_LABEL[id], ...extra });
+  if (!dates.length) {
+    const any = db.get('SELECT ex_date FROM dividend_events WHERE code = ? ORDER BY ex_date DESC LIMIT 1', [code]);
+    return any ? out('stopped', { last: any.ex_date }) : out('none');
+  }
+  const recent = dates.slice(-7);
+  const gaps = recent.slice(1).map((d, i) => (Date.parse(d) - Date.parse(recent[i])) / 86400000).sort((a, b) => a - b);
+  const last = dates[dates.length - 1];
+  let id;
+  if (gaps.length) {
+    const g = gaps[Math.floor(gaps.length / 2)]; // 중앙값
+    id = g <= 45 ? 'monthly' : g <= 120 ? 'quarterly' : g <= 240 ? 'semiannual' : 'annual';
+    const days = (Date.now() - Date.parse(last)) / 86400000;
+    if (days > Math.max(g * 2 + 60, 540)) id = 'stopped';
+  } else {
+    // 최근 3년에 한 번뿐: 1년 반 안이면 연배당으로 봄
+    id = (Date.now() - Date.parse(last)) / 86400000 <= 540 ? 'annual' : 'stopped';
+  }
+  return out(id, { last, count12m: dates.filter((d) => d >= new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)).length });
+}
+
 module.exports = {
+  divFrequency,
   ValidationError,
   normalizeCode,
   detectKind,

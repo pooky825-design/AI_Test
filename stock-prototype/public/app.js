@@ -221,6 +221,9 @@
   const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString(isEn() ? 'en-US' : 'ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-');
   const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
   const badge = (type) => (type ? `<span class="badge t-${esc(type)}">${esc(type)}</span>` : '');
+  // 배당 주기 배지 (v0.30.55): 월배당·분기배당·반기배당·연배당·무배당·배당 중단?
+  const DIV_FREQ_EN = { monthly: 'Monthly div.', quarterly: 'Quarterly div.', semiannual: 'Semiannual div.', annual: 'Annual div.', none: 'No dividend', stopped: 'Div. stopped?' };
+  const divFreqBadge = (f) => (f && f.id ? `<span class="badge dfreq df-${esc(f.id)}" data-noi18n title="${esc(isEn() ? 'Dividend frequency from recent ex-dates' : '최근 배당락일 간격으로 판단한 배당 주기')}">${esc(isEn() ? DIV_FREQ_EN[f.id] || f.label : f.label)}</span>` : '');
   const req = (ids) => `<span class="req">${esc(ids)}</span>`;
 
   function toast(msg) {
@@ -1771,7 +1774,13 @@
       hint.textContent = '확인 중…';
       try {
         const q = await api('GET', `/stocks/${encodeURIComponent(code)}`);
-        hint.innerHTML = `${ud(q.instrument.name)} ${badge(q.instrument.type)}`;
+        hint.innerHTML = `${ud(q.instrument.name)} ${badge(q.instrument.type)} <span data-dfreq></span>`;
+        // 배당 주기를 자동으로 불러와 아이콘으로 (v0.30.55)
+        const forCode = lookedUp;
+        api('GET', `/stocks/${encodeURIComponent(q.instrument.code)}/divfreq`).then((r) => {
+          const box = hint.querySelector('[data-dfreq]');
+          if (box && lookedUp === forCode) box.innerHTML = divFreqBadge(r.freq);
+        }).catch(() => {});
         curLabel.textContent = `(${q.instrument.currency === 'USD' ? '달러' : '원'})`;
         main.querySelector('[data-cur2]').textContent = curLabel.textContent;
         // 분류: 이 종목에 저장한 분류, 없으면 추천값을 미리 선택 (바꿀 수 있음)
@@ -1975,7 +1984,7 @@
           head = `<tr class="group-row"><td colspan="${cols}">${ud(it.group_name)}</td></tr>`;
         }
         return `${head}<tr data-idx="${idx}">
-          <td class="left"><div class="name-cell"><span>${ud(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)}</small></div></td>
+          <td class="left"><div class="name-cell"><span>${ud(it.name || it.code)}</span><small>${esc(it.code)} · <span class="cat cat-${esc(it.category)}">${esc(it.category_label)}</span> ${badge(it.type)} ${divFreqBadge(it.div_freq)}</small></div></td>
           <td class="right">${hasCarry(it) ? qty(it.basis_carried_qty) : dash}</td>
           <td class="right">${hasCarry(it) ? basisCell(it) : dash}</td>
           <td class="right">${fx(it, 'quantity')}${qty(it.quantity)}</td>
