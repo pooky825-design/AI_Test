@@ -93,3 +93,9 @@ Claude는 매 턴마다 아래 형식의 JSON(structured outputs)으로 응답�
 ## 참고
 
 - 대화 기록은 서버 메모리에만 저장되며, 서버를 재시작하거나 2시간이 지나면 사라집니다.
+
+---
+
+## 📅 배당 일정 조회 앱 (`dividend-app/`)
+
+SEIBro(한국예탁결제원) 배당정보로 주식 배당기준일·지급일·배당금을 조회하는 별도 앱입니다. 자세한 내용은 [`dividend-app/README.md`](dividend-app/README.md)를 보세요.
