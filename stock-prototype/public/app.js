@@ -1241,9 +1241,7 @@
     },
     '/me': {
       sync: srcOf('<b>구글 드라이브 공식 API</b>(googleapis.com) — 사용자 동의(OAuth) 후 앱이 만든 파일만 접근(drive.file), 암호화한 동기화 파일을 내 드라이브 K-Stock 폴더에 저장', '계정 선택: 안드로이드 시스템 계정 선택 창'),
-      backup: srcOf('백업 파일: 이 기기에서 만들어 사용자가 고른 위치에 저장(외부 호출 없음)'),
       share: srcOf('공유: 같은 앱 안의 사용자끼리, 동기화 시 구글 드라이브 파일에 함께 저장'),
-      dash: srcOf('none'),
     },
   };
   const DASH_SRC = {
@@ -1263,7 +1261,7 @@
       if (key && map[key]) text = map[key];
       else if (card.classList.contains('kw-card')) text = DASH_SRC.kw;
       else if (card.classList.contains('dash-group')) text = DASH_SRC[card.dataset.dg] || DASH_SRC.etc;
-      else if (key) text = SRC.none;
+      // v0.30.94: 외부 자료가 없는 상자에는 붙이지 않음(기존 모습 그대로)
       if (!text) return;
       const p = document.createElement('p');
       p.className = 'src-note small';
