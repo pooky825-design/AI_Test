@@ -30,6 +30,12 @@
     try { localStorage.setItem('ui.reqids', show === true ? '1' : '0'); } catch (_) { /* 무시 */ }
   }
   try { applyReqCodes(localStorage.getItem('ui.reqids') === '1'); } catch (_) { applyReqCodes(false); }
+  // 외부 자료 출처·방법 표시 (v0.30.93): 정보 상자 아래에 데이터를 어디서 어떻게 가져오는지. 기본 숨김, 개발자 환경 설정에서 켬
+  function applySrcInfo(show) {
+    document.documentElement.classList.toggle('show-src', show === true);
+    try { localStorage.setItem('ui.srcinfo', show === true ? '1' : '0'); } catch (_) { /* 무시 */ }
+  }
+  try { applySrcInfo(localStorage.getItem('ui.srcinfo') === '1'); } catch (_) { applySrcInfo(false); }
   // K-Stock 아이콘 4번 연속 누르기 → 요구사항 ID 켬·끔 창
   let brandTaps = [];
   document.addEventListener('click', (e) => {
@@ -39,9 +45,21 @@
     if (brandTaps.length < 4) return;
     brandTaps = [];
     const on = !document.documentElement.classList.contains('hide-req');
-    const body = openModal('요구사항 ID 표시');
-    body.innerHTML = `<label class="check-row"><input type="checkbox" data-reqids ${on ? 'checked' : ''} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
-      <p class="small muted" style="margin:10px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. ${state.user ? '계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.' : '이 기기에 기억됩니다.'}</p>`;
+    const srcOn = document.documentElement.classList.contains('show-src');
+    const where = state.user ? '계정에 저장되어 PC·앱 어디서나 같게 적용됩니다.' : '이 기기에 기억됩니다.';
+    // v0.30.93: 창 이름 ‘개발자 환경 설정’ — 요구사항 ID 표시 · 외부 자료 출처·방법 표시
+    const body = openModal('개발자 환경 설정');
+    body.innerHTML = `<div class="dev-sec"><h3>요구사항 ID 표시</h3>
+      <label class="check-row"><input type="checkbox" data-reqids ${on ? 'checked' : ''} /> 화면 제목·기능 옆에 요구사항 ID 표시 <span class="req req-sample" data-noi18n>FR-AUTH-01</span></label>
+      <p class="small muted" style="margin:6px 0 0">요구사항 정의서의 화면·기능 번호(SC-07, FR-AUTH-01 등)입니다. ${where}</p></div>
+      <div class="dev-sec"><h3>외부 자료 출처·방법 표시</h3>
+      <label class="check-row"><input type="checkbox" data-srcinfo ${srcOn ? 'checked' : ''} /> 정보 상자 아래에 외부 자료의 출처와 가져오는 방법 표시</label>
+      <p class="small muted" style="margin:6px 0 0">시세·환율·배당·뉴스 등을 어느 사이트에서 어떤 방식(공식 API, 웹사이트 내부 주소 직접 호출, 웹페이지 읽기)으로 가져오는지 보여 줍니다. ${where}</p></div>`;
+    body.querySelector('[data-srcinfo]').addEventListener('change', (ev) => {
+      applySrcInfo(ev.target.checked);
+      if (state.user) settings.set('ui.srcinfo', ev.target.checked);
+      toast(ev.target.checked ? '외부 자료 출처·방법을 표시합니다.' : '외부 자료 출처·방법을 숨깁니다.');
+    });
     body.querySelector('[data-reqids]').addEventListener('change', (ev) => {
       applyReqCodes(ev.target.checked);
       if (state.user) settings.set('ui.reqids', ev.target.checked);
@@ -53,6 +71,7 @@
     try { state.settings = (await api('GET', '/settings')).settings || {}; } catch (_) { state.settings = {}; }
     applyTheme(state.settings['ui.theme'] || null);
     if (typeof state.settings['ui.reqids'] === 'boolean') applyReqCodes(state.settings['ui.reqids']);
+    if (typeof state.settings['ui.srcinfo'] === 'boolean') applySrcInfo(state.settings['ui.srcinfo']);
     // 계정에 저장한 언어가 있으면 그 언어로 (v0.26)
     // 로그인 화면에서 언어를 골랐으면 그 선택을 계정에 저장하고, 아니면 계정에 저장한 언어를 쓴다
     const savedLang = state.settings['ui.lang'];
@@ -1181,6 +1200,78 @@
       el.classList.add('is-loading');
     });
   }
+  // ---- 외부 자료 출처·방법 (v0.30.93): 화면·상자별 설명. 정보 상자 아래에 붙이고, 개발자 환경 설정에서 켰을 때만 보인다
+  const SRC = {
+    yq: '<b>야후 파이낸스</b> 시세 차트 데이터 — 공식 공개 API가 아닌 웹사이트 내부 주소(query1·query2.finance.yahoo.com/v8/finance/chart)를 휴대폰 앱이 직접 호출(키 없음)',
+    nq: '야후 실패 시 <b>네이버 증권</b> 차트 내부 주소(fchart.stock.naver.com) 직접 호출',
+    fx: '환율(USD/KRW): <b>야후 파이낸스</b> 차트(KRW=X) 내부 주소 직접 호출',
+    nm: '종목명(한글): <b>네이버 증권</b> 모바일 내부 주소(m.stock.naver.com/api/stock) 직접 호출',
+    div: '배당락일·주당 배당금: <b>야후 파이낸스</b> 차트의 배당 이벤트(내부 주소 직접 호출, 최근 10년)',
+    tax: '과세표준·실지급일(국내 ETF만): <b>FunETF</b> 내부 주소(funetf.co.kr/api) 직접 호출 · <b>미래에셋 TIGER</b> 사이트 표(HTML) 읽기 · <b>신한 SOL</b> 사이트 내부 주소 직접 호출',
+    freq: '배당 주기: 야후 배당 이벤트의 최근 배당락일 간격으로 앱이 계산',
+    local: '입력값(보유 수량·매입금액·배당 회차 등): 이 기기(앱)에 저장한 값 — 외부 호출 없음',
+    none: '외부 자료 없음 — 이 기기(앱)에 저장한 값만 사용',
+  };
+  const srcOf = (...keys) => keys.map((k) => SRC[k] || k).join(' · ');
+  const SRC_MAP = {
+    '/assets': { summary: srcOf('local', 'yq', 'nq', 'fx'), group: srcOf('local', 'yq', 'fx'), type: srcOf('local', 'yq', 'fx'), category: srcOf('local', 'yq', 'fx', '국내·해외 구분: 직접 고른 값(없으면 종목명 규칙으로 추정)'), stocks: srcOf('local', 'yq', 'nq', 'fx', 'nm') },
+    '/stock': {
+      held: srcOf('local', 'yq', 'nm'), recent: srcOf('최근 조회 목록: 이 기기에 저장', 'yq'),
+      quote: srcOf('yq', 'nq', 'nm', '종목 검색: <b>네이버 증권</b> 자동완성 내부 주소(ac.stock.naver.com)·<b>야후 파이낸스</b> 검색 내부 주소 직접 호출'),
+      prices: srcOf('일별 종가(최근 10년): <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', 'nq', 'div', 'freq'),
+      fund: srcOf('투자지표: <b>네이버 증권</b> 모바일 내부 주소(m.stock.naver.com/api/stock/…/integration) 직접 호출'),
+      earnings: srcOf('실적: <b>네이버 증권</b> 모바일 내부 주소(m.stock.naver.com/api/stock/…/finance) 직접 호출'),
+    },
+    '/holdings': {
+      form: srcOf('종목 검색: <b>네이버 증권</b> 자동완성 내부 주소·<b>야후 파이낸스</b> 검색 내부 주소 직접 호출', 'nm', '이월 금액 자동 계산의 전년 종가: <b>야후 파이낸스</b> 차트', 'freq'),
+      list: srcOf('local', '이월 금액·손익 기준액의 종가: <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', 'fx'),
+    },
+    '/yearly': {
+      assets: srcOf('local', '연말 수정 종가·현재가: <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', '연말·현재 환율: <b>야후 파이낸스</b> 차트(KRW=X)'),
+      dividends: srcOf('배당 내역 입력에 저장한 회차', 'div', 'tax', '원화 환산 환율: <b>야후 파이낸스</b> 차트(KRW=X)', 'freq'),
+    },
+    '/mydiv': {
+      summary: srcOf('배당 내역 입력에 저장한 회차', '원화 환산 환율: <b>야후 파이낸스</b> 차트(KRW=X)'),
+      chart: srcOf('배당 내역 입력에 저장한 회차', '원화 환산 환율: <b>야후 파이낸스</b> 차트(KRW=X)'),
+      freq: srcOf('freq', '평가총액: 나의 자산 조회와 같은 시세(<b>야후 파이낸스</b> 차트)', 'fx'),
+      list: srcOf('배당 내역 입력에 저장한 회차', 'div', 'tax', 'freq'),
+    },
+    '/divmgmt': {
+      list: srcOf('local', '현재가·연말 종가: <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', 'div', 'tax', 'freq', '미등록 알림: 야후 배당 이벤트와 저장한 회차를 앱이 비교', 'fx'),
+    },
+    '/me': {
+      sync: srcOf('<b>구글 드라이브 공식 API</b>(googleapis.com) — 사용자 동의(OAuth) 후 앱이 만든 파일만 접근(drive.file), 암호화한 동기화 파일을 내 드라이브 K-Stock 폴더에 저장', '계정 선택: 안드로이드 시스템 계정 선택 창'),
+      backup: srcOf('백업 파일: 이 기기에서 만들어 사용자가 고른 위치에 저장(외부 호출 없음)'),
+      share: srcOf('공유: 같은 앱 안의 사용자끼리, 동기화 시 구글 드라이브 파일에 함께 저장'),
+      dash: srcOf('none'),
+    },
+  };
+  const DASH_SRC = {
+    domestic: srcOf('지수(코스피 ^KS11·코스닥 ^KQ11): <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', '한국 증시 개장·휴장: 야후 일별 시세 + 앱에 내장한 KRX 휴장일표'),
+    us: srcOf('지수(S&P 500 ^GSPC·나스닥 ^IXIC)·미국채 금리(^TNX·^TYX): <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', '미국 증시 개장·휴장: 야후 일별 시세 + 앱이 규칙으로 계산한 NYSE·나스닥 휴장일'),
+    etc: srcOf('원/달러 환율(KRW=X)·WTI(CL=F): <b>야후 파이낸스</b> 차트 내부 주소 직접 호출', '금시세 1돈: 국제 금값(GC=F, 야후) × 환율 ÷ 31.1035g × 3.75g 로 앱이 계산'),
+    mine: srcOf('local', 'yq', 'fx'),
+    kw: srcOf('국내 종목 뉴스: <b>네이버 증권</b> 종목 뉴스 내부 주소(m.stock.naver.com/api/news) 직접 호출', '해외 종목 뉴스: <b>야후 파이낸스</b> 검색 내부 주소 직접 호출', '보조: <b>구글 뉴스</b> 공개 RSS(news.google.com/rss)', '기사 제목에서 키워드만 앱이 뽑고, 원문은 링크로 이동(본문 저장 안 함)'),
+  };
+  function decorateSources() {
+    const path = (location.hash.replace(/^#/, '').split('?')[0]) || '/home';
+    const map = SRC_MAP[path] || {};
+    document.querySelectorAll('.main .card').forEach((card) => {
+      if (card.classList.contains('empty') || card.querySelector(':scope > .src-note')) return;
+      let text = null;
+      const key = card.dataset.ckey || card.dataset.fold;
+      if (key && map[key]) text = map[key];
+      else if (card.classList.contains('kw-card')) text = DASH_SRC.kw;
+      else if (card.classList.contains('dash-group')) text = DASH_SRC[card.dataset.dg] || DASH_SRC.etc;
+      else if (key) text = SRC.none;
+      if (!text) return;
+      const p = document.createElement('p');
+      p.className = 'src-note small';
+      p.setAttribute('data-noi18n', '');
+      p.innerHTML = `<span class="src-tag">출처·방법</span> ${text}`;
+      card.appendChild(p);
+    });
+  }
   let enhanceQueued = false;
   new MutationObserver(() => {
     if (enhanceQueued) return;
@@ -1189,6 +1280,7 @@
       enhanceQueued = false;
       try { enhanceTables(); } catch (_) { /* 무시 */ }
       try { decorateLoading(); } catch (_) { /* 무시 */ }
+      try { decorateSources(); } catch (_) { /* 무시 */ }
     });
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 
@@ -4458,7 +4550,7 @@
     box.innerHTML = d.groups.map((g) => {
       const its = d.items.filter((x) => x.group === g.id);
       if (!its.length) return '';
-      return `<div class="card dash-group"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
+      return `<div class="card dash-group" data-dg="${esc(g.id)}"><h2 data-noi18n>${esc(isEn() ? ({ domestic: 'Korea', us: 'US', etc: 'Other', mine: 'My Assets' })[g.id] || g.label : g.label)}</h2><div class="dash-grid">${its.map(dashTile).join('')}</div></div>`;
     }).join('') + '<div data-kw></div>' + (isEn()
       ? `<p class="small muted" data-noi18n>Daily change = compared with the previous trading day's close · Market data source ${esc(d.source)} (updated every 3 min, may be delayed) · Yield changes in %p · Market hours are regular sessions (US daylight saving applied automatically); closed means no trading that day and the next regular session is on another day · Today's P&amp;L in My assets = price change since the previous close × shares held × current FX rate · as of ${esc(fmtTime(d.at))}</p>`
       : `<p class="small muted">전일 대비 = 직전 거래일 종가와 비교 · 시장 지표 출처 ${esc(d.source)}(3분마다 갱신, 지연될 수 있음) · 금리 증감은 %p · 증시 개장 시간은 정규장 기준(미국은 서머타임 자동 반영), 휴장은 그날 거래가 없고 다음 정규장이 다른 날일 때 · 나의 자산의 오늘 수익 = 전일 대비 가격 변동 × 보유 수량 × 현재 환율 · ${esc(fmtTime(d.at))} 조회</p>`);

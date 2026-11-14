@@ -1024,7 +1024,7 @@ router.delete('/groups/:id', (req, res) => {
 // ---------------------------------------------------------------------------
 // 화면 설정: 마지막 조회 기간·선택 연도를 회원별로 저장 (v0.5)
 // ---------------------------------------------------------------------------
-const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'ui.reqids', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'mydiv.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'mydiv.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order', 'dash.keywords'];
+const SETTING_KEYS = ['ui.theme', 'ui.lang', 'ui.reqcodes', 'ui.reqids', 'ui.srcinfo', 'stock.recent', 'stock.collapsed', 'yearly.collapsed', 'mydiv.collapsed', 'holdings.collapsed', 'me.collapsed', 'stock.period', 'yearly.range', 'dividends.filter', 'assets.year', 'holdings.year', 'assets.group', 'holdings.group', 'assets.merged', 'mydiv.merged', 'assets.collapsed', 'divmgmt.year', 'divmgmt.group', 'divmgmt.collapsed', 'ui.cols', 'ui.foldInit', 'stock.finPeriod', 'dash.items', 'dash.order', 'dash.keywords'];
 
 // 홈 대시보드 (v0.28.0): 공유받은 사람이 보면 req.user 가 공유한 사람이므로 그 사람의 항목 설정대로
 router.get('/dashboard', async (req, res) => res.json(await dashboard.getDashboard(req.user.id)));

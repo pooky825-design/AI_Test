@@ -1015,3 +1015,10 @@ td .pend-bell, .pend-bell { width: auto; height: auto; padding: 1px 7px; margin-
   .divm-table th:nth-child(9) { width: 54.5px; }
 }
 .divm-table thead th { white-space: normal; word-break: keep-all; } /* 좁아진 열 이름은 낱말 단위 줄바꿈 */
+/* v0.30.93 외부 자료 출처·방법 표시(개발자 환경 설정에서 켬) */
+.src-note { display: none; margin: 10px 0 0; padding: 7px 10px; border: 1px dashed var(--t-300); border-radius: 8px; background: color-mix(in srgb, var(--t-50) 60%, var(--surface)); color: var(--muted); line-height: 1.6; white-space: normal; }
+.show-src .src-note { display: block; }
+.src-note b { color: var(--text); font-weight: 700; }
+.src-tag { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: var(--t-100); color: var(--t-900); font-weight: 700; font-size: 11px; }
+.dev-sec + .dev-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.dev-sec h3 { margin: 0 0 8px; font-size: 14px; }
