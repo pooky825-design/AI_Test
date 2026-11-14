@@ -1022,3 +1022,6 @@ td .pend-bell, .pend-bell { width: auto; height: auto; padding: 1px 7px; margin-
 .src-tag { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: var(--t-100); color: var(--t-900); font-weight: 700; font-size: 11px; }
 .dev-sec + .dev-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .dev-sec h3 { margin: 0 0 8px; font-size: 14px; }
+/* v0.30.95 종목 조회 투자지표·대시보드 상세 창의 ‘출처’: 개발자 환경 설정(외부 자료 출처·방법 표시)을 켰을 때만 */
+.src-inline { display: none; }
+.show-src .src-inline { display: inline; }

@@ -1676,7 +1676,7 @@
         <div class="kpi"><div class="label">매출 / 영업이익</div><div class="value small-v" data-noi18n>${eokText(base && base.revenue)}<br/>${eokText(base && base.op)}</div><div class="sub">${base ? `<small class="muted">${esc(base.period)} 기준(작년 연말)</small>` : '<small class="muted">자료 없음</small>'}</div></div>
       </div>
       ${f.reason === 'noFinance' ? '<div class="empty">이 종목은 실적 자료가 없습니다.</div>' : ''}
-      <p class="small muted" style="margin:8px 0 0">출처 ${esc(f.source || '-')}${f.stale ? ' (최신 값이 아닐 수 있음)' : ''} · 6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p></div>
+      <p class="small muted" style="margin:8px 0 0"><span class="src-inline">출처 ${esc(f.source || '-')} · </span>${f.stale ? '최신 값이 아닐 수 있음 · ' : ''}6시간 동안 재사용 · 투자 판단의 참고 자료입니다.</p></div>
       ${f.reason === 'noFinance' ? '' : `<div class="card" data-fold="earnings"><h2>실적 <span class="unit-note">(단위: 억원, 영업이익률 %)</span>
           <select class="fin-period" data-finper aria-label="실적 기간"><option value="annual" ${per0 === 'annual' ? 'selected' : ''}>연간</option><option value="quarter" ${per0 === 'quarter' ? 'selected' : ''}>분기</option></select></h2>
         <div data-fin-body></div></div>`}`;
@@ -4509,7 +4509,7 @@
         ${dailyTable(d, f)}
         <h3 class="dd-sub">주요 수치</h3>
         <div class="table-wrap"><table class="dd-stats"><tbody>${rows.map(([k, v]) => `<tr><th class="left">${esc(k)}</th><td class="right" data-noi18n>${esc(v)}</td></tr>`).join('')}</tbody></table></div>
-        <p class="small muted" style="margin:8px 0 0">출처 ${esc(d.source)} · 시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
+        <p class="small muted" style="margin:8px 0 0"><span class="src-inline">출처 ${esc(d.source)} · </span>시세는 지연될 수 있으며 투자 권유가 아닌 참고용입니다${d.kind === 'gold' ? ' · 국내 금 소매가(부가세·수수료 포함)와는 차이가 있습니다' : ''}</p>`;
       body.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => load(b.dataset.range)));
       if (chart) { chart.destroy(); chart = null; }
       const canvas = body.querySelector('canvas');
