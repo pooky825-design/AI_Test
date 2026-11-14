@@ -9,9 +9,21 @@
 <body>
   <main class="wrap">
     <header class="top">
-      <h1>배당 일정 조회</h1>
+      <div class="title-row">
+        <h1>배당 일정 조회</h1>
+        <button id="settingsBtn" class="icon-btn hidden" type="button" aria-label="설정">⚙︎</button>
+      </div>
       <p class="muted">SEIBro(한국예탁결제원) 배당정보로 배당기준일·지급일·주당배당금을 확인합니다.</p>
       <div id="demoBanner" class="banner hidden"></div>
+      <form id="settings" class="settings hidden">
+        <label for="keyInput"><b>공공데이터포털 서비스키</b></label>
+        <p class="muted">data.go.kr에서 「금융위원회_주식배당정보」를 활용신청한 뒤 받은 <b>일반 인증키</b>를 붙여넣으세요. 키는 이 기기에만 저장됩니다.</p>
+        <div class="search">
+          <input id="keyInput" type="text" placeholder="서비스키" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <button type="submit">저장</button>
+        </div>
+        <button id="keyClear" class="link-btn" type="button">지우기 (데모 모드)</button>
+      </form>
     </header>
 
     <nav class="tabs" role="tablist">

@@ -4,11 +4,17 @@
   "description": "SEIBro(한국예탁결제원) 배당정보로 주식 배당기준일·지급일·배당금을 조회하는 앱",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": ">=20.12" },
+  "engines": {
+    "node": ">=20.12"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build:apk": "./android/build.sh"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
 }

@@ -23,7 +23,7 @@ SEIBro의 배당 데이터는 공공데이터포털의 **「금융위원회_주�
 
 ## 실행 방법
 
-필요한 것: Node.js 20.12 이상. **외부 패키지가 없어 `npm install`이 필요 없습니다.**
+필요한 것: Node.js 20.12 이상. 웹 서버는 외부 패키지가 없어 `npm install` 없이 실행됩니다.
 
 ```bash
 cd dividend-app
@@ -34,6 +34,28 @@ npm start                 # http://localhost:3100
 - 서비스키를 넣지 않으면 **데모 모드**로 실행됩니다. 가상의 회사(예시전자, 샘플금융지주, 테스트화학)로 만든 예시 데이터라 실제 종목 정보가 아닙니다.
 - 인코딩된 키(`%2B` 등 포함)를 넣어도 자동으로 처리합니다.
 - 테스트: `npm test`
+
+## 안드로이드 앱 (APK)
+
+서버 없이 휴대폰에서 바로 동작하는 앱입니다 (Android 6.0 이상, 약 50KB).
+
+1. `dividend-schedule.apk`를 휴대폰에 옮겨 설치합니다 ("출처를 알 수 없는 앱" 설치 허용 필요).
+2. 처음에는 **데모 모드**(가상의 예시 데이터)로 열립니다.
+3. 오른쪽 위 **⚙︎ 설정**에 공공데이터포털 **일반 인증키**를 붙여넣고 저장하면 실제 배당정보를 조회합니다. 키는 기기에만 저장됩니다.
+4. CSV 저장을 누르면 저장 위치를 고르는 화면이 열립니다.
+
+앱은 공공데이터포털(`apis.data.go.kr`)에만 직접 접속합니다. WebView의 CORS 제한을 피하려고 API 요청은 안드로이드 쪽(`HttpURLConnection`)에서 보냅니다.
+
+### 빌드 방법 (Ubuntu/Debian)
+
+```bash
+sudo apt-get install android-sdk-platform-23 aapt apksigner zipalign dalvik-exchange openjdk-17-jdk
+cd dividend-app
+npm install               # esbuild (앱용 번들에만 필요)
+npm run build:apk         # 결과물: dist/dividend-schedule.apk
+```
+
+Gradle/Android Studio 없이 빌드합니다. 처음 빌드할 때 `~/.android/dividend-schedule.keystore` 서명 키가 만들어집니다. 같은 키로 서명해야 기존 앱 위에 업데이트 설치가 되므로 이 파일을 보관하세요.
 
 ## API
 
@@ -64,8 +86,11 @@ npm start                 # http://localhost:3100
 | 파일 | 역할 |
 |---|---|
 | `src/seibro.js` | API 호출(페이지 자동 순회, 오류 해석), 종목코드→ISIN 변환, 응답 정리 |
+| `src/service.js` | 검색 로직 + 6시간 메모리 캐시 (서버와 앱이 함께 사용) |
 | `src/demo.js` | 데모 모드용 가상 응답 |
-| `server.js` | Node 내장 `http` 서버, 6시간 메모리 캐시 |
+| `server.js` | Node 내장 `http` 서버 |
+| `mobile/entry.js` | 앱용: 서버 대신 앱 안에서 API 호출 (`window.LocalDividend`) |
+| `android/` | 안드로이드 앱 (`MainActivity.java`: WebView + HTTP/서비스키 저장/파일 저장 브리지), 빌드 스크립트 |
 | `public/` | 화면 (`index.html`, `app.js`, `style.css`) |
 | `test/` | `node:test` 단위 테스트 |
 

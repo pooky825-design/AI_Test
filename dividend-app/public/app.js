@@ -21,7 +21,17 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
+// 안드로이드 앱에서는 서버 대신 앱 안의 LocalDividend(mobile/entry.js)를 사용
+const Local = window.LocalDividend || null;
+
 async function api(path) {
+  if (Local) {
+    const url = new URL(path, "http://app");
+    if (url.pathname === "/api/config") return Local.config();
+    if (url.pathname === "/api/dividends") return Local.search(url.searchParams.get("q") || "");
+    if (url.pathname === "/api/dividends/by-date") return Local.byDate(url.searchParams.get("date") || "");
+    throw new Error("없는 API입니다.");
+  }
   const res = await fetch(path);
   const data = await res.json().catch(() => ({ error: `서버 응답 오류 (HTTP ${res.status})` }));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -161,8 +171,10 @@ function downloadCsv(stock) {
   const header = ["종목명", "종목코드", "ISIN", "배당기준일", "현금배당지급일", "주식교부일", "배당구분", "주당일반배당금", "주당차등배당금", "현금배당률(%)", "주식배당률(%)", "액면가", "데이터기준일"];
   const lines = stock.dividends.map((d) => [stock.name, stock.code, stock.isinCd, d.recordDate, d.payDate, d.stockDeliveryDate, d.dividendKind, d.dps, d.dpsDiff, d.cashRate, d.stockRate, d.parValue, d.basDt]);
   const csv = [header, ...lines].map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }); // 엑셀 한글 깨짐 방지 BOM
-  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `배당_${stock.name}_${stock.code || stock.isinCd}.csv` });
+  const fileName = `배당_${stock.name}_${stock.code || stock.isinCd}.csv`;
+  if (window.AndroidBridge?.saveFile) return window.AndroidBridge.saveFile(fileName, csv); // 앱: 저장 위치 선택 화면
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }); // 엑셀 한글 깨짐 방지 BOM
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: fileName });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -217,16 +229,36 @@ $("#dateForm").addEventListener("submit", (e) => {
   });
 });
 
+// ---------- 설정 (앱 전용: 서비스키 입력) ----------
+if (Local) {
+  $("#settingsBtn").classList.remove("hidden");
+  $("#settingsBtn").addEventListener("click", () => {
+    $("#keyInput").value = Local.getServiceKey();
+    $("#settings").classList.toggle("hidden");
+  });
+  $("#settings").addEventListener("submit", (e) => {
+    e.preventDefault();
+    Local.setServiceKey($("#keyInput").value);
+    $("#settings").classList.add("hidden");
+    resultsEl.innerHTML = "";
+    $("#upcomingWrap").classList.add("hidden");
+    start().then(() => setStatus(Local.getServiceKey() ? "서비스키를 저장했습니다. 종목을 조회해 보세요." : "서비스키를 지웠습니다. 데모 모드로 동작합니다."));
+  });
+  $("#keyClear").addEventListener("click", () => {
+    $("#keyInput").value = "";
+  });
+}
+
 // ---------- 시작 ----------
-(async () => {
+async function start() {
   try {
     const cfg = await api("/api/config");
     today = cfg.today;
     $("#date").value = `${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6, 8)}`;
+    const b = $("#demoBanner");
+    b.classList.toggle("hidden", !cfg.demo);
     if (cfg.demo) {
-      const b = $("#demoBanner");
-      b.textContent = `데모 모드: 서비스키가 설정되지 않아 가상의 예시 데이터를 보여줍니다. 예시 검색어: ${cfg.demoHint}`;
-      b.classList.remove("hidden");
+      b.textContent = `데모 모드: 서비스키가 설정되지 않아 가상의 예시 데이터를 보여줍니다. ${Local ? "오른쪽 위 ⚙︎ 설정에서 서비스키를 입력하세요. " : ""}예시 검색어: ${cfg.demoHint}`;
       renderRecent(cfg.demoHint.split(", "));
     } else {
       renderRecent();
@@ -234,4 +266,5 @@ $("#dateForm").addEventListener("submit", (e) => {
   } catch (err) {
     setStatus(`서버에 연결할 수 없습니다: ${err.message}`, true);
   }
-})();
+}
+start();
