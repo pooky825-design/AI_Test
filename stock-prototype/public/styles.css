@@ -889,7 +889,7 @@ form[data-search] .code-name { align-self: center; padding: 0 4px; color: var(--
 .side .side-sep { border: 0; border-top: 1.5px solid rgba(255, 255, 255, .35); margin: 6px 10px; }
 /* v0.30.39 배당 내역 조회: 그룹 이름 배지 */
 .badge.grp-tag { background: var(--t-50); color: var(--t-700); border-color: var(--t-200); margin-left: 2px; }
-/* v0.30.40 보유 종목 등록(변경) 표: 메모 칸 폭 30% 줄임 (약 15% → 10.7%) */
+/* v0.30.40 보유 종목 입력(변경) 표: 메모 칸 폭 30% 줄임 (약 15% → 10.7%) */
 th.memo-col, td.memo-col { width: 10.7%; min-width: 94px; white-space: normal; overflow-wrap: anywhere; } /* 기존 폭의 70% */
 
 /* v0.30.47 6자리 칸(동기화 비밀번호): 좁은 화면에서도 한 줄 */
@@ -956,9 +956,9 @@ table.yr-detail { table-layout: fixed; width: 100%; min-width: 1040px; }
 table:has(.th-period) thead th { vertical-align: top; }
 /* v0.30.74 모든 표: 칸 내용을 위쪽에 맞춰 두 줄 칸(금액·비중 등)의 첫 줄과 한 줄 칸이 가로로 나란히 */
 table th, table td { vertical-align: top; }
-/* v0.30.75 보유 종목 등록 입력 상자: 입력 항목 이름(라벨) 가운데 정렬 */
+/* v0.30.75 보유 종목 입력 입력 상자: 입력 항목 이름(라벨) 가운데 정렬 */
 form[data-add] .field > label { display: block; text-align: center; }
-/* v0.30.79 보유 종목 등록 입력 상자: 라벨 한 단계 크게·진하게, 칸 아래 안내·오류 글은 칸 기준 가운데, 필수 입력 표시 */
+/* v0.30.79 보유 종목 입력 입력 상자: 라벨 한 단계 크게·진하게, 칸 아래 안내·오류 글은 칸 기준 가운데, 필수 입력 표시 */
 form[data-add] .field > label { font-size: 13px; font-weight: 700; color: var(--text); }
 form[data-add] .field > .hint, form[data-add] .field > .err { display: block; text-align: center; }
 .req-mark { display: inline-block; color: #dc2626; font-weight: 800; margin-right: 3px; }
@@ -968,7 +968,7 @@ button:has(> .btn-ico) { display: inline-flex; align-items: center; gap: 6px; }
 /* v0.30.81 전년도 일괄이월 버튼: 테마 색을 아주 살짝 */
 button.carry-btn { background: var(--t-50); border-color: var(--t-200); color: var(--t-900); }
 button.carry-btn:hover { background: var(--t-100); }
-/* v0.30.83 배당 내역 등록: 최근 1개월 미등록 배당 알림(종 아이콘) */
+/* v0.30.83 배당 내역 입력: 최근 1개월 미등록 배당 알림(종 아이콘) */
 .pend-bell { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; margin-left: 2px; border: 1px solid #fca5a5; border-radius: 50%; background: #fee2e2; color: #dc2626; vertical-align: middle; cursor: pointer; animation: bellpulse 1.6s ease-in-out infinite; }
 .pend-bell:hover { background: #fecaca; filter: none; }
 @keyframes bellpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .35); } 50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); } }
@@ -993,7 +993,7 @@ td .pend-bell, .pend-bell { width: auto; height: auto; padding: 1px 7px; margin-
 .pend-bell:hover { background: #b91c1c; border-color: #b91c1c; animation-play-state: paused; opacity: 1; }
 @keyframes pendblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .pend-bell { animation: none; } }
-/* v0.30.91 배당 내역 등록 표: 종목 열 10% 확대(200→220px, 휴대폰 140→154px), 늘린 만큼 누적 과세표준액 열 축소. 다른 열은 그대로 */
+/* v0.30.91 배당 내역 입력 표: 종목 열 10% 확대(200→220px, 휴대폰 140→154px), 늘린 만큼 누적 과세표준액 열 축소. 다른 열은 그대로 */
 .divm-table { table-layout: fixed; width: 100%; }
 .divm-table th:nth-child(2) { width: 7.56%; }
 .divm-table th:nth-child(3) { width: 9.23%; }
